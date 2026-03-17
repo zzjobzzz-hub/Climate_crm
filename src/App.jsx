@@ -167,7 +167,7 @@ const GS_URL = "https://script.google.com/macros/s/AKfycbyWHr3FZ3sv05EAmgs8rEs0f
 // Read a full collection from Google Sheets
 const gsGet = async (collection) => {
   try {
-    const r = await fetch(`${GS_URL}?collection=${collection}`, {cache:"no-store", redirect:"follow"});
+    const r = await fetch(`${GS_URL}?collection=${collection}`, {cache:"no-store",redirect:"follow"});
     const j = await r.json();
     return j.ok ? j.data : [];
   } catch(e) { return []; }
@@ -177,6 +177,8 @@ const gsGet = async (collection) => {
 const gsSave = (collection, record, userId="", summary="") => {
   fetch(GS_URL, {
     method:"POST",
+    redirect:"follow",
+    headers:{"Content-Type":"text/plain"},
     body: JSON.stringify({action:"save", collection, record, userId, summary}),
   }).catch(()=>{});
 };
