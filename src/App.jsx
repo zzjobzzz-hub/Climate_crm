@@ -167,7 +167,7 @@ const GS_URL = "https://script.google.com/macros/s/AKfycbyWHr3FZ3sv05EAmgs8rEs0f
 // Read a full collection from Google Sheets
 const gsGet = async (collection) => {
   try {
-    const r = await fetch(`${GS_URL}?collection=${collection}`, {cache:"no-store"});
+    const r = await fetch(`${GS_URL}?collection=${collection}`, {cache:"no-store", redirect:"follow"});
     const j = await r.json();
     return j.ok ? j.data : [];
   } catch(e) { return []; }
@@ -1292,11 +1292,11 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
         {/* SECTION 2: DELIVERABLES */}
         <div style={{marginBottom:12}}>
           <SH n="2" label="Deliverables"/>
-          {f.deliverables.map((d)=>(
+          {(f.deliverables||[]).map((d)=>(
             <div key={d.id} style={{display:"flex",gap:8,alignItems:"center",marginBottom:6}}>
               <span style={{color:"#00b3a4",fontWeight:900,fontSize:14,flexShrink:0}}>✓</span>
               <Inp value={d.item} onChange={e=>setDlv(d.id,e.target.value)} style={{fontSize:11,padding:"4px 8px"}}/>
-              {f.deliverables.length>1&&<Btn variant="danger" style={{fontSize:10,padding:"2px 6px",flexShrink:0}} onClick={()=>delDlv(d.id)}>×</Btn>}
+              {(f.deliverables||[]).length>1&&<Btn variant="danger" style={{fontSize:10,padding:"2px 6px",flexShrink:0}} onClick={()=>delDlv(d.id)}>×</Btn>}
             </div>
           ))}
           <button onClick={addDlv} style={{marginTop:4,fontSize:11,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:5,padding:"4px 12px",cursor:"pointer"}}>+ Add Deliverable</button>
@@ -1315,7 +1315,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
               </tr>
             </thead>
             <tbody>
-              {f.installments.map((ins,idx)=>(
+              {(f.installments||[]).map((ins,idx)=>(
                 <tr key={ins.id} style={{borderBottom:"1px solid #f1f5f9"}}>
                   <td style={{padding:"6px 8px",color:"#94a3b8",fontWeight:700}}>{idx+1}</td>
                   <td style={{padding:"6px 8px"}}><Inp value={ins.label} onChange={e=>setInst(ins.id,"label",e.target.value)} style={{fontSize:11,padding:"3px 7px"}}/></td>
@@ -2903,9 +2903,9 @@ function App() {
       gsGet("costsheets"),
       gsGet("kpi"),
     ]).then(([c,o,d,cs,k])=>{
-      if(c.length)  sCusts(c);
-      if(o.length)  sOpps(o);
-      if(d.length)  sDlv(d);
+      if(c.length) sCusts(c.map(x=>({...x,id:String(x.id||"")})));
+      if(o.length) sOpps(o.map(x=>({...x,id:String(x.id||"")})));
+      if(d.length) sDlv(d.map(x=>({...x,id:String(x.id||"")})));
       // Merge loaded costSheets with defaults for any services not yet in Sheet
       if(cs.length){
         const merged = SEED_COST_SHEETS.map(def=>{
@@ -2976,12 +2976,12 @@ function App() {
               <div style={{fontSize:12,fontWeight:700,color:"#374151"}}>{user.name}</div>
               <div style={{fontSize:10,color:user.role==="md"?"#0ea5e9":user.role==="admin"?"#16a34a":user.role==="operation"?"#7c3aed":"#1e40af",textTransform:"uppercase",letterSpacing:"0.06em"}}>{user.role}</div>
             </div>
-            <button onClick={()=>{localStorage.removeItem("crm_user");sUser(null);}} style={{padding:"6px 12px",border:"1px solid #e2e8f0",borderRadius:5,background:"#fff",cursor:"pointer",fontSize:12,color:"#64748b"}}>Sign Out</button>
+            <button onClick={()=>{localStorage.removeItem("crm_user");sUser(null);window.location.reload();}} style={{padding:"6px 12px",border:"1px solid #e2e8f0",borderRadius:5,background:"#fff",cursor:"pointer",fontSize:12,color:"#64748b"}}>Sign Out</button>
           </div>
         </div>
       </div>
       <div style={{maxWidth:1440,margin:"0 auto",padding:24}}>
-        {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI}/>}
+        {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI} toast={toast}/>}
         {page==="customers" && <CustomersPage user={user} customers={customers} opps={opps} onSave={saveItem(sCusts,"customers")} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)}/>}
         {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveItem(sOpps,"opportunities")} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)}/>}
         {page==="delivery"  && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}}/>}
