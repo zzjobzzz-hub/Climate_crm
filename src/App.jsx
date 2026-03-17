@@ -162,7 +162,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // ═══════════════════════════════════════════════════════════════════════════
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // ═══════════════════════════════════════════════════════════════════════════
-const GS_URL = "https://script.google.com/macros/s/AKfycbyWHr3FZ3sv05EAmgs8rEs0fTXsIMZMr0SlI_w-KYPg0efQOcmDSWOWF7p_d4IuDNxGYw/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbz7_H0p6PvmsK6TzQc3R7_3nFNvYXeLtJNGBc37g7iKPwwCTrkqBlH1YJC-GHh00mJotQ/exec";
 
 // Read a full collection from Google Sheets
 const gsGet = async (collection) => {
@@ -177,8 +177,6 @@ const gsGet = async (collection) => {
 const gsSave = (collection, record, userId="", summary="") => {
   fetch(GS_URL, {
     method:"POST",
-    redirect:"follow",
-    headers:{"Content-Type":"text/plain"},
     body: JSON.stringify({action:"save", collection, record, userId, summary}),
   }).catch(()=>{});
 };
