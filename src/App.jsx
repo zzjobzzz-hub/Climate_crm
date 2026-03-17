@@ -2873,9 +2873,9 @@ const SetupPage = () => (
 const NAV = [
   {key:"dashboard",label:"Dashboard / KPI"},
   {key:"customers",label:"Customers"},
+  {key:"costsheet",label:"Cost Sheet"},
   {key:"opps",label:"Opportunities"},
   {key:"delivery",label:"Delivery"},
-  {key:"costsheet",label:"Cost Sheet"},
   {key:"setup",label:"Setup"},
 ];
 
