@@ -167,24 +167,29 @@ const GS_URL = "https://script.google.com/macros/s/AKfycbz7_H0p6PvmsK6TzQc3R7_3n
 // Read a full collection from Google Sheets
 const gsGet = async (collection) => {
   try {
-    const r = await fetch(`${GS_URL}?collection=${collection}`, {cache:"no-store"});
+    const r = await fetch(`${GS_URL}?collection=${collection}`, {
+      cache: "no-store",
+      redirect: "follow",
+    });
     const j = await r.json();
     return j.ok ? j.data : [];
   } catch(e) { return []; }
 };
 
-// Save (upsert) a single record — fire-and-forget, non-blocking
 const gsSave = (collection, record, userId="", summary="") => {
   fetch(GS_URL, {
-    method:"POST",
+    method: "POST",
+    redirect: "follow",
+    headers: {"Content-Type": "text/plain"},
     body: JSON.stringify({action:"save", collection, record, userId, summary}),
   }).catch(()=>{});
 };
 
-// Save entire collection (used for costsheets which have no simple id upsert)
 const gsSaveAll = (collection, records) => {
   fetch(GS_URL, {
-    method:"POST",
+    method: "POST",
+    redirect: "follow",
+    headers: {"Content-Type": "text/plain"},
     body: JSON.stringify({action:"saveAll", collection, records}),
   }).catch(()=>{});
 };
