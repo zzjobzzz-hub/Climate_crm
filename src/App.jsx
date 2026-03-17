@@ -162,7 +162,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // ═══════════════════════════════════════════════════════════════════════════
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // ═══════════════════════════════════════════════════════════════════════════
-const GS_URL = "https://script.google.com/macros/s/AKfycbwyFrPqvHmcxqiWnebBfUzo4MRISqhK3yxj4wO2WRhJcqtUJJtZgepLb-jqp7Ycbs4Wgw/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbzmj4yidOTkPN9Jkwd75zgs65xu73GoTZTTSqReIKlOTQziFYhR-n3ZI1BcZcODZLvgHA/exec";
 
 // Read a full collection from Google Sheets
 const gsGet = async (collection) => {
