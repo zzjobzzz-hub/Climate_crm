@@ -2884,7 +2884,7 @@ const NAV = [
 ];
 
 function App() {
-  const [user,sUser] = useState(()=>{ try { const s=localStorage.getItem("crm_user"); if(s){ const p=JSON.parse(s); return USERS.find(u=>u.id===p.id)||null; } } catch(e){} return null; });
+  const [user,sUser]         = useState(null);
   const [page,sPage]         = useState("dashboard");
   const [customers,sCusts]   = useState(SEED_CUSTOMERS);
   const [opps,sOpps]         = useState(SEED_OPPS);
@@ -2961,7 +2961,7 @@ function App() {
     );
   };
 
-  if(!user) return <LoginPage onLogin={u=>{localStorage.setItem("crm_user",JSON.stringify({id:u.id}));sUser(u);sPage("dashboard");}}/>;
+  if(!user) return <LoginPage onLogin={u=>{sUser(u);sPage("dashboard");}}/>;
 
   return (
     <div style={{minHeight:"100vh",background:"#f8fafc",fontFamily:"'DM Sans','Noto Sans Thai',system-ui,sans-serif"}}>
@@ -2980,12 +2980,12 @@ function App() {
               <div style={{fontSize:12,fontWeight:700,color:"#374151"}}>{user.name}</div>
               <div style={{fontSize:10,color:user.role==="md"?"#0ea5e9":user.role==="admin"?"#16a34a":user.role==="operation"?"#7c3aed":"#1e40af",textTransform:"uppercase",letterSpacing:"0.06em"}}>{user.role}</div>
             </div>
-            <button onClick={()=>{localStorage.removeItem("crm_user");sUser(null);window.location.reload();}} style={{padding:"6px 12px",border:"1px solid #e2e8f0",borderRadius:5,background:"#fff",cursor:"pointer",fontSize:12,color:"#64748b"}}>Sign Out</button>
+            <button onClick={()=>sUser(null)} style={{padding:"6px 12px",border:"1px solid #e2e8f0",borderRadius:5,background:"#fff",cursor:"pointer",fontSize:12,color:"#64748b"}}>Sign Out</button>
           </div>
         </div>
       </div>
       <div style={{maxWidth:1440,margin:"0 auto",padding:24}}>
-        {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI} toast={toast}/>}
+        {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI}/>}
         {page==="customers" && <CustomersPage user={user} customers={customers} opps={opps} onSave={saveItem(sCusts,"customers")} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)}/>}
         {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveItem(sOpps,"opportunities")} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)}/>}
         {page==="delivery"  && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}}/>}
