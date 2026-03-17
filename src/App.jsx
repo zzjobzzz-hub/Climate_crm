@@ -162,7 +162,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // ═══════════════════════════════════════════════════════════════════════════
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // ═══════════════════════════════════════════════════════════════════════════
-const GS_URL = "https://script.google.com/macros/s/AKfycbwM65AUt9E1Wp8Je1o8B5t5XWvHZr8fW3Rxve0HI6IJYNDBJSWtpPtI4IiBUWdUsFXo1Q/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbywD_YAL8cVKFRxUqZjlGKlJhlI7JdmrCv9wKmNBFADKaoxl4Q9n_g9lWqYxvtEhW7_xw/exec";
 
 // Read a full collection from Google Sheets
 const gsGet = async (collection) => {
@@ -193,6 +193,16 @@ const gsSaveAll = (collection, records) => {
   }).catch(()=>{});
 };
 
+
+// Delete a single record from Google Sheets
+const gsDelete = (collection, id) => {
+  fetch(GS_URL, {
+    method:"POST",
+    redirect:"follow",
+    headers:{"Content-Type":"text/plain"},
+    body: JSON.stringify({action:"delete", collection, id}),
+  }).catch(()=>{});
+};
 // ═══════════════════════════════════════════════════════════════════════════
 // UI PRIMITIVES
 // ═══════════════════════════════════════════════════════════════════════════
@@ -778,10 +788,14 @@ const CustForm = ({initial,user,onSave,onClose}) => {
 };
 
 const CUST_HDR = ["ID","Company EN","Industry","Province","Contacts","Agent","Ranking","Status","Last Contact","Remark"];
-const CustomersPage = ({user,customers,opps,onSave,toast,deliveries,initCustId,onCustReady}) => {
+const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,initCustId,onCustReady}) => {
   const [search,sS]=useState(""); const [fR,setFR]=useState([]); const [fSt,setFSt]=useState([]); const [fAg,setFAg]=useState([]);
   const [form,sF]=useState(false); const [edit,sE]=useState(null); const [gs,sGS]=useState(false);
   const [logCust,sLog]=useState(null);
+  const [delConfirm,sDelConfirm]=useState(null);
+  const [sort,setSort]=useState({col:"companyEN",dir:"asc"});
+  const toggleSort=col=>setSort(p=>({col,dir:p.col===col&&p.dir==="asc"?"desc":"asc"}));
+  const SortIcon=({col})=>sort.col===col?<span style={{marginLeft:3,fontSize:9,color:"#0f172a"}}>{sort.dir==="asc"?"▲":"▼"}</span>:<span style={{marginLeft:3,fontSize:9,color:"#cbd5e1"}}>⇅</span>;
   useEffect(()=>{if(initCustId){const c=customers.find(x=>x.id===initCustId);if(c){sE(c);sF(true);}if(onCustReady)onCustReady();}},[initCustId]);
   // Last contact: most recent of stored lastContact or delivery workLog timestamp
   // Auto-derive CRM status from latest OPP for this customer
@@ -803,7 +817,28 @@ const CustomersPage = ({user,customers,opps,onSave,toast,deliveries,initCustId,o
     if(!latest) return cust?.lastContact||"";
     return latest.slice(0,10) > (cust?.lastContact||"") ? latest.slice(0,10) : (cust?.lastContact||"");
   };
-  const list=useMemo(()=>customers.filter(c=>{const q=search.toLowerCase();return(!search||c.companyEN.toLowerCase().includes(q)||c.id.includes(q)||(c.contacts||[]).some(ct=>(ct.name||"").toLowerCase().includes(q)))&&(fR.length===0||fR.includes(c.ranking))&&(fSt.length===0||fSt.includes(c.status))&&(fAg.length===0||fAg.includes(c.assignedTo));}),[customers,search,fR,fSt,fAg]);
+  const list=useMemo(()=>{
+    const RANK_ORDER=["High","Medium","Low"];
+    const filtered=customers.filter(c=>{const q=search.toLowerCase();return(!search||c.companyEN.toLowerCase().includes(q)||c.id.includes(q)||(c.contacts||[]).some(ct=>(ct.name||"").toLowerCase().includes(q)))&&(fR.length===0||fR.includes(c.ranking))&&(fSt.length===0||fSt.includes(c.status))&&(fAg.length===0||fAg.includes(c.assignedTo));});
+    const {col,dir}=sort;
+    const getV=c=>{
+      if(col==="id") return c.id||"";
+      if(col==="companyEN") return (c.companyEN||"").toLowerCase();
+      if(col==="industry") return (c.industry||"").toLowerCase();
+      if(col==="province") return (c.province||"").toLowerCase();
+      if(col==="agent") return (USERS.find(u=>u.id===c.assignedTo)?.name||"").toLowerCase();
+      if(col==="ranking") return RANK_ORDER.indexOf(c.ranking);
+      if(col==="status"){const custOpps=(opps||[]).filter(o=>o.custId===c.id);if(!custOpps.length)return c.status||"";const srt=[...custOpps].sort((a,b)=>b.createdDate?.localeCompare(a.createdDate||"")||0);if(srt.some(o=>o.status==="Won"))return"Won";const act=srt.find(o=>o.status!=="Lost");return act?act.status:"Lost";}
+      if(col==="lastContact") return getLastContact(c.id)||"";
+      if(col==="remark") return (c.remark||"").toLowerCase();
+      return "";
+    };
+    return [...filtered].sort((a,b)=>{
+      const va=getV(a),vb=getV(b);
+      const cmp=(typeof va==="number"&&typeof vb==="number")?va-vb:String(va).localeCompare(String(vb),"th");
+      return dir==="asc"?cmp:-cmp;
+    });
+  },[customers,opps,deliveries,search,fR,fSt,fAg,sort]);
   const activeContacts = c => (c.contacts||[]).filter(ct=>ct.active);
   return (
     <div>
@@ -818,7 +853,17 @@ const CustomersPage = ({user,customers,opps,onSave,toast,deliveries,initCustId,o
         <MultiSelect label="Agents"  options={SALES_USERS.map(u=>({value:u.id,label:u.name.split(" ")[0]}))} selected={fAg} onChange={setFAg} width={175}/>
       </div>
       <Card><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}>
-        <TH cols={["Reg. No.","Company","Industry","Province","Contacts","Agent","Ranking","Status","Last Contact","Remark","Log",""]}/>
+        <thead><tr style={{background:"#f8fafc"}}>
+          {[{l:"Reg. No.",c:"id"},{l:"Company",c:"companyEN"},{l:"Industry",c:"industry"},{l:"Province",c:"province"},
+            {l:"Contacts",c:null},{l:"Agent",c:"agent"},{l:"Ranking",c:"ranking"},{l:"Status",c:"status"},
+            {l:"Last Contact",c:"lastContact"},{l:"Remark",c:"remark"},{l:"Log",c:null},{l:"",c:null}
+          ].map(({l,c})=>(
+            <th key={l} onClick={c?()=>toggleSort(c):undefined}
+              style={{padding:"9px 12px",textAlign:"left",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",cursor:c?"pointer":"default",userSelect:"none",color:sort.col===c?"#0f172a":"#64748b",background:sort.col===c?"#f1f5f9":"#f8fafc",transition:"background .15s"}}>
+              {l}{c&&<SortIcon col={c}/>}
+            </th>
+          ))}
+        </tr></thead>
         <tbody>{list.map(c=>(
           <TR key={c.id} onClick={()=>{sE(c);sF(true);}}>
             <TD style={{fontFamily:"monospace",fontSize:11}}>{c.id}</TD>
@@ -836,12 +881,38 @@ const CustomersPage = ({user,customers,opps,onSave,toast,deliveries,initCustId,o
             <TD style={{color:getLastContact(c.id)?"#374151":"#94a3b8"}}>{getLastContact(c.id)||"—"}</TD>
             <TD w={160} style={{color:"#64748b",fontSize:12}}>{c.remark||"—"}</TD>
             <TD><button onClick={e=>{e.stopPropagation();sLog(c);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11}}>💬 {(c.workLog||[]).length}</button></TD>
-            <TD><Btn variant="ghost" style={{fontSize:11,padding:"3px 8px"}} onClick={e=>{e.stopPropagation();sE(c);sF(true);}}>Edit</Btn></TD>
+            <TD>
+              <div style={{display:"flex",gap:4}}>
+                <Btn variant="ghost" style={{fontSize:11,padding:"3px 8px"}} onClick={e=>{e.stopPropagation();sE(c);sF(true);}}>Edit</Btn>
+                <Btn variant="danger" style={{fontSize:11,padding:"3px 7px"}} onClick={e=>{e.stopPropagation();sDelConfirm(c);}}>Delete</Btn>
+              </div>
+            </TD>
           </TR>
         ))}</tbody>
       </table>{list.length===0&&<div style={{padding:40,textAlign:"center",color:"#94a3b8"}}>No records.</div>}</div></Card>
       {form&&<CustForm initial={edit} user={user} onSave={c=>{onSave(c);sF(false);toast("Customer saved",c.companyEN);}} onClose={()=>sF(false)}/>}
       {gs&&<GSGuideModal module="Customers" headers={CUST_HDR} onClose={()=>sGS(false)}/>}
+      {delConfirm&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:400,boxShadow:"0 24px 64px rgba(0,0,0,.25)",padding:"28px 28px 24px",textAlign:"center"}}>
+            <div style={{width:52,height:52,background:"#fee2e2",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",fontSize:22}}>🗑️</div>
+            <div style={{fontSize:17,fontWeight:800,color:"#0f172a",marginBottom:6}}>Delete Customer?</div>
+            <div style={{fontSize:13,color:"#374151",marginBottom:4}}><strong>{delConfirm.companyEN}</strong></div>
+            <div style={{fontFamily:"monospace",fontSize:11,color:"#64748b",marginBottom:10}}>{delConfirm.id}</div>
+            <div style={{fontSize:12,color:"#dc2626",background:"#fee2e2",border:"1px solid #fecaca",borderRadius:6,padding:"7px 12px",marginBottom:20}}>
+              ⚠ ลบออกจาก Google Sheets ด้วย ไม่สามารถกู้คืนได้
+            </div>
+            <div style={{display:"flex",gap:8,justifyContent:"center"}}>
+              <Btn variant="ghost" style={{minWidth:100}} onClick={()=>sDelConfirm(null)}>Cancel</Btn>
+              <button style={{minWidth:100,padding:"8px 16px",borderRadius:5,fontSize:13,fontWeight:700,cursor:"pointer",background:"#dc2626",color:"#fff",border:"none"}} onClick={()=>{
+                onDelete(delConfirm.id);
+                toast("ลบแล้ว",delConfirm.companyEN,"error");
+                sDelConfirm(null);
+              }}>ยืนยัน ลบ</button>
+            </div>
+          </div>
+        </div>
+      )}
       {logCust&&(
         <Modal title={`Work Log — ${logCust.companyEN}`} width={700} onClose={()=>sLog(null)}>
           {/* Summary header */}
@@ -2884,7 +2955,7 @@ const NAV = [
 ];
 
 function App() {
-  const [user,sUser]         = useState(null);
+  const [user,sUser] = useState(()=>{ try { const s=localStorage.getItem("crm_user"); if(s){ const p=JSON.parse(s); return USERS.find(u=>u.id===p.id)||null; } } catch(e){} return null; });
   const [page,sPage]         = useState("dashboard");
   const [customers,sCusts]   = useState(SEED_CUSTOMERS);
   const [opps,sOpps]         = useState(SEED_OPPS);
@@ -2929,12 +3000,16 @@ function App() {
 
   // ── saveItem: update local state + push to Google Sheets ──────────────────
   const saveItem = (setter, collection) => item => {
-    const normalized = (item.custId !== undefined)
-      ? {...item, id:String(item.id||""), custId:String(item.custId||"")}
-      : {...item, id:String(item.id||"")};
-    setter(p => p.find(x=>x.id===normalized.id) ? p.map(x=>x.id===normalized.id?normalized:x) : [...p,normalized]);
-    const itemToSave = normalized;
-    if(collection) gsSave(collection, itemToSave);
+    const norm = (item.custId!==undefined)
+      ? {...item,id:String(item.id||""),custId:String(item.custId||"")}
+      : {...item,id:String(item.id||"")};
+    setter(p => p.find(x=>x.id===norm.id) ? p.map(x=>x.id===norm.id?norm:x) : [...p,norm]);
+    if(collection) gsSave(collection, norm);
+  };
+  // ── deleteItem: remove from local state + delete from Google Sheets ───────
+  const deleteItem = (setter, collection) => id => {
+    setter(p => p.filter(x=>x.id!==id));
+    if(collection) gsDelete(collection, id);
   };
 
   // ── saveCS: update local + push entire costsheets collection ──────────────
@@ -2965,7 +3040,7 @@ function App() {
     );
   };
 
-  if(!user) return <LoginPage onLogin={u=>{sUser(u);sPage("dashboard");}}/>;
+  if(!user) return <LoginPage onLogin={u=>{localStorage.setItem("crm_user",JSON.stringify({id:u.id}));sUser(u);sPage("dashboard");}}/>;
 
   return (
     <div style={{minHeight:"100vh",background:"#f8fafc",fontFamily:"'DM Sans','Noto Sans Thai',system-ui,sans-serif"}}>
@@ -2984,13 +3059,13 @@ function App() {
               <div style={{fontSize:12,fontWeight:700,color:"#374151"}}>{user.name}</div>
               <div style={{fontSize:10,color:user.role==="md"?"#0ea5e9":user.role==="admin"?"#16a34a":user.role==="operation"?"#7c3aed":"#1e40af",textTransform:"uppercase",letterSpacing:"0.06em"}}>{user.role}</div>
             </div>
-            <button onClick={()=>sUser(null)} style={{padding:"6px 12px",border:"1px solid #e2e8f0",borderRadius:5,background:"#fff",cursor:"pointer",fontSize:12,color:"#64748b"}}>Sign Out</button>
+            <button onClick={()=>{localStorage.removeItem("crm_user");sUser(null);window.location.reload();}} style={{padding:"6px 12px",border:"1px solid #e2e8f0",borderRadius:5,background:"#fff",cursor:"pointer",fontSize:12,color:"#64748b"}}>Sign Out</button>
           </div>
         </div>
       </div>
       <div style={{maxWidth:1440,margin:"0 auto",padding:24}}>
-        {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI}/>}
-        {page==="customers" && <CustomersPage user={user} customers={customers} opps={opps} onSave={saveItem(sCusts,"customers")} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)}/>}
+        {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI} toast={toast}/>}
+        {page==="customers" && <CustomersPage user={user} customers={customers} opps={opps} onSave={saveItem(sCusts,"customers")} onDelete={deleteItem(sCusts,"customers")} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)}/>}
         {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveItem(sOpps,"opportunities")} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)}/>}
         {page==="delivery"  && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}}/>}
         {page==="costsheet" && <CostSheetPage costSheets={costSheets} onSave={saveCS} customers={customers} opps={opps} user={user} onSaveOpp={saveItem(sOpps,"opportunities")} toast={toast} initSvcCode={initSvcCode} onSvcReady={()=>sSvcCode(null)}/>}
