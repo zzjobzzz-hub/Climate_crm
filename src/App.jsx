@@ -828,7 +828,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
       if(col==="province") return (c.province||"").toLowerCase();
       if(col==="agent") return (USERS.find(u=>u.id===c.assignedTo)?.name||"").toLowerCase();
       if(col==="ranking") return RANK_ORDER.indexOf(c.ranking);
-      if(col==="status"){const custOpps=(opps||[]).filter(o=>o.custId===c.id);if(!custOpps.length)return c.status||"";const srt=[...custOpps].sort((a,b)=>b.createdDate?.localeCompare(a.createdDate||"")||0);if(srt.some(o=>o.status==="Won"))return"Won";const act=srt.find(o=>o.status!=="Lost");return act?act.status:"Lost";}
+      if(col==="status") return c.status||"";
       if(col==="lastContact") return getLastContact(c.id)||"";
       if(col==="remark") return (c.remark||"").toLowerCase();
       return "";
@@ -859,7 +859,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
             {l:"Last Contact",c:"lastContact"},{l:"Remark",c:"remark"},{l:"Log",c:null},{l:"",c:null}
           ].map(({l,c})=>(
             <th key={l} onClick={c?()=>toggleSort(c):undefined}
-              style={{padding:"9px 12px",textAlign:"left",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",cursor:c?"pointer":"default",userSelect:"none",color:sort.col===c?"#0f172a":"#64748b",background:sort.col===c?"#f1f5f9":"#f8fafc",transition:"background .15s"}}>
+              style={{padding:"9px 12px",textAlign:"left",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",cursor:c?"pointer":"default",userSelect:"none",color:sort.col===c?"#0f172a":"#64748b",background:sort.col===c?"#f1f5f9":"#f8fafc"}}>
               {l}{c&&<SortIcon col={c}/>}
             </th>
           ))}
@@ -893,22 +893,33 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
       {form&&<CustForm initial={edit} user={user} onSave={c=>{onSave(c);sF(false);toast("Customer saved",c.companyEN);}} onClose={()=>sF(false)}/>}
       {gs&&<GSGuideModal module="Customers" headers={CUST_HDR} onClose={()=>sGS(false)}/>}
       {delConfirm&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-          <div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:400,boxShadow:"0 24px 64px rgba(0,0,0,.25)",padding:"28px 28px 24px",textAlign:"center"}}>
-            <div style={{width:52,height:52,background:"#fee2e2",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",fontSize:22}}>🗑️</div>
-            <div style={{fontSize:17,fontWeight:800,color:"#0f172a",marginBottom:6}}>Delete Customer?</div>
-            <div style={{fontSize:13,color:"#374151",marginBottom:4}}><strong>{delConfirm.companyEN}</strong></div>
-            <div style={{fontFamily:"monospace",fontSize:11,color:"#64748b",marginBottom:10}}>{delConfirm.id}</div>
-            <div style={{fontSize:12,color:"#dc2626",background:"#fee2e2",border:"1px solid #fecaca",borderRadius:6,padding:"7px 12px",marginBottom:20}}>
-              ⚠ ลบออกจาก Google Sheets ด้วย ไม่สามารถกู้คืนได้
+        <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,.5)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:420,boxShadow:"0 32px 80px rgba(0,0,0,.2)",overflow:"hidden"}}>
+            {/* Red header strip */}
+            <div style={{background:"#fef2f2",borderBottom:"1px solid #fecaca",padding:"24px 28px 20px",textAlign:"center"}}>
+              <div style={{width:48,height:48,background:"#fee2e2",border:"1.5px solid #fecaca",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}>
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M8 4h4M3 6h14M5 6l1 10a1 1 0 001 1h6a1 1 0 001-1l1-10" stroke="#dc2626" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </div>
+              <div style={{fontSize:16,fontWeight:800,color:"#0f172a",letterSpacing:"-0.01em"}}>Delete Customer</div>
+              <div style={{fontSize:12,color:"#ef4444",marginTop:4}}>This action cannot be undone</div>
             </div>
-            <div style={{display:"flex",gap:8,justifyContent:"center"}}>
-              <Btn variant="ghost" style={{minWidth:100}} onClick={()=>sDelConfirm(null)}>Cancel</Btn>
-              <button style={{minWidth:100,padding:"8px 16px",borderRadius:5,fontSize:13,fontWeight:700,cursor:"pointer",background:"#dc2626",color:"#fff",border:"none"}} onClick={()=>{
-                onDelete(delConfirm.id);
-                toast("ลบแล้ว",delConfirm.companyEN,"error");
-                sDelConfirm(null);
-              }}>ยืนยัน ลบ</button>
+            {/* Body */}
+            <div style={{padding:"20px 28px 24px"}}>
+              <div style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,padding:"12px 16px",marginBottom:20}}>
+                <div style={{fontSize:14,fontWeight:700,color:"#0f172a",marginBottom:3}}>{delConfirm.companyEN}</div>
+                <div style={{fontFamily:"monospace",fontSize:11,color:"#94a3b8",letterSpacing:"0.02em"}}>{delConfirm.id}</div>
+              </div>
+              <div style={{fontSize:12,color:"#64748b",lineHeight:1.6,marginBottom:20}}>
+                The customer record and all associated data will be permanently removed from Google Sheets. Linked opportunities and deliveries will not be deleted.
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <Btn variant="ghost" style={{flex:1,justifyContent:"center"}} onClick={()=>sDelConfirm(null)}>Cancel</Btn>
+                <button style={{flex:1,padding:"9px 16px",borderRadius:6,fontSize:13,fontWeight:700,cursor:"pointer",background:"#dc2626",color:"#fff",border:"none",letterSpacing:"-0.01em"}} onClick={()=>{
+                  onDelete(delConfirm.id);
+                  toast("Customer deleted",delConfirm.companyEN,"error");
+                  sDelConfirm(null);
+                }}>Delete Customer</button>
+              </div>
             </div>
           </div>
         </div>
@@ -3011,6 +3022,42 @@ function App() {
     setter(p => p.filter(x=>x.id!==id));
     if(collection) gsDelete(collection, id);
   };
+  // ── saveOpp: save opp + auto-sync customers.status (Option 1) ─────────────
+  // Priority: Won > active OPP status > Lost
+  const deriveOppStatus = (custId, allOpps) => {
+    const custOpps = allOpps.filter(o=>o.custId===custId);
+    if(!custOpps.length) return null;
+    const sorted = [...custOpps].sort((a,b)=>b.createdDate?.localeCompare(a.createdDate||"")||0);
+    if(sorted.some(o=>o.status==="Won")) return "Won";
+    const active = sorted.find(o=>o.status!=="Lost");
+    if(active) return active.status;
+    return "Lost";
+  };
+  const saveOpp = opp => {
+    const norm = {...opp,id:String(opp.id||""),custId:String(opp.custId||"")};
+    // 1. Save opp to local state + GS
+    sOpps(p => p.find(x=>x.id===norm.id) ? p.map(x=>x.id===norm.id?norm:x) : [...p,norm]);
+    gsSave("opportunities", norm);
+    // 2. Sync customers.status from all opps (including this new one)
+    if(norm.custId) {
+      sOpps(currentOpps => {
+        const merged = currentOpps.find(x=>x.id===norm.id)
+          ? currentOpps.map(x=>x.id===norm.id?norm:x)
+          : [...currentOpps,norm];
+        const newStatus = deriveOppStatus(norm.custId, merged);
+        if(newStatus) {
+          sCusts(cList => cList.map(c => {
+            if(c.id!==norm.custId) return c;
+            if(c.status===newStatus) return c; // no change needed
+            const updated = {...c, status:newStatus};
+            gsSave("customers", updated); // sync to GS
+            return updated;
+          }));
+        }
+        return currentOpps; // don't change opps here, already set above
+      });
+    }
+  };
 
   // ── saveCS: update local + push entire costsheets collection ──────────────
   const saveCS = cs => {
@@ -3066,9 +3113,9 @@ function App() {
       <div style={{maxWidth:1440,margin:"0 auto",padding:24}}>
         {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI} toast={toast}/>}
         {page==="customers" && <CustomersPage user={user} customers={customers} opps={opps} onSave={saveItem(sCusts,"customers")} onDelete={deleteItem(sCusts,"customers")} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)}/>}
-        {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveItem(sOpps,"opportunities")} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)}/>}
+        {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)}/>}
         {page==="delivery"  && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}}/>}
-        {page==="costsheet" && <CostSheetPage costSheets={costSheets} onSave={saveCS} customers={customers} opps={opps} user={user} onSaveOpp={saveItem(sOpps,"opportunities")} toast={toast} initSvcCode={initSvcCode} onSvcReady={()=>sSvcCode(null)}/>}
+        {page==="costsheet" && <CostSheetPage costSheets={costSheets} onSave={saveCS} customers={customers} opps={opps} user={user} onSaveOpp={saveOpp} toast={toast} initSvcCode={initSvcCode} onSvcReady={()=>sSvcCode(null)}/>}
         {page==="setup"     && <SetupPage/>}
       </div>
       <Toast toasts={toasts}/>
