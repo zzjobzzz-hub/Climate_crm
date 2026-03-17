@@ -162,34 +162,33 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // ═══════════════════════════════════════════════════════════════════════════
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // ═══════════════════════════════════════════════════════════════════════════
-const GS_URL = "https://script.google.com/macros/s/AKfycbx0qBH8JNQm_845KcyGgtkaRkRzmGsZDi5p1_azEq8VewcyMjBHIJf-aLvrek5mcqOzJQ/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbyWHr3FZ3sv05EAmgs8rEs0fTXsIMZMr0SlI_w-KYPg0efQOcmDSWOWF7p_d4IuDNxGYw/exec";
 
 // Read a full collection from Google Sheets
 const gsGet = async (collection) => {
   try {
-    const r = await fetch(`${GS_URL}?collection=${collection}`, {
-      cache: "no-store",
-      redirect: "follow",
-    });
+    const r = await fetch(`${GS_URL}?collection=${collection}`, {cache:"no-store", redirect:"follow"});
     const j = await r.json();
     return j.ok ? j.data : [];
   } catch(e) { return []; }
 };
 
+// Save (upsert) a single record — fire-and-forget, non-blocking
 const gsSave = (collection, record, userId="", summary="") => {
   fetch(GS_URL, {
-    method: "POST",
-    redirect: "follow",
-    headers: {"Content-Type": "text/plain"},
+    method:"POST",
+    redirect:"follow",
+    headers:{"Content-Type":"text/plain"},
     body: JSON.stringify({action:"save", collection, record, userId, summary}),
   }).catch(()=>{});
 };
 
+// Save entire collection (used for costsheets which have no simple id upsert)
 const gsSaveAll = (collection, records) => {
   fetch(GS_URL, {
-    method: "POST",
-    redirect: "follow",
-    headers: {"Content-Type": "text/plain"},
+    method:"POST",
+    redirect:"follow",
+    headers:{"Content-Type":"text/plain"},
     body: JSON.stringify({action:"saveAll", collection, records}),
   }).catch(()=>{});
 };
@@ -388,7 +387,7 @@ const LoginPage = ({onLogin}) => {
 // ═══════════════════════════════════════════════════════════════════════════
 // DASHBOARD (Req 12, 13, 14)
 // ═══════════════════════════════════════════════════════════════════════════
-const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toast}) => {
+const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits}) => {
   const [tab,sTab]   = useState("dash");
   const [year,sYear] = useState(2026);
   const [annual,sAnn] = useState(ANNUAL_KPI);
@@ -1385,7 +1384,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
   );
 };
 
-const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS,initTab="detail"}) => {
+const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS}) => {
   const newOppCode=genOppCode(opps); const newQtNo=genQuoteNo(opps);
   const blank={id:newOppCode,custId:customers[0]?.id||"",oppCode:newOppCode,quoteNo:newQtNo,jobCode:"",serviceCode:SERVICES[0].code,serviceType:SERVICES[0].name,salesPrice:SERVICES[0].stdPrice,totalCost:SERVICES[0].stdCost,status:"Proposal",assignedTo:SALES_USERS[0]?.id||"",createdDate:today(),lostReason:"",activityLog:[],remark:""};
   const [f,sF] = useState(initial?{...initial,activityLog:initial.activityLog||[]}:blank);
@@ -1623,7 +1622,7 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
       )}
       {view==="kanban"&&<KanbanView/>}
 
-      {form&&<OppForm initial={edit} customers={customers} opps={opps} user={user} onSave={handleSave} onClose={()=>{sF(false);sE(null);sQT(null);}} costSheets={costSheets} onGoToCS={onGoToCS} initTab="detail"/>}
+      {form&&<OppForm initial={edit} customers={customers} opps={opps} user={user} onSave={handleSave} onClose={()=>{sF(false);sE(null);sQT(null);}} costSheets={costSheets} onGoToCS={onGoToCS}/>}
       {quotationOpp&&!form&&<QuotationPreview opp={quotationOpp} customer={customers.find(c=>c.id===quotationOpp.custId)} costSheets={costSheets||[]} onClose={()=>sQT(null)} onSaveQuotation={qd=>{onSave({...quotationOpp,quotationData:qd});sQT(null);}}/>}
       {gs&&<GSGuideModal module="Opportunities" headers={OPP_HDR} onClose={()=>sGS(false)}/>}
 
@@ -2908,9 +2907,10 @@ function App() {
       gsGet("costsheets"),
       gsGet("kpi"),
     ]).then(([c,o,d,cs,k])=>{
-      if(c.length)  sCusts(c);
-      if(o.length)  sOpps(o);
-      if(d.length)  sDlv(d);
+      // force string IDs to preserve leading zeros (e.g. 0105559117128)
+      if(c.length) sCusts(c.map(x=>({...x,id:String(x.id||"")})));
+      if(o.length) sOpps(o.map(x=>({...x,id:String(x.id||"")})));
+      if(d.length) sDlv(d.map(x=>({...x,id:String(x.id||"")})));
       // Merge loaded costSheets with defaults for any services not yet in Sheet
       if(cs.length){
         const merged = SEED_COST_SHEETS.map(def=>{
@@ -2986,7 +2986,7 @@ function App() {
         </div>
       </div>
       <div style={{maxWidth:1440,margin:"0 auto",padding:24}}>
-        {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI}/>}
+        {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI} toast={toast}/>}
         {page==="customers" && <CustomersPage user={user} customers={customers} opps={opps} onSave={saveItem(sCusts,"customers")} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)}/>}
         {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveItem(sOpps,"opportunities")} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)}/>}
         {page==="delivery"  && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}}/>}
