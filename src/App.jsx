@@ -162,12 +162,12 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // ═══════════════════════════════════════════════════════════════════════════
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // ═══════════════════════════════════════════════════════════════════════════
-const GS_URL = "https://script.google.com/macros/s/AKfycbxLFg5VbOqYIicw-GhDGGFVFY3WBL0-g86Xrkev1g67WivkRmnDgabYknVzIr7aE-8flw/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbyWHr3FZ3sv05EAmgs8rEs0fTXsIMZMr0SlI_w-KYPg0efQOcmDSWOWF7p_d4IuDNxGYw/exec";
 
 // Read a full collection from Google Sheets
 const gsGet = async (collection) => {
   try {
-    const r = await fetch(`${GS_URL}?collection=${collection}`, {cache:"no-store", redirect:"follow"});
+    const r = await fetch(`${GS_URL}?collection=${collection}`, {cache:"no-store"});
     const j = await r.json();
     return j.ok ? j.data : [];
   } catch(e) { return []; }
@@ -177,8 +177,6 @@ const gsGet = async (collection) => {
 const gsSave = (collection, record, userId="", summary="") => {
   fetch(GS_URL, {
     method:"POST",
-    redirect:"follow",
-    headers:{"Content-Type":"text/plain"},
     body: JSON.stringify({action:"save", collection, record, userId, summary}),
   }).catch(()=>{});
 };
@@ -187,8 +185,6 @@ const gsSave = (collection, record, userId="", summary="") => {
 const gsSaveAll = (collection, records) => {
   fetch(GS_URL, {
     method:"POST",
-    redirect:"follow",
-    headers:{"Content-Type":"text/plain"},
     body: JSON.stringify({action:"saveAll", collection, records}),
   }).catch(()=>{});
 };
@@ -2884,7 +2880,7 @@ const NAV = [
 ];
 
 function App() {
-  const [user,sUser]         = useState(null);
+  const [user,sUser] = useState(()=>{ try { const s=localStorage.getItem("crm_user"); if(s){ const p=JSON.parse(s); return USERS.find(u=>u.id===p.id)||null; } } catch(e){} return null; });
   const [page,sPage]         = useState("dashboard");
   const [customers,sCusts]   = useState(SEED_CUSTOMERS);
   const [opps,sOpps]         = useState(SEED_OPPS);
@@ -2907,10 +2903,9 @@ function App() {
       gsGet("costsheets"),
       gsGet("kpi"),
     ]).then(([c,o,d,cs,k])=>{
-      // force string IDs to preserve leading zeros (e.g. 0105559117128)
-      if(c.length) sCusts(c.map(x=>({...x,id:String(x.id||"")})));
-      if(o.length) sOpps(o.map(x=>({...x,id:String(x.id||"")})));
-      if(d.length) sDlv(d.map(x=>({...x,id:String(x.id||"")})));
+      if(c.length)  sCusts(c);
+      if(o.length)  sOpps(o);
+      if(d.length)  sDlv(d);
       // Merge loaded costSheets with defaults for any services not yet in Sheet
       if(cs.length){
         const merged = SEED_COST_SHEETS.map(def=>{
@@ -2962,7 +2957,7 @@ function App() {
     );
   };
 
-  if(!user) return <LoginPage onLogin={u=>{sUser(u);sPage("dashboard");}}/>;
+  if(!user) return <LoginPage onLogin={u=>{localStorage.setItem("crm_user",JSON.stringify({id:u.id}));sUser(u);sPage("dashboard");}}/>;
 
   return (
     <div style={{minHeight:"100vh",background:"#f8fafc",fontFamily:"'DM Sans','Noto Sans Thai',system-ui,sans-serif"}}>
@@ -2981,12 +2976,12 @@ function App() {
               <div style={{fontSize:12,fontWeight:700,color:"#374151"}}>{user.name}</div>
               <div style={{fontSize:10,color:user.role==="md"?"#0ea5e9":user.role==="admin"?"#16a34a":user.role==="operation"?"#7c3aed":"#1e40af",textTransform:"uppercase",letterSpacing:"0.06em"}}>{user.role}</div>
             </div>
-            <button onClick={()=>sUser(null)} style={{padding:"6px 12px",border:"1px solid #e2e8f0",borderRadius:5,background:"#fff",cursor:"pointer",fontSize:12,color:"#64748b"}}>Sign Out</button>
+            <button onClick={()=>{localStorage.removeItem("crm_user");sUser(null);}} style={{padding:"6px 12px",border:"1px solid #e2e8f0",borderRadius:5,background:"#fff",cursor:"pointer",fontSize:12,color:"#64748b"}}>Sign Out</button>
           </div>
         </div>
       </div>
       <div style={{maxWidth:1440,margin:"0 auto",padding:24}}>
-        {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI} toast={toast}/>}
+        {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI}/>}
         {page==="customers" && <CustomersPage user={user} customers={customers} opps={opps} onSave={saveItem(sCusts,"customers")} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)}/>}
         {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveItem(sOpps,"opportunities")} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)}/>}
         {page==="delivery"  && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}}/>}
