@@ -383,7 +383,7 @@ const LoginPage = ({onLogin}) => {
 // ═══════════════════════════════════════════════════════════════════════════
 // DASHBOARD (Req 12, 13, 14)
 // ═══════════════════════════════════════════════════════════════════════════
-const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits}) => {
+const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toast}) => {
   const [tab,sTab]   = useState("dash");
   const [year,sYear] = useState(2026);
   const [annual,sAnn] = useState(ANNUAL_KPI);
