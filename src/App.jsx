@@ -2908,8 +2908,8 @@ function App() {
       gsGet("kpi"),
     ]).then(([c,o,d,cs,k])=>{
       if(c.length) sCusts(c.map(x=>({...x,id:String(x.id||"")})));
-      if(o.length) sOpps(o.map(x=>({...x,id:String(x.id||"")})));
-      if(d.length) sDlv(d.map(x=>({...x,id:String(x.id||"")})));
+      if(o.length) sOpps(o.map(x=>({...x,id:String(x.id||""),custId:String(x.custId||"")})));
+      if(d.length) sDlv(d.map(x=>({...x,id:String(x.id||""),custId:String(x.custId||"")})));
       // Merge loaded costSheets with defaults for any services not yet in Sheet
       if(cs.length){
         const merged = SEED_COST_SHEETS.map(def=>{
@@ -2929,8 +2929,12 @@ function App() {
 
   // ── saveItem: update local state + push to Google Sheets ──────────────────
   const saveItem = (setter, collection) => item => {
-    setter(p => p.find(x=>x.id===item.id) ? p.map(x=>x.id===item.id?item:x) : [...p,item]);
-    if(collection) gsSave(collection, item);
+    const normalized = (item.custId !== undefined)
+      ? {...item, id:String(item.id||""), custId:String(item.custId||"")}
+      : {...item, id:String(item.id||"")};
+    setter(p => p.find(x=>x.id===normalized.id) ? p.map(x=>x.id===normalized.id?normalized:x) : [...p,normalized]);
+    const itemToSave = normalized;
+    if(collection) gsSave(collection, itemToSave);
   };
 
   // ── saveCS: update local + push entire costsheets collection ──────────────
