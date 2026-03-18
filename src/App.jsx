@@ -752,7 +752,7 @@ const INDUSTRY_SECTORS = {
   "Technology":          ["Electronic Components","Information & Communication Technology"],
 };
 
-const CustForm = ({initial,user,onSave,onClose}) => {
+const CustForm = ({initial,user,onSave,onClose,onDelete}) => {
   const blankContact = () => ({id:uid(),name:"",title:"",email:"",phone:"",active:true});
   const blank={id:"",companyEN:"",industry:"",sector:"",businessType:"",companySize:"",address:"",province:"",contacts:[blankContact()],assignedTo:"",remark:"",lastContact:today()};
   const [f,sF] = useState(initial?{...initial,contacts:initial.contacts||[{id:uid(),name:initial.contactName||"",title:initial.titlePosition||"",email:initial.email||"",phone:initial.phone||"",active:true}]}:blank);
@@ -810,6 +810,7 @@ const CustForm = ({initial,user,onSave,onClose}) => {
         </div>
       ))}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:8}}>
+        {onDelete&&<Btn variant="danger" style={{marginRight:"auto"}} onClick={()=>onDelete(f)}>🗑 Delete</Btn>}
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
         <Btn onClick={()=>onSave({...f,lastContact:today()})}>Save Customer</Btn>
       </div>
@@ -876,9 +877,6 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
         <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:220}}/>
-        <MultiSelect label="Ranking" options={["High","Medium","Low"].map(r=>({value:r,label:r}))} selected={fR} onChange={setFR} width={145}/>
-        <MultiSelect label="Status"  options={CRM_STATUSES.map(s=>({value:s,label:s}))}            selected={fSt} onChange={setFSt} width={165}/>
-        <MultiSelect label="Agents"  options={SALES_USERS.map(u=>({value:u.id,label:u.name.split(" ")[0]}))} selected={fAg} onChange={setFAg} width={175}/>
       </div>
       <Card><div style={{overflowX:"auto"}}>
       {(()=>{
@@ -959,10 +957,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
               <TD style={{color:"#64748b",fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.remark||"—"}</TD>
               <TD><button onClick={e=>{e.stopPropagation();sLog(c);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11}}>💬 {(c.workLog||[]).length}</button></TD>
               <TD>
-                <div style={{display:"flex",gap:4}}>
-                  <Btn variant="ghost" style={{fontSize:11,padding:"3px 8px"}} onClick={e=>{e.stopPropagation();sE(c);sF(true);}}>Edit</Btn>
-                  <Btn variant="danger" style={{fontSize:11,padding:"3px 7px"}} onClick={e=>{e.stopPropagation();sDelConfirm(c);}}>Delete</Btn>
-                </div>
+                <Btn variant="ghost" style={{fontSize:11,padding:"3px 8px"}} onClick={e=>{e.stopPropagation();sE(c);sF(true);}}>Edit</Btn>
               </TD>
             </TR>
           ))}</tbody>
@@ -970,7 +965,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
         );
       })()}
       {list.length===0&&<div style={{padding:40,textAlign:"center",color:"#94a3b8"}}>No records.</div>}</div></Card>
-      {form&&<CustForm initial={edit} user={user} onSave={c=>{onSave(c);sF(false);toast("Customer saved",c.companyEN);}} onClose={()=>sF(false)}/>}
+      {form&&<CustForm initial={edit} user={user} onSave={c=>{onSave(c);sF(false);toast("Customer saved",c.companyEN);}} onClose={()=>sF(false)} onDelete={edit?c=>{sF(false);sDelConfirm(c);}:null}/>}
       {gs&&<GSGuideModal module="Customers" headers={CUST_HDR} onClose={()=>sGS(false)}/>}
       {delConfirm&&(
         <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,.5)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
