@@ -1493,7 +1493,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
 
 const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS,initTab="detail"}) => {
   const newOppCode=genOppCode(opps); const newQtNo=genQuoteNo(opps);
-  const blank={id:newOppCode,custId:customers[0]?.id||"",oppCode:newOppCode,quoteNo:newQtNo,jobCode:"",serviceCode:SERVICES[0].code,serviceType:SERVICES[0].name,salesPrice:SERVICES[0].stdPrice,totalCost:SERVICES[0].stdCost,status:"Proposal",assignedTo:SALES_USERS[0]?.id||"",createdDate:today(),lostReason:"",activityLog:[],remark:""};
+  const blank={id:newOppCode,custId:customers[0]?.id||"",oppCode:newOppCode,quoteNo:newQtNo,jobCode:"",serviceCode:SERVICES[0].code,serviceType:SERVICES[0].name,salesPrice:SERVICES[0].stdPrice,totalCost:SERVICES[0].stdCost,status:"Proposal",assignedTo:SALES_USERS[0]?.id||"",createdDate:today(),lostReason:"",activityLog:[],remark:"",ranking:"Medium"};
   const [f,sF] = useState(initial?{...initial,activityLog:initial.activityLog||[]}:blank);
   const [tab,sTab] = useState(initTab);
   const set=(k,v)=>sF(p=>({...p,[k]:v}));
@@ -1529,6 +1529,14 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
             <FRow label="Total Cost (THB)" tip="Auto-filled from Per-Quotation Cost Sheet"><Inp type="number" value={f.totalCost||0} onChange={e=>set("totalCost",+e.target.value)}/></FRow>
             <FRow label="Status"><Sel value={f.status} onChange={e=>set("status",e.target.value)}>{OPP_STATUSES.map(s=><option key={s}>{s}</option>)}</Sel></FRow>
             <FRow label="Sales Agent"><Sel value={f.assignedTo} onChange={e=>set("assignedTo",e.target.value)}>{SALES_USERS.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</Sel></FRow>
+            <FRow label="Ranking" tip="ระดับความสำคัญของ Opportunity นี้">
+              <div style={{display:"flex",gap:6}}>
+                {["High","Medium","Low"].map(r=>{
+                  const active=(f.ranking||"Medium")===r;
+                  return <button key={r} onClick={()=>set("ranking",r)} style={{flex:1,padding:"6px 0",borderRadius:5,border:`1.5px solid ${active?RANK_CLR[r]?.c||"#64748b":"#e2e8f0"}`,background:active?(RANK_CLR[r]?.bg||"#f1f5f9"):"#fff",color:active?(RANK_CLR[r]?.c||"#64748b"):"#94a3b8",fontWeight:active?800:500,fontSize:12,cursor:"pointer"}}>{r}</button>;
+                })}
+              </div>
+            </FRow>
             <FRow label="Created Date"><Inp type="date" value={f.createdDate} onChange={e=>set("createdDate",e.target.value)}/></FRow>
             <div/>
             {isLost&&<div style={{gridColumn:"1/-1"}}><FRow label="🔴 Lost Reason"><Sel value={f.lostReason} onChange={e=>set("lostReason",e.target.value)}><option value="">— Select Reason —</option>{LOST_REASONS.map(r=><option key={r}>{r}</option>)}</Sel></FRow></div>}
@@ -1571,7 +1579,7 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
       if(col==="quoteNo")    return o.quoteNo||"";
       if(col==="csCode")     return o.csCode||"";
       if(col==="company")    return (c?.companyEN||"").toLowerCase();
-      if(col==="ranking")    return ["High","Medium","Low"].indexOf(c?.ranking||"Medium");
+      if(col==="ranking")    return ["High","Medium","Low"].indexOf(o.ranking||"Medium");
       if(col==="crmStatus")  return CRM_STATUSES.indexOf(c?.status||"");
       if(col==="serviceCode")return o.serviceCode||"";
       if(col==="salesPrice") return o.salesPrice||0;
@@ -1722,7 +1730,6 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
               {label:"CS Code",   col:"csCode"},
               {label:"Company",   col:"company"},
               {label:"Ranking",   col:"ranking"},
-              {label:"CRM Status",col:"crmStatus"},
               {label:"Code",      col:"serviceCode"},
               {label:"Price",     col:"salesPrice"},
               {label:"Cost",      col:"totalCost"},
@@ -1737,7 +1744,7 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
               </th>
             ))}
           </tr></thead>
-          <tbody>{list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);const mAmt=marginAmt(o.salesPrice,o.totalCost||0);const cRank=c?.ranking||"";const cStatus=c?.status||"";return(
+          <tbody>{list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);const mAmt=marginAmt(o.salesPrice,o.totalCost||0);const oRank=o.ranking||"Medium";return(
             <TR key={o.id} onClick={()=>{sE(o);sF(true);}}>
               <TD style={{fontWeight:700,color:"#1e40af",fontFamily:"monospace",fontSize:12}}>{o.oppCode}</TD>
               {/* Req 4: Quote No. as hyperlink → opens quotation tab */}
@@ -1753,8 +1760,7 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
                   : "—"}
               </TD>
               <TD w={180}>{c?.companyEN||"-"}</TD>
-              <TD>{cRank?<span style={{background:RANK_CLR[cRank]?.bg||"#f1f5f9",color:RANK_CLR[cRank]?.c||"#64748b",padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{cRank}</span>:"—"}</TD>
-              <TD>{cStatus?<Badge value={cStatus} colorMap={STATUS_CLR}/>:"—"}</TD>
+              <TD>{oRank?<span style={{background:RANK_CLR[oRank]?.bg||"#f1f5f9",color:RANK_CLR[oRank]?.c||"#64748b",padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{oRank}</span>:"—"}</TD>
               <TD><SvcBadge code={o.serviceCode}/></TD>
               <TD right style={{fontWeight:700}}>฿{fmt(o.salesPrice)}</TD>
               <TD right style={{color:"#64748b"}}>฿{fmt(o.totalCost||0)}</TD>
