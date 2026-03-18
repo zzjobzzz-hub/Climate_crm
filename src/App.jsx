@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 const USERS = [
   { id:"korakoj.s",     email:"korakoj.s@wavebcg.com",      name:"Korakoj Sanguanpiyapan",     role:"md",        password:"Krj@Wave26!" },
-  { id:"chawapol.ta",   email:"chawapol.ta@wavebcg.com",    name:"Chawapol Tangsirichoochuay", role:"admin",     password:"0" },
+  { id:"chawapol.ta",   email:"chawapol.ta@wavebcg.com",    name:"Chawapol Tangsirichoochuay", role:"admin",     password:"11" },
   { id:"songyot.kr",    email:"songyot.kr@wavebcg.com",     name:"Songyot Kraprom",            role:"sales",     password:"Sgt@Wave26!" },
   { id:"theerayut.c",   email:"theerayut.c@wavebcg.com",    name:"Theerayut Chimpitak",        role:"sales",     password:"Trt@Wave26!" },
   { id:"nattapon.yi",   email:"nattapon.yi@wavebcg.com",    name:"Nattapon Yingsakda",         role:"operation", password:"Ntp@Wave26!" },
@@ -2459,7 +2459,8 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
     const csCode=genCSCode(quoteNo);
     const oppCode=genOppCode(opps);
     sECS(p=>({...p,quoteOverrides:[{
-      id:uid(),csCode,oppCode,quoteNo,custId:"",salesAgent:"",contactPersonId:"",salesPrice:0,notes:"",
+      id:uid(),csCode,oppCode,quoteNo,custId:"",salesAgent:"",contactPersonId:"",salesPrice:0,notes:"• ค่าใช้จ่ายในการเดินทางเพื่อ Site Visit รวมอยู่ในราคาข้างต้น\n• ค่าธรรมเนียม TGO (ถ้ามี) ลูกค้ารับผิดชอบตามจริง\n• ราคานี้มีผลภายใน 30 วันนับจากวันที่ออกใบเสนอราคา\n• ราคาดังกล่าวยังไม่รวมภาษีมูลค่าเพิ่ม (VAT) 7%",
+      projectScope:"",
       projectMonths:editCS.projectMonths||3,
       internalCosts:(editCS.internalCosts||[]).map(r=>({...r,id:uid()})),
       externalCosts:(editCS.externalCosts||[]).map(r=>({...r,id:uid()})),
@@ -2853,55 +2854,6 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                   </div>
                 </div>
 
-                {/* ── PROJECT (lineItems) + DELIVERABLES ── */}
-                <div style={{padding:"0 16px 16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,borderTop:"1px solid #f1f5f9"}}>
-                  {/* PROJECT */}
-                  <div style={{paddingTop:14}}>
-                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
-                      <span style={{width:18,height:18,background:"#0f172a",color:"#fff",borderRadius:"50%",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:900,flexShrink:0}}>1</span>
-                      <Span s={11} w={800} style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Project</Span>
-                    </div>
-                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-                      <thead><tr style={{background:"#f8fafc"}}>
-                        {["Description","Qty","Unit","Unit Price (THB)","Subtotal (THB)",""].map((h,i)=>(
-                          <th key={i} style={{padding:"4px 5px",textAlign:i>=1&&i<=4?"center":"left",fontWeight:700,color:"#64748b",fontSize:9,borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{h}</th>
-                        ))}
-                      </tr></thead>
-                      <tbody>
-                        {(q.lineItems||[]).map(li=>(
-                          <tr key={li.id} style={{borderBottom:"1px solid #f8fafc"}}>
-                            <td style={{padding:"3px 4px"}}><Inp value={li.description} onChange={e=>setQLI(q.id,li.id,"description",e.target.value)} placeholder="ขอบเขตโครงการ — Describe scope, objectives…" style={{padding:"2px 5px",fontSize:10,width:"100%"}}/></td>
-                            <td style={{padding:"3px 4px",width:40}}><Inp type="number" value={li.qty} onChange={e=>setQLI(q.id,li.id,"qty",+e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",textAlign:"center"}}/></td>
-                            <td style={{padding:"3px 4px",width:56}}><Inp value={li.unit} onChange={e=>setQLI(q.id,li.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%"}}/></td>
-                            <td style={{padding:"3px 4px",width:100}}><Inp type="number" value={li.unitPrice} onChange={e=>setQLI(q.id,li.id,"unitPrice",+e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",textAlign:"right"}}/></td>
-                            <td style={{padding:"3px 4px",fontWeight:700,fontSize:10,textAlign:"right",whiteSpace:"nowrap",width:80}}>฿{fmt((li.qty||0)*(li.unitPrice||0))}</td>
-                            <td style={{padding:"3px 4px",width:20}}>{(q.lineItems||[]).length>1&&<Btn variant="danger" style={{fontSize:10,padding:"1px 4px"}} onClick={()=>delQLI(q.id,li.id)}>×</Btn>}</td>
-                          </tr>
-                        ))}
-                        <tr><td style={{padding:"4px 4px"}}><button onClick={()=>addQLI(q.id)} style={{fontSize:10,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:4,padding:"1px 7px",cursor:"pointer"}}>+ Add Line</button></td><td colSpan={5}/></tr>
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* DELIVERABLES */}
-                  <div style={{paddingTop:14}}>
-                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
-                      <span style={{width:18,height:18,background:"#0f172a",color:"#fff",borderRadius:"50%",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:900,flexShrink:0}}>2</span>
-                      <Span s={11} w={800} style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Deliverables</Span>
-                    </div>
-                    <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                      {(q.deliverables||[]).map(d=>(
-                        <div key={d.id} style={{display:"flex",gap:4,alignItems:"center"}}>
-                          <span style={{color:"#06b6d4",fontWeight:900,fontSize:12,flexShrink:0}}>✓</span>
-                          <Inp value={d.item} onChange={e=>setQDlv(q.id,d.id,e.target.value)} placeholder="Deliverable item…" style={{padding:"3px 7px",fontSize:11,flex:1}}/>
-                          {(q.deliverables||[]).length>1&&<Btn variant="danger" style={{fontSize:10,padding:"1px 5px",flexShrink:0}} onClick={()=>delQDlv(q.id,d.id)}>×</Btn>}
-                        </div>
-                      ))}
-                      <button onClick={()=>addQDlv(q.id)} style={{alignSelf:"flex-start",marginTop:4,fontSize:10,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 10px",cursor:"pointer"}}>+ Add Deliverable</button>
-                    </div>
-                  </div>
-                </div>
-
                 {/* ── INSTALLMENTS (left) + CASHFLOW (right) — 2-col layout ── */}
                 <div style={{padding:"0 16px 16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,borderTop:"1px solid #f1f5f9"}}>
                   {/* Installments */}
@@ -2986,6 +2938,33 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                       </div>
                     );
                   })()}
+                </div>
+
+                {/* ── PROJECT (full width, textarea) ── */}
+                <div style={{padding:"0 20px 16px",borderTop:"1px solid #f1f5f9"}}>
+                  <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6,marginTop:14}}>Project Scope</Span>
+                  <Txta value={q.projectScope||""} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder="ขอบเขตโครงการ — Describe scope, objectives, organisational boundary, base year…" style={{minHeight:72,fontSize:12}}/>
+                </div>
+
+                {/* ── DELIVERABLES (full width, editable list + preview) ── */}
+                <div style={{padding:"0 20px 16px"}}>
+                  <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>Deliverables</Span>
+                  <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:6}}>
+                    {(q.deliverables||[]).map(d=>(
+                      <div key={d.id} style={{display:"flex",gap:6,alignItems:"center"}}>
+                        <span style={{color:"#06b6d4",fontWeight:900,fontSize:13,flexShrink:0}}>✓</span>
+                        <Inp value={d.item} onChange={e=>setQDlv(q.id,d.id,e.target.value)} placeholder="Deliverable item…" style={{padding:"3px 8px",fontSize:12,flex:1}}/>
+                        {(q.deliverables||[]).length>1&&<Btn variant="danger" style={{fontSize:10,padding:"1px 5px",flexShrink:0}} onClick={()=>delQDlv(q.id,d.id)}>×</Btn>}
+                      </div>
+                    ))}
+                    <button onClick={()=>addQDlv(q.id)} style={{alignSelf:"flex-start",marginTop:4,fontSize:10,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 10px",cursor:"pointer"}}>+ Add Deliverable</button>
+                  </div>
+                </div>
+
+                {/* ── NOTES & CONDITIONS (full width) ── */}
+                <div style={{padding:"0 20px 16px"}}>
+                  <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Notes & Conditions</Span>
+                  <Txta value={q.notes||""} onChange={e=>setQF(q.id,"notes",e.target.value)} placeholder="เงื่อนไขการชำระเงิน, ข้อกำหนดอื่นๆ…" style={{minHeight:80,fontSize:12}}/>
                 </div>
 
                 {/* Cost + margin footer */}
