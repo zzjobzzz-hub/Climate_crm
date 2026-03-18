@@ -1560,8 +1560,32 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
   const [view,sView]=useState("table"); const [form,sF]=useState(false); const [edit,sE]=useState(null);
   const [logOpp,sLog]=useState(null); const [gs,sGS]=useState(false); const [quotationOpp,sQT]=useState(null);
   const [dragId,setDragId]=useState(null); const [dragOver,setDragOver]=useState(null);
+  const [sortCol,setSortCol]=useState("oppCode"); const [sortDir,setSortDir]=useState("asc");
+  const toggleSort=col=>{if(sortCol===col){setSortDir(d=>d==="asc"?"desc":"asc");}else{setSortCol(col);setSortDir("asc");}};
   useEffect(()=>{if(initOppCode){const o=opps.find(x=>x.oppCode===initOppCode);if(o){sE(o);sF(true);}if(onOppReady)onOppReady();}},[initOppCode]);
   const list=useMemo(()=>opps.filter(o=>{const c=customers.find(x=>x.id===o.custId);const q=search.toLowerCase();return(!search||o.oppCode.toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||o.quoteNo.toLowerCase().includes(q)||o.serviceCode.toLowerCase().includes(q))&&(fSt.length===0||fSt.includes(o.status))&&(fAg.length===0||fAg.includes(o.assignedTo))&&(fSvc.length===0||fSvc.includes(o.serviceCode));}),[opps,search,fSt,fAg,fSvc,customers]);
+  const sortedList=useMemo(()=>{
+    const getVal=(o,col)=>{
+      const c=customers.find(x=>x.id===o.custId);
+      if(col==="oppCode")    return o.oppCode||"";
+      if(col==="quoteNo")    return o.quoteNo||"";
+      if(col==="csCode")     return o.csCode||"";
+      if(col==="company")    return c?.companyEN||"";
+      if(col==="serviceCode")return o.serviceCode||"";
+      if(col==="salesPrice") return o.salesPrice||0;
+      if(col==="totalCost")  return o.totalCost||0;
+      if(col==="margin")     return o.salesPrice>0?(o.salesPrice-(o.totalCost||0))/o.salesPrice:0;
+      if(col==="status")     return OPP_STATUSES.indexOf(o.status);
+      if(col==="agent")      return USERS.find(u=>u.id===o.assignedTo)?.name||"";
+      if(col==="log")        return o.activityLog?.length||0;
+      return "";
+    };
+    return [...list].sort((a,b)=>{
+      const va=getVal(a,sortCol), vb=getVal(b,sortCol);
+      const cmp=typeof va==="number"?va-vb:String(va).localeCompare(String(vb));
+      return sortDir==="asc"?cmp:-cmp;
+    });
+  },[list,sortCol,sortDir,customers]);
   const totalPipeline=list.filter(o=>o.status!=="Lost").reduce((s,o)=>s+o.salesPrice,0);
   const totalWon=list.filter(o=>o.status==="Won").reduce((s,o)=>s+o.salesPrice,0);
 
@@ -1582,7 +1606,7 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
 
   // ── Drag and Drop state ─────────────────────────────────
 
-  const KanbanView = () => (
+  const kanbanView = (
     <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
       {OPP_STATUSES.map(status => {
         const col=list.filter(o=>o.status===status);
@@ -1638,13 +1662,11 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
                       userSelect:"none",
                     }}
                   >
-                    {/* Drag handle indicator */}
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:3}}>
                       <div style={{fontSize:11,fontWeight:700,color:"#1e40af",fontFamily:"monospace"}}>{o.oppCode}</div>
                       <span style={{color:"#cbd5e1",fontSize:14,cursor:"grab",lineHeight:1}}>⠿</span>
                     </div>
                     <div style={{fontSize:12,fontWeight:700,color:"#0f172a",marginBottom:4,lineHeight:1.3}}>{c?.companyEN||"-"}</div>
-                    {/* CS Code badge if present */}
                     {o.csCode&&<div style={{marginBottom:5}}><span style={{fontFamily:"monospace",fontWeight:700,fontSize:10,background:"#fef3c7",color:"#92400e",padding:"2px 7px",borderRadius:4,border:"1px solid #fde68a"}}>🔗 {o.csCode}</span></div>}
                     <div style={{display:"flex",gap:5,marginBottom:6,flexWrap:"wrap"}}><SvcBadge code={o.serviceCode}/><span style={{background:+mg>=30?"#dcfce7":"#fee2e2",color:+mg>=30?"#16a34a":"#dc2626",fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4}}>{mg}%</span></div>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -1653,7 +1675,6 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
                     </div>
                     {o.status==="Lost"&&o.lostReason&&<div style={{marginTop:4,fontSize:10,color:"#dc2626",background:"#fee2e2",padding:"2px 6px",borderRadius:3}}>{o.lostReason}</div>}
                     {o.status==="Won"&&o.jobCode&&<div style={{marginTop:4,fontSize:10,color:"#16a34a",fontFamily:"monospace"}}>{o.jobCode}</div>}
-                    {/* Quick log + inline status change */}
                     <div style={{display:"flex",gap:4,marginTop:6,alignItems:"center",flexWrap:"wrap"}}>
                       <button onClick={e=>{e.stopPropagation();sLog(o);}} style={{border:"1px solid #e2e8f0",borderRadius:4,background:"#f8fafc",cursor:"pointer",padding:"2px 6px",fontSize:10,color:"#64748b"}}>💬 {o.activityLog?.length||0}</button>
                       <Sel value={o.status} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();const updated={...o,status:e.target.value,lostReason:e.target.value==="Lost"?o.lostReason:"",jobCode:e.target.value==="Won"?genJobCode(o.oppCode):o.jobCode,activityLog:[...(o.activityLog||[]),{id:uid(),ts:nowTS(),author:user.id,note:`Status → ${e.target.value}`}]};handleSave(updated);}} style={{fontSize:10,padding:"2px 5px",flex:1,minWidth:85,background:STATUS_CLR[o.status]+"22",color:STATUS_CLR[o.status],fontWeight:700,border:`1px solid ${STATUS_CLR[o.status]}66`}}>
@@ -1692,10 +1713,31 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
       </div>
       {view==="table"&&(
         <Card><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}>
-          <TH cols={["OPP Code","QT No.","CS Code","Company","Code","Price","Cost","Margin % / ฿","Status","Agent","Log"]}/>
-          <tbody>{list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);const mAmt=marginAmt(o.salesPrice,o.totalCost||0);return(
-            <TR key={o.id}>
-              <TD style={{fontWeight:700,color:"#1e40af",fontFamily:"monospace",fontSize:12,cursor:"pointer"}} onClick={()=>{sE(o);sF(true);}}>{o.oppCode}</TD>
+          <thead><tr style={{background:"#f8fafc"}}>
+            {[
+              {label:"OPP Code",  col:"oppCode"},
+              {label:"QT No.",    col:"quoteNo"},
+              {label:"CS Code",   col:"csCode"},
+              {label:"Company",   col:"company"},
+              {label:"Code",      col:"serviceCode"},
+              {label:"Price",     col:"salesPrice"},
+              {label:"Cost",      col:"totalCost"},
+              {label:"Margin % / ฿",col:"margin"},
+              {label:"Status",    col:"status"},
+              {label:"Agent",     col:"agent"},
+              {label:"Log",       col:"log"},
+            ].map(({label,col})=>{
+              const active=sortCol===col;
+              return(
+                <th key={col} onClick={()=>toggleSort(col)} style={{padding:"9px 12px",textAlign:"left",fontWeight:700,color:active?"#0f172a":"#64748b",fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",cursor:"pointer",userSelect:"none",background:active?"#f1f5f9":"#f8fafc"}}>
+                  {label}{" "}<span style={{fontSize:9,opacity:active?1:0.35}}>{active?(sortDir==="asc"?"▲":"▼"):"▲"}</span>
+                </th>
+              );
+            })}
+          </tr></thead>
+          <tbody>{sortedList.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);const mAmt=marginAmt(o.salesPrice,o.totalCost||0);return(
+            <TR key={o.id} onClick={()=>{sE(o);sF(true);}}>
+              <TD style={{fontWeight:700,color:"#1e40af",fontFamily:"monospace",fontSize:12}}>{o.oppCode}</TD>
               {/* Req 4: Quote No. as hyperlink → opens quotation tab */}
               <TD>
                 {o.quoteNo
@@ -1728,7 +1770,7 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
           </tbody>
         </table>{list.length===0&&<div style={{padding:40,textAlign:"center",color:"#94a3b8"}}>No records.</div>}</div></Card>
       )}
-      {view==="kanban"&&<KanbanView/>}
+      {view==="kanban"&&kanbanView}
 
       {form&&<OppForm initial={edit} customers={customers} opps={opps} user={user} onSave={handleSave} onClose={()=>{sF(false);sE(null);sQT(null);}} costSheets={costSheets} onGoToCS={onGoToCS}/>}
       {quotationOpp&&!form&&<QuotationPreview opp={quotationOpp} customer={customers.find(c=>c.id===quotationOpp.custId)} costSheets={costSheets||[]} onClose={()=>sQT(null)} onSaveQuotation={qd=>{onSave({...quotationOpp,quotationData:qd});sQT(null);}}/>}
