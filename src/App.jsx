@@ -1014,8 +1014,13 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
   };
 
   const buildLineItems = () => {
-    if(qSnap?.lineItems?.length) return qSnap.lineItems.map(li=>({...li,id:li.id||uid(),description:li.description||(qSnap.projectTitle||opp?.serviceType||"")}));
-    return [{id:uid(), description:qSnap?.projectTitle||opp?.serviceType||"", qty:1, unit:"Job", unitPrice:qPrice}];
+    const desc = qSnap?.projectTitle || opp?.serviceType || "";
+    if(qSnap?.lineItems?.length) return qSnap.lineItems.map(li=>({
+      ...li, id:li.id||uid(),
+      description: li.description || desc,
+      unitPrice: qPrice,  // always override with current salesPrice
+    }));
+    return [{id:uid(), description:desc, qty:1, unit:"Job", unitPrice:qPrice}];
   };
 
   const buildDeliverables = () => {
@@ -1043,7 +1048,10 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
     // Always re-sync arrays from CS if savedQD's copy is missing/empty
     deliverables:  Array.isArray(savedQD.deliverables) && savedQD.deliverables.length  ? savedQD.deliverables  : buildDeliverables(),
     installments:  Array.isArray(savedQD.installments) && savedQD.installments.length  ? savedQD.installments  : buildInstallments(),
-    lineItems:     Array.isArray(savedQD.lineItems)    && savedQD.lineItems.length     ? savedQD.lineItems     : buildLineItems(),
+    lineItems:     (()=>{
+      const base = Array.isArray(savedQD.lineItems) && savedQD.lineItems.length ? savedQD.lineItems : buildLineItems();
+      return base.map(li=>({...li, unitPrice: qPrice}));  // always sync unitPrice = salesPrice
+    })(),
     // Sync text fields from CS if savedQD has blanks
     quoteNo:       savedQD.quoteNo       || qQuoteNo,
     issueDate:     savedQD.issueDate     || qIssueDate,
