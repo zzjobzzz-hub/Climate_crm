@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 const USERS = [
   { id:"korakoj.s",     email:"korakoj.s@wavebcg.com",      name:"Korakoj Sanguanpiyapan",     role:"md",        password:"Krj@Wave26!" },
-  { id:"chawapol.ta",   email:"chawapol.ta@wavebcg.com",    name:"Chawapol Tangsirichoochuay", role:"admin",     password:"11" },
+  { id:"chawapol.ta",   email:"chawapol.ta@wavebcg.com",    name:"Chawapol Tangsirichoochuay", role:"admin",     password:"12" },
   { id:"songyot.kr",    email:"songyot.kr@wavebcg.com",     name:"Songyot Kraprom",            role:"sales",     password:"Sgt@Wave26!" },
   { id:"theerayut.c",   email:"theerayut.c@wavebcg.com",    name:"Theerayut Chimpitak",        role:"sales",     password:"Trt@Wave26!" },
   { id:"nattapon.yi",   email:"nattapon.yi@wavebcg.com",    name:"Nattapon Yingsakda",         role:"operation", password:"Ntp@Wave26!" },
@@ -1029,25 +1029,38 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
 
   const initIssue = today();
   const savedQD = opp?.quotationData; // persisted from previous save
+
+  // Default notes pulled from qSnap or fallback
+  const defaultNotes = qSnap?.notes ||
+    "• ค่าใช้จ่ายในการเดินทางเพื่อ Site Visit รวมอยู่ในราคาข้างต้น\n• ค่าธรรมเนียม TGO (ถ้ามี) ลูกค้ารับผิดชอบตามจริง\n• ราคานี้มีผลภายใน 30 วันนับจากวันที่ออกใบเสนอราคา\n• ราคาดังกล่าวยังไม่รวมภาษีมูลค่าเพิ่ม (VAT) 7%";
+
   const [f, sF] = useState(savedQD ? {
     ...savedQD,
-    deliverables:  Array.isArray(savedQD.deliverables)  ? savedQD.deliverables  : buildDeliverables(),
-    installments:  Array.isArray(savedQD.installments)  ? savedQD.installments  : buildInstallments(),
-    lineItems:     Array.isArray(savedQD.lineItems)      ? savedQD.lineItems     : buildLineItems(),
+    // Always re-sync arrays from CS if savedQD's copy is missing/empty
+    deliverables:  Array.isArray(savedQD.deliverables) && savedQD.deliverables.length  ? savedQD.deliverables  : buildDeliverables(),
+    installments:  Array.isArray(savedQD.installments) && savedQD.installments.length  ? savedQD.installments  : buildInstallments(),
+    lineItems:     Array.isArray(savedQD.lineItems)    && savedQD.lineItems.length     ? savedQD.lineItems     : buildLineItems(),
+    // Sync text fields from CS if savedQD has blanks
+    projectScope:  savedQD.projectScope  || qSnap?.projectScope  || "",
+    notes:         savedQD.notes         || defaultNotes,
+    salesPrice:    savedQD.salesPrice    || qPrice,
+    projectTitle:  savedQD.projectTitle  || qSnap?.serviceType   || opp?.serviceType || cs?.serviceType || "",
+    projectDuration: savedQD.projectDuration || qSnap?.projectMonths || cs?.projectMonths || 3,
+    salesAgentId:  savedQD.salesAgentId  || qSnap?.salesAgent    || opp?.assignedTo   || SALES_USERS[0]?.id || "",
   } : {
     quoteNo:         opp?.quoteNo||"",
     issueDate:       initIssue,
     dueDate:         addDays(initIssue,30),
-    salesAgentId:    opp?.assignedTo||SALES_USERS[0]?.id||"",
-    projectTitle:    opp?.serviceType||cs?.serviceType||"",
-    projectScope:    "",
-    projectDuration: cs?.projectMonths||3,
+    salesAgentId:    qSnap?.salesAgent   || opp?.assignedTo || SALES_USERS[0]?.id||"",
+    projectTitle:    qSnap?.serviceType  || opp?.serviceType||cs?.serviceType||"",
+    projectScope:    qSnap?.projectScope || "",
+    projectDuration: qSnap?.projectMonths|| cs?.projectMonths||3,
     projectStartDate:"",
     deliverables: buildDeliverables(),
     salesPrice:   qPrice,
     lineItems: buildLineItems(),
     installments: buildInstallments(),
-    notes: "• ค่าใช้จ่ายในการเดินทางเพื่อ Site Visit รวมอยู่ในราคาข้างต้น\n• ค่าธรรมเนียม TGO (ถ้ามี) ลูกค้ารับผิดชอบตามจริง\n• ราคานี้มีผลภายใน 30 วันนับจากวันที่ออกใบเสนอราคา\n• ราคาดังกล่าวยังไม่รวมภาษีมูลค่าเพิ่ม (VAT) 7%",
+    notes: defaultNotes,
   });
 
   const set    = (k,v) => sF(p=>({...p,[k]:v}));
@@ -1366,8 +1379,8 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
           <table style={{width:"100%",borderCollapse:"collapse",marginBottom:8,fontSize:11}}>
             <thead>
               <tr style={{background:"#f8fafc"}}>
-                {["Description","Qty","Unit","Unit Price (THB)","Subtotal (THB)",""].map((h,i)=>(
-                  <th key={i} style={{padding:"6px 8px",textAlign:"center",fontWeight:700,color:"#64748b",fontSize:10,borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{h}</th>
+                {["Description","Qty","Unit","Unit Price (THB)","Subtotal (THB)"].map((h,i)=>(
+                  <th key={i} style={{padding:"6px 8px",textAlign:i>=1?"center":"left",fontWeight:700,color:"#64748b",fontSize:10,borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -1376,45 +1389,38 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
                 const sub=(li.qty||0)*(li.unitPrice||0);
                 return(
                   <tr key={li.id} style={{borderBottom:"1px solid #f1f5f9"}}>
-                    <td style={{padding:"6px 8px"}}><Inp value={li.description} onChange={e=>setLI(li.id,"description",e.target.value)} style={{fontSize:11,padding:"3px 7px",width:"100%"}}/></td>
-                    <td style={{padding:"6px 8px"}}><Inp type="number" value={li.qty} onChange={e=>setLI(li.id,"qty",+e.target.value)} style={{fontSize:11,padding:"3px 6px",width:52,textAlign:"right"}}/></td>
-                    <td style={{padding:"6px 8px"}}><Inp value={li.unit} onChange={e=>setLI(li.id,"unit",e.target.value)} style={{fontSize:11,padding:"3px 6px",width:58}}/></td>
-                    <td style={{padding:"6px 8px"}}><Inp type="number" value={li.unitPrice} onChange={e=>setLI(li.id,"unitPrice",+e.target.value)} style={{fontSize:11,padding:"3px 6px",width:90,textAlign:"right"}}/></td>
-                    <td style={{padding:"6px 8px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>฿{fmt(sub)}</td>
-                    <td style={{padding:"6px 8px"}}>{(f.lineItems||[]).length>1&&<Btn variant="danger" style={{fontSize:10,padding:"2px 5px"}} onClick={()=>delLI(li.id)}>×</Btn>}</td>
+                    <td style={{padding:"6px 8px",fontSize:11}}>{li.description||"—"}</td>
+                    <td style={{padding:"6px 8px",textAlign:"center",fontSize:11}}>{li.qty||0}</td>
+                    <td style={{padding:"6px 8px",textAlign:"center",fontSize:11}}>{li.unit||""}</td>
+                    <td style={{padding:"6px 8px",textAlign:"right",fontSize:11,fontVariantNumeric:"tabular-nums"}}>{fmt(li.unitPrice||0)}</td>
+                    <td style={{padding:"6px 8px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",fontSize:11}}>฿{fmt(sub)}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-          <button onClick={addLI} style={{fontSize:11,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:5,padding:"4px 12px",cursor:"pointer",marginBottom:8}}>+ Add Line</button>
-          <Txta value={f.projectScope} onChange={e=>set("projectScope",e.target.value)}
-            placeholder="ขอบเขตโครงการ — Describe scope, objectives, organisational boundary, base year…"
-            style={{minHeight:36,fontSize:10.5,background:"#fafafa"}}/>
+          {f.projectScope&&<div style={{fontSize:10.5,color:"#374151",background:"#fafafa",border:"1px solid #e2e8f0",borderRadius:5,padding:"7px 10px",whiteSpace:"pre-wrap",lineHeight:1.6}}>{f.projectScope}</div>}
         </div>
 
         {/* SECTION 2: DELIVERABLES */}
         <div style={{marginBottom:12}}>
           <SH n="2" label="Deliverables"/>
           {(f.deliverables||[]).map((d)=>(
-            <div key={d.id} style={{display:"flex",gap:8,alignItems:"center",marginBottom:6}}>
-              <span style={{color:"#00b3a4",fontWeight:900,fontSize:14,flexShrink:0}}>✓</span>
-              <Inp value={d.item} onChange={e=>setDlv(d.id,e.target.value)} style={{fontSize:11,padding:"4px 8px"}}/>
-              {(f.deliverables||[]).length>1&&<Btn variant="danger" style={{fontSize:10,padding:"2px 6px",flexShrink:0}} onClick={()=>delDlv(d.id)}>×</Btn>}
+            <div key={d.id} style={{display:"flex",gap:8,alignItems:"flex-start",marginBottom:5}}>
+              <span style={{color:"#00b3a4",fontWeight:900,fontSize:14,flexShrink:0,marginTop:1}}>✓</span>
+              <span style={{fontSize:11,color:"#374151",lineHeight:1.5}}>{d.item}</span>
             </div>
           ))}
-          <button onClick={addDlv} style={{marginTop:4,fontSize:11,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:5,padding:"4px 12px",cursor:"pointer"}}>+ Add Deliverable</button>
         </div>
 
         {/* SECTION 3: PAYMENT SCHEDULE */}
         <div style={{marginBottom:12}}>
           <SH n="3" label="Payment Schedule" warn={true}/>
-
           <table style={{width:"100%",borderCollapse:"collapse",marginBottom:8,fontSize:11}}>
             <thead>
               <tr style={{background:"#f8fafc"}}>
-                {["#","Description","% Share","Amount (THB)",""].map((h,i)=>(
-                  <th key={i} style={{padding:"6px 8px",textAlign:i>=3?"right":"left",fontWeight:700,color:"#64748b",fontSize:10,borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{h}</th>
+                {["#","Description","% Share","Amount (THB)"].map((h,i)=>(
+                  <th key={i} style={{padding:"6px 8px",textAlign:i>=2?"right":"left",fontWeight:700,color:"#64748b",fontSize:10,borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -1422,20 +1428,13 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
               {(f.installments||[]).map((ins,idx)=>(
                 <tr key={ins.id} style={{borderBottom:"1px solid #f1f5f9"}}>
                   <td style={{padding:"6px 8px",color:"#94a3b8",fontWeight:700}}>{idx+1}</td>
-                  <td style={{padding:"6px 8px"}}><Inp value={ins.label} onChange={e=>setInst(ins.id,"label",e.target.value)} style={{fontSize:11,padding:"3px 7px"}}/></td>
-                  <td style={{padding:"6px 8px",textAlign:"right"}}>
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:3}}>
-                      <Inp type="number" value={ins.pct} onChange={e=>setInst(ins.id,"pct",+e.target.value)} style={{fontSize:11,padding:"3px 6px",width:52,textAlign:"right"}} min={0} max={100}/>
-                      <span style={{fontSize:10,color:"#94a3b8"}}>%</span>
-                    </div>
-                  </td>
-                  <td style={{padding:"6px 8px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>฿{fmt(Math.round(subTotal*(ins.pct||0)/100))}</td>
-                  <td style={{padding:"6px 8px"}}><Btn variant="danger" style={{fontSize:10,padding:"2px 5px"}} onClick={()=>delInst(ins.id)}>×</Btn></td>
+                  <td style={{padding:"6px 8px",fontSize:11}}>{ins.label}</td>
+                  <td style={{padding:"6px 8px",textAlign:"right",fontSize:11}}>{ins.pct||0}%</td>
+                  <td style={{padding:"6px 8px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",fontSize:11}}>฿{fmt(Math.round(subTotal*(ins.pct||0)/100))}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <button onClick={addInst} style={{fontSize:11,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:5,padding:"4px 12px",cursor:"pointer"}}>+ Add Installment</button>
           <div style={{display:"flex",justifyContent:"flex-end",marginTop:14}}>
             <div style={{minWidth:280,background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:7,padding:"12px 16px"}}>
               {[{l:"Subtotal (excl. VAT)",v:subTotal,b:false},{l:"VAT 7%",v:vat,b:false},{l:"TOTAL",v:total,b:true}].map(x=>(
@@ -1451,7 +1450,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
         {/* SECTION 4: NOTES */}
         <div style={{marginBottom:12}}>
           <SH n="4" label="Notes &amp; Conditions"/>
-          <Txta value={f.notes} onChange={e=>set("notes",e.target.value)} style={{minHeight:56,fontSize:10.5,background:"#fafafa",whiteSpace:"pre-wrap"}}/>
+          <div style={{fontSize:10.5,color:"#374151",background:"#fafafa",border:"1px solid #e2e8f0",borderRadius:5,padding:"8px 12px",whiteSpace:"pre-wrap",lineHeight:1.7}}>{f.notes||"—"}</div>
         </div>
 
         {/* SIGNATURE BLOCK */}
@@ -1474,10 +1473,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
       </div>
 
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14,alignItems:"center"}}>
-        {onSaveQuotation&&<span style={{fontSize:11,color:"#94a3b8",marginRight:"auto"}}>💾 Changes not yet saved</span>}
         <Btn variant="ghost" onClick={onClose}>Close</Btn>
-        {onSaveQuotation&&<Btn variant="success" onClick={()=>{onSaveQuotation(f);onClose();}}>💾 Save</Btn>}
-        {onSaveQuotation&&<Btn variant="export" onClick={()=>{onSaveQuotation(f);exportPDF();}}>💾🖨 Save &amp; Print</Btn>}
         <Btn variant="export" onClick={exportPDF}>🖨 Print / Export PDF</Btn>
       </div>
     </Modal>
