@@ -736,7 +736,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
 // ═══════════════════════════════════════════════════════════════════════════
 const CustForm = ({initial,user,onSave,onClose}) => {
   const blankContact = () => ({id:uid(),name:"",title:"",email:"",phone:"",active:true});
-  const blank={id:"",companyEN:"",industry:"",sector:"",businessNo:"",businessType:"",companySize:"",address:"",province:"",contacts:[blankContact()],assignedTo:SALES_USERS[0]?.id||"",ranking:"Medium",status:"Lead",remark:"",lastContact:today()};
+  const blank={id:"",companyEN:"",industry:"",sector:"",businessNo:"",businessType:"",companySize:"",address:"",province:"",contacts:[blankContact()],assignedTo:"",remark:"",lastContact:today()};
   const [f,sF] = useState(initial?{...initial,contacts:initial.contacts||[{id:uid(),name:initial.contactName||"",title:initial.titlePosition||"",email:initial.email||"",phone:initial.phone||"",active:true}]}:blank);
   const set = (k,v) => sF(p=>({...p,[k]:v}));
   const setCt=(id,k,v)=>sF(p=>({...p,contacts:p.contacts.map(c=>c.id===id?{...c,[k]:v}:c)}));
@@ -745,17 +745,18 @@ const CustForm = ({initial,user,onSave,onClose}) => {
   return (
     <Modal title={initial?"Edit Customer":"Add Customer"} width={860} onClose={onClose}>
       <G2>
-        <FRow label="Customer ID"><Inp value={f.id} onChange={e=>set("id",e.target.value)} placeholder="0105536088510"/></FRow>
-        <FRow label="Company (EN)"><Inp value={f.companyEN} onChange={e=>set("companyEN",e.target.value)}/></FRow>
+        <FRow label="Customer ID"><Inp value={f.id} onChange={e=>set("id",e.target.value)} placeholder="Company Registration No. (e.g. 0105536088510)"/></FRow>
+        <FRow label="Company (EN)"><Inp value={f.companyEN} onChange={e=>set("companyEN",e.target.value.toUpperCase())}/></FRow>
         <FRow label="Industry"><Inp value={f.industry} onChange={e=>set("industry",e.target.value)}/></FRow>
         <FRow label="Sector"><Inp value={f.sector} onChange={e=>set("sector",e.target.value)}/></FRow>
         <FRow label="Business Type"><Inp value={f.businessType} onChange={e=>set("businessType",e.target.value)}/></FRow>
         <FRow label="Company Size"><Sel value={f.companySize} onChange={e=>set("companySize",e.target.value)}>{["","Micro","Small","Medium","Large Enterprise"].map(v=><option key={v}>{v}</option>)}</Sel></FRow>
         <FRow label="Province"><Inp value={f.province} onChange={e=>set("province",e.target.value)}/></FRow>
         <div style={{gridColumn:"1/-1"}}><FRow label="Address"><Inp value={f.address} onChange={e=>set("address",e.target.value)}/></FRow></div>
-        <FRow label="Assigned Agent"><Sel value={f.assignedTo} onChange={e=>set("assignedTo",e.target.value)}>{SALES_USERS.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</Sel></FRow>
-        <FRow label="Ranking"><Sel value={f.ranking} onChange={e=>set("ranking",e.target.value)}>{["High","Medium","Low"].map(r=><option key={r}>{r}</option>)}</Sel></FRow>
-        <FRow label="CRM Status"><Sel value={f.status} onChange={e=>set("status",e.target.value)}>{CRM_STATUSES.map(s=><option key={s}>{s}</option>)}</Sel></FRow>
+        <FRow label="Assigned Agent"><Sel value={f.assignedTo} onChange={e=>set("assignedTo",e.target.value)}>
+          <option value="">— Any —</option>
+          {SALES_USERS.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+        </Sel></FRow>
         <div style={{gridColumn:"1/-1"}}><FRow label="Remark"><Inp value={f.remark} onChange={e=>set("remark",e.target.value)}/></FRow></div>
       </G2>
       <Divider/>
@@ -828,8 +829,6 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
       if(col==="industry") return (c.industry||"").toLowerCase();
       if(col==="province") return (c.province||"").toLowerCase();
       if(col==="agent") return (USERS.find(u=>u.id===c.assignedTo)?.name||"").toLowerCase();
-      if(col==="ranking") return RANK_ORDER.indexOf(c.ranking);
-      if(col==="status") return c.status||"";
       if(col==="lastContact") return getLastContact(c.id)||"";
       if(col==="remark") return (c.remark||"").toLowerCase();
       return "";
@@ -855,7 +854,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
       </div>
       <Card><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}>
         <thead><tr style={{background:"#f8fafc"}}>
-          {[{l:"Reg. No.",c:"id"},{l:"Company",c:"companyEN"},{l:"Industry",c:"industry"},{l:"Province",c:"province"},
+          {[{l:"Reg. No.",c:"id"},{l:"Company",c:"companyEN"},{l:"Sector",c:"industry"},{l:"Province",c:"province"},
             {l:"Contacts",c:null},{l:"Agent",c:"agent"},
             {l:"Last Contact",c:"lastContact"},{l:"Remark",c:"remark"},{l:"Log",c:null},{l:"",c:null}
           ].map(({l,c})=>(
@@ -869,7 +868,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
           <TR key={c.id} onClick={()=>{sE(c);sF(true);}}>
             <TD style={{fontFamily:"monospace",fontSize:11}}>{c.id}</TD>
             <TD w={200} style={{fontWeight:600}}>{c.companyEN}</TD>
-            <TD>{c.industry}</TD><TD>{c.province}</TD>
+            <TD>{c.sector||c.industry||"—"}</TD><TD>{c.province}</TD>
             <TD w={160}>
               {activeContacts(c).slice(0,2).map((ct,i)=>(
                 <div key={ct.id} style={{fontSize:11,color:"#374151",lineHeight:1.4}}>{ct.name}{i===0&&ct.title&&<span style={{color:"#94a3b8",marginLeft:4,fontSize:10}}>{ct.title}</span>}</div>
@@ -927,8 +926,6 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
         <Modal title={`Work Log — ${logCust.companyEN}`} width={700} onClose={()=>sLog(null)}>
           {/* Summary header */}
           <div style={{marginBottom:14,padding:"12px 16px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
-            <Badge value={logCust.ranking} colorMap={RANK_CLR}/>
-            <Badge value={logCust.status} colorMap={Object.fromEntries(CRM_STATUSES.map(s=>[s,{c:STATUS_CLR[s]}]))}/>
             <div style={{display:"flex",alignItems:"center",gap:6,background:"#fff",border:"1px solid #e2e8f0",borderRadius:6,padding:"4px 12px"}}>
               <span style={{fontSize:12,color:"#94a3b8",fontWeight:600}}>Last Contact</span>
               <span style={{fontSize:14,fontWeight:800,color:getLastContact(logCust.id)?"#0f172a":"#94a3b8"}}>
