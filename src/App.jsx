@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 const USERS = [
   { id:"korakoj.s",     email:"korakoj.s@wavebcg.com",      name:"Korakoj Sanguanpiyapan",     role:"md",        password:"Krj@Wave26!" },
-  { id:"chawapol.ta",   email:"chawapol.ta@wavebcg.com",    name:"Chawapol Tangsirichoochuay", role:"admin",     password:"1" },
+  { id:"chawapol.ta",   email:"chawapol.ta@wavebcg.com",    name:"Chawapol Tangsirichoochuay", role:"admin",     password:"2" },
   { id:"songyot.kr",    email:"songyot.kr@wavebcg.com",     name:"Songyot Kraprom",            role:"sales",     password:"Sgt@Wave26!" },
   { id:"theerayut.c",   email:"theerayut.c@wavebcg.com",    name:"Theerayut Chimpitak",        role:"sales",     password:"Trt@Wave26!" },
   { id:"nattapon.yi",   email:"nattapon.yi@wavebcg.com",    name:"Nattapon Yingsakda",         role:"operation", password:"Ntp@Wave26!" },
@@ -1649,7 +1649,7 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div><Span s={20} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Opportunities</Span><Span s={13} c="#94a3b8" style={{marginLeft:8}}>{list.length} · Pipeline ฿{fmtM(totalPipeline)} · Won ฿{fmtM(totalWon)}</Span></div>
-        <div style={{display:"flex",gap:8}}><ExportBar onCSV={()=>dlCSV("opps.csv",OPP_HDR,list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);return[o.oppCode,o.quoteNo,o.csCode||"",o.jobCode||"",c?.companyEN||"",o.serviceCode,o.serviceType,o.salesPrice,o.totalCost||0,mg,marginAmt(o.salesPrice,o.totalCost||0),o.status,USERS.find(u=>u.id===o.assignedTo)?.name||"",o.createdDate,o.lostReason||""];}))} onGS={()=>sGS(true)}/><Btn onClick={()=>{sE(null);sF(true);}}>+ Add OPP</Btn></div>
+        <div style={{display:"flex",gap:8}}><ExportBar onCSV={()=>dlCSV("opps.csv",OPP_HDR,list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);return[o.oppCode,o.quoteNo,o.csCode||"",o.jobCode||"",c?.companyEN||"",o.serviceCode,o.serviceType,o.salesPrice,o.totalCost||0,mg,marginAmt(o.salesPrice,o.totalCost||0),o.status,USERS.find(u=>u.id===o.assignedTo)?.name||"",o.createdDate,o.lostReason||""];}))} onGS={()=>sGS(true)}/></div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:220}}/>
@@ -1665,7 +1665,7 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
       </div>
       {view==="table"&&(
         <Card><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}>
-          <TH cols={["OPP Code","QT No.","CS Code","Company","Code","Price","Cost","Margin % / ฿","Status","Agent","Log",""]}/>
+          <TH cols={["OPP Code","QT No.","CS Code","Company","Code","Price","Cost","Margin % / ฿","Status","Agent","Log"]}/>
           <tbody>{list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);const mAmt=marginAmt(o.salesPrice,o.totalCost||0);return(
             <TR key={o.id}>
               <TD style={{fontWeight:700,color:"#1e40af",fontFamily:"monospace",fontSize:12,cursor:"pointer"}} onClick={()=>{sE(o);sF(true);}}>{o.oppCode}</TD>
@@ -1675,10 +1675,10 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
                   ? <button onClick={e=>{e.stopPropagation();sE(o);sQT(o);}} style={{fontFamily:"monospace",fontSize:11,background:"none",border:"none",color:"#1e40af",cursor:"pointer",padding:0,textDecoration:"underline",fontWeight:600}}>{o.quoteNo}</button>
                   : "—"}
               </TD>
-              {/* Req 4: CS Code as hyperlink → opens cost sheet */}
+              {/* CS Code → navigate to Cost Sheet Per-Quotation tab */}
               <TD>
                 {o.csCode
-                  ? <button onClick={e=>{e.stopPropagation();sE(o);sF(true);}} style={{fontFamily:"monospace",fontWeight:700,fontSize:11,background:"#fef3c7",color:"#92400e",padding:"2px 7px",borderRadius:4,border:"1px solid #fde68a",cursor:"pointer",textDecoration:"underline"}}>🔗 {o.csCode}</button>
+                  ? <button onClick={e=>{e.stopPropagation();if(onGoToCS)onGoToCS(o.serviceCode);}} style={{fontFamily:"monospace",fontWeight:700,fontSize:11,background:"#fef3c7",color:"#92400e",padding:"2px 7px",borderRadius:4,border:"1px solid #fde68a",cursor:"pointer",textDecoration:"underline"}}>🔗 {o.csCode}</button>
                   : "—"}
               </TD>
               <TD w={180}>{c?.companyEN||"-"}</TD>
@@ -1696,7 +1696,6 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
               </TD>
               <TD>{USERS.find(u=>u.id===o.assignedTo)?.name.split(" ")[0]||"-"}</TD>
               <TD><button onClick={e=>{e.stopPropagation();sLog(o);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11}}>💬 {o.activityLog?.length||0}</button></TD>
-              <TD><Btn variant="ghost" style={{fontSize:11,padding:"3px 8px"}} onClick={()=>{sE(o);sF(true);}}>Edit</Btn></TD>
             </TR>
           );})}
           </tbody>
@@ -3034,29 +3033,30 @@ function App() {
     return "Lost";
   };
   const saveOpp = opp => {
-    const norm = {...opp,id:String(opp.id||""),custId:String(opp.custId||"")};
-    // 1. Save opp to local state + GS
-    sOpps(p => p.find(x=>x.id===norm.id) ? p.map(x=>x.id===norm.id?norm:x) : [...p,norm]);
-    gsSave("opportunities", norm);
-    // 2. Sync customers.status from all opps (including this new one)
-    if(norm.custId) {
-      sOpps(currentOpps => {
-        const merged = currentOpps.find(x=>x.id===norm.id)
-          ? currentOpps.map(x=>x.id===norm.id?norm:x)
-          : [...currentOpps,norm];
-        const newStatus = deriveOppStatus(norm.custId, merged);
+    const norm = {...opp, id:String(opp.id||""), custId:String(opp.custId||"")};
+    // 1. Single sOpps call — build merged list, then sync customer inside same updater
+    sOpps(prev => {
+      // Build new opps list with this opp upserted
+      const next = prev.find(x=>x.id===norm.id)
+        ? prev.map(x=>x.id===norm.id ? norm : x)
+        : [...prev, norm];
+      // Derive customer status from the fully updated opps list
+      if(norm.custId) {
+        const newStatus = deriveOppStatus(norm.custId, next);
         if(newStatus) {
           sCusts(cList => cList.map(c => {
-            if(c.id!==norm.custId) return c;
-            if(c.status===newStatus) return c; // no change needed
-            const updated = {...c, status:newStatus};
-            gsSave("customers", updated); // sync to GS
+            if(c.id !== norm.custId) return c;
+            if(c.status === newStatus) return c; // already correct, no GS call needed
+            const updated = {...c, status: newStatus};
+            gsSave("customers", updated); // push to GS
             return updated;
           }));
         }
-        return currentOpps; // don't change opps here, already set above
-      });
-    }
+      }
+      return next;
+    });
+    // 2. Push opp to GS
+    gsSave("opportunities", norm);
   };
 
   // ── saveCS: update local + push entire costsheets collection ──────────────
