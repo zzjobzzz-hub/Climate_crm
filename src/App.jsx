@@ -1564,7 +1564,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
   );
 };
 
-const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS,initTab="detail"}) => {
+const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS,onDelete,initTab="detail"}) => {
   const newOppCode=genOppCode(opps); const newQtNo=genQuoteNo(opps);
   const blank={id:newOppCode,custId:customers[0]?.id||"",oppCode:newOppCode,quoteNo:newQtNo,jobCode:"",serviceCode:SERVICES[0].code,serviceType:SERVICES[0].name,salesPrice:SERVICES[0].stdPrice,totalCost:SERVICES[0].stdCost,status:"Proposal",assignedTo:SALES_USERS[0]?.id||"",createdDate:today(),lostReason:"",activityLog:[],remark:"",ranking:"Medium"};
   const [f,sF] = useState(initial?{...initial,activityLog:initial.activityLog||[]}:blank);
@@ -1595,7 +1595,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                 <span style={{padding:"7px 8px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:5,fontSize:10,color:"#1e40af",whiteSpace:"nowrap",alignSelf:"center"}}>AUTO</span>
               </div>
             </FRow>
-            {f.csCode&&<div style={{gridColumn:"1/-1"}}><FRow label="Cost Sheet & Pricing Code (CS Code)"><div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>{onSave({...f,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""});if(onGoToCS)onGoToCS(f.serviceCode);}} style={{fontFamily:"monospace",fontWeight:900,fontSize:14,background:"#fef3c7",color:"#92400e",padding:"6px 12px",borderRadius:6,border:"1px solid #fde68a",cursor:"pointer",textDecoration:"underline"}}>🔗 {f.csCode}</button><Span s={11} c="#64748b">Click to open Cost Sheet (saves first)</Span></div></FRow></div>}
+            {f.csCode&&<div style={{gridColumn:"1/-1"}}><FRow label="Cost Sheet & Pricing Code (CS Code)"><div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>{onSave({...f,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""});if(onGoToCS)onGoToCS(f.serviceCode);}} style={{fontFamily:"monospace",fontWeight:700,fontSize:13,background:"none",color:"#1e40af",padding:"4px 0",border:"none",cursor:"pointer",textDecoration:"underline"}}>{f.csCode}</button><Span s={11} c="#64748b">Click to open Cost Sheet (saves first)</Span></div></FRow></div>}
             <div style={{gridColumn:"1/-1"}}><FRow label="Customer"><Sel value={f.custId} onChange={e=>set("custId",e.target.value)}>{customers.map(c=><option key={c.id} value={c.id}>{c.companyEN}</option>)}</Sel></FRow></div>
             <div style={{gridColumn:"1/-1"}}><FRow label="Service"><Sel value={f.serviceCode} onChange={e=>{const s=SERVICES.find(x=>x.code===e.target.value);set("serviceCode",e.target.value);set("serviceType",s?.name||"");set("salesPrice",s?.stdPrice||0);set("totalCost",s?.stdCost||0);}}>{SERVICES.map(s=><option key={s.code} value={s.code}>[{s.code}] {s.name}</option>)}</Sel></FRow></div>
             <FRow label="Sales Price (THB)"><Inp type="number" value={f.salesPrice} onChange={e=>set("salesPrice",+e.target.value)}/></FRow>
@@ -1626,6 +1626,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
       {tab==="log"&&<ActivityLog logs={f.activityLog||[]} currentUser={user} onAdd={entry=>sF(p=>({...p,activityLog:[...(p.activityLog||[]),entry]}))} placeholder="Log a call, meeting, email…"/>}
       {tab==="quotation"&&<QuotationPreview opp={f} customer={customers.find(c=>c.id===f.custId)} costSheets={costSheets||[]} onClose={onClose} onSaveQuotation={qd=>{const updated={...f,quotationData:qd,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""};onSave(updated);}}/>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
+        {initial&&onDelete&&<Btn variant="danger" style={{marginRight:"auto"}} onClick={()=>onDelete(f)}>Delete</Btn>}
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
         <Btn onClick={()=>onSave({...f,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""})}>{isWon?"Save & Auto-Create Delivery":"Save Opportunity"}</Btn>
       </div>
@@ -1634,7 +1635,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
 };
 
 const OPP_HDR = ["OPP Code","Quote No.","CS Code","Job Code","Company","Service Code","Service Type","Sales Price","Total Cost","Margin%","Margin ฿","Status","Agent","Created","Lost Reason"];
-const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,costSheets,onGoToCS,initOppCode,onOppReady}) => {
+const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSaveDelivery,toast,costSheets,onGoToCS,initOppCode,onOppReady}) => {
   const [search,sS]=useState(""); const [fSt,setFSt]=useState([]); const [fAg,setFAg]=useState([]); const [fSvc,setFSvc]=useState([]);
   const [view,sView]=useState("table"); const [form,sF]=useState(false); const [edit,sE]=useState(null);
   const [logOpp,sLog]=useState(null); const [gs,sGS]=useState(false); const [quotationOpp,sQT]=useState(null);
@@ -1853,7 +1854,21 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
       )}
       {view==="kanban"&&kanbanView}
 
-      {form&&<OppForm initial={edit} customers={customers} opps={opps} user={user} onSave={handleSave} onClose={()=>{sF(false);sE(null);sQT(null);}} costSheets={costSheets} onGoToCS={onGoToCS}/>}
+      {form&&<OppForm initial={edit} customers={customers} opps={opps} user={user} onSave={handleSave} onClose={()=>{sF(false);sE(null);sQT(null);}} costSheets={costSheets} onGoToCS={onGoToCS} onDelete={o=>{
+        onDelete(o.id);
+        // Clean CS: remove saveLog entries + quoteOverrides matching this quoteNo/oppCode
+        if(onSaveCS&&(o.quoteNo||o.oppCode)){
+          const cs=(costSheets||[]).find(c=>(c.quoteOverrides||[]).some(q=>q.quoteNo===o.quoteNo||q.oppCode===o.oppCode)||(c.saveLog||[]).some(l=>l.quoteSnapshot?.quoteNo===o.quoteNo));
+          if(cs){
+            onSaveCS({...cs,
+              quoteOverrides:(cs.quoteOverrides||[]).filter(q=>q.quoteNo!==o.quoteNo&&q.oppCode!==o.oppCode),
+              saveLog:(cs.saveLog||[]).filter(l=>!l.quoteSnapshot||(l.quoteSnapshot.quoteNo!==o.quoteNo&&l.quoteSnapshot.oppCode!==o.oppCode)),
+            });
+          }
+        }
+        sF(false);sE(null);sQT(null);
+        toast("Opportunity deleted",o.oppCode,"error");
+      }}/>}
       {quotationOpp&&!form&&<QuotationPreview opp={quotationOpp} customer={customers.find(c=>c.id===quotationOpp.custId)} costSheets={costSheets||[]} onClose={()=>sQT(null)} onSaveQuotation={qd=>{onSave({...quotationOpp,quotationData:qd});sQT(null);}}/>}
       {logOpp&&(
         <Modal title={`Activity Log — ${logOpp.oppCode}`} width={680} onClose={()=>sLog(null)}>
@@ -2679,7 +2694,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <Span s={20} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Cost Sheet & Pricing</Span>
-        <div style={{display:"flex",gap:8}}><ExportBar onCSV={()=>dlCSV("costsheets.csv",["Service","COGS (Internal)","COGS (External Co.)","OPEX","Total Cost","Std Price","Margin%","Margin ฿"],costSheets.map(cs=>{const ic=calcIC(cs.internalCosts||[]),ec=calcEC(cs.externalCosts||[],true),opex=calcTask(cs.tasks||[]),tc=ic+ec+opex;return[cs.serviceType,ic,ec,opex,tc,cs.stdPrice,margin(cs.stdPrice,tc),marginAmt(cs.stdPrice,tc)];}))} onGS={()=>sGS(true)}/><Btn onClick={handleSave}>Save Cost Sheet</Btn></div>
+        <div style={{display:"flex",gap:8}}><ExportBar onCSV={()=>dlCSV("costsheets.csv",["Service","COGS (Internal)","COGS (External Co.)","OPEX","Total Cost","Std Price","Margin%","Margin ฿"],costSheets.map(cs=>{const ic=calcIC(cs.internalCosts||[]),ec=calcEC(cs.externalCosts||[],true),opex=calcTask(cs.tasks||[]),tc=ic+ec+opex;return[cs.serviceType,ic,ec,opex,tc,cs.stdPrice,margin(cs.stdPrice,tc),marginAmt(cs.stdPrice,tc)];}))} onGS={()=>sGS(true)}/><Btn onClick={handleSave}>Save</Btn></div>
       </div>
 
       <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:14}}>
@@ -2839,7 +2854,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           </div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
             <Span s={14} w={700}>Per-Quotation Cost Sheet {(editCS.quoteOverrides||[]).length>0?`· CS: ${editCS.quoteOverrides[0].csCode}`:""}</Span>
-            {(editCS.quoteOverrides||[]).length===0&&<Btn onClick={addQO}>+ New Quotation (Auto CS + OPP + QT)</Btn>}
+            {(editCS.quoteOverrides||[]).length===0&&<Btn onClick={addQO}>+ New Quotation</Btn>}
           </div>
           {(editCS.quoteOverrides||[]).length===0&&(
             <Card style={{padding:48,textAlign:"center"}}>
@@ -2878,55 +2893,63 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
             const instSum=(q.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
             return (
               <Card key={q.id} style={{marginBottom:14,overflow:"hidden",position:"relative"}}>
-                {/* Remove button — top-right corner */}
-                <button onClick={()=>delQO(q.id)} title="Remove this quotation" style={{position:"absolute",top:10,right:12,zIndex:10,background:"#fee2e2",color:"#dc2626",border:"1px solid #fecaca",borderRadius:5,fontSize:14,fontWeight:700,width:26,height:26,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>✕</button>
-                {/* Header row */}
-                <div style={{padding:"14px 20px",background:+qMg>=30?"#f0fdf4":"#fffbeb",borderBottom:"1px solid #e2e8f0",display:"flex",gap:12,alignItems:"flex-end",flexWrap:"wrap",paddingRight:110}}>
-                  <div style={{flex:"0 0 155px"}}>
-                    <Span s={10} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:3}}>CS Code <span style={{background:"#fef3c7",color:"#92400e",padding:"1px 5px",borderRadius:3,fontSize:9,fontWeight:700}}>AUTO</span></Span>
-                    <div style={{fontFamily:"monospace",fontWeight:900,fontSize:13,color:"#92400e",background:"#fef3c7",border:"1px solid #fde68a",borderRadius:5,padding:"5px 8px"}}>{q.csCode}</div>
+                {/* Header row — single line, no wrap */}
+                <div style={{padding:"10px 16px",background:+qMg>=30?"#f0fdf4":"#fffbeb",borderBottom:"1px solid #e2e8f0",display:"flex",gap:8,alignItems:"center",flexWrap:"nowrap",overflow:"hidden"}}>
+                  {/* CS Code */}
+                  <div style={{flexShrink:0}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>CS Code</Span>
+                    <div style={{fontFamily:"monospace",fontWeight:900,fontSize:12,color:"#1e40af",padding:"3px 0"}}>{q.csCode}</div>
                   </div>
-                  <div style={{flex:"0 0 145px"}}>
-                    <Span s={10} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:3}}>OPP Code</Span>
-                    <Inp value={q.oppCode||""} onChange={e=>setQF(q.id,"oppCode",e.target.value)} style={{fontSize:12,fontFamily:"monospace",fontWeight:700,padding:"4px 8px",color:"#1e40af"}}/>
+                  <div style={{width:1,background:"#e2e8f0",alignSelf:"stretch",marginX:4,flexShrink:0}}/>
+                  {/* OPP Code */}
+                  <div style={{flex:"0 0 120px"}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>OPP Code</Span>
+                    <Inp value={q.oppCode||""} onChange={e=>setQF(q.id,"oppCode",e.target.value)} style={{fontSize:11,fontFamily:"monospace",fontWeight:700,padding:"3px 6px",color:"#1e40af"}}/>
                   </div>
-                  <div style={{flex:"0 0 145px"}}>
-                    <Span s={10} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:3}}>Quote No.</Span>
-                    <Inp value={q.quoteNo||""} onChange={e=>setQF(q.id,"quoteNo",e.target.value)} style={{fontSize:12,fontFamily:"monospace",padding:"4px 8px"}}/>
+                  {/* Quote No. */}
+                  <div style={{flex:"0 0 110px"}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Quote No.</Span>
+                    <Inp value={q.quoteNo||""} onChange={e=>setQF(q.id,"quoteNo",e.target.value)} style={{fontSize:11,fontFamily:"monospace",padding:"3px 6px"}}/>
                   </div>
-                  <div style={{flex:"0 0 220px"}}>
-                    <Span s={10} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:3}}>Customer</Span>
-                    <Sel value={q.custId||""} onChange={e=>setQF(q.id,"custId",e.target.value)} style={{fontSize:12,padding:"4px 8px"}}>
+                  {/* Customer */}
+                  <div style={{flex:"1 1 160px",minWidth:0}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Customer</Span>
+                    <Sel value={q.custId||""} onChange={e=>setQF(q.id,"custId",e.target.value)} style={{fontSize:11,padding:"3px 6px",width:"100%"}}>
                       <option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.id}>{c.companyEN}</option>)}
                     </Sel>
                   </div>
-                  <div style={{flex:"0 0 175px"}}>
-                    <Span s={10} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:3}}>Sales Agent</Span>
-                    <Sel value={q.salesAgent||""} onChange={e=>setQF(q.id,"salesAgent",e.target.value)} style={{fontSize:12,padding:"4px 8px"}}>
+                  {/* Sales Agent */}
+                  <div style={{flex:"0 0 140px"}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Agent</Span>
+                    <Sel value={q.salesAgent||""} onChange={e=>setQF(q.id,"salesAgent",e.target.value)} style={{fontSize:11,padding:"3px 6px"}}>
                       <option value="">— Select —</option>{SALES_USERS.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
                     </Sel>
                   </div>
-                  <div style={{flex:"0 0 195px"}}>
-                    <Span s={10} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:3}}>Contact Person</Span>
-                    <Sel value={q.contactPersonId||""} onChange={e=>setQF(q.id,"contactPersonId",e.target.value)} style={{fontSize:12,padding:"4px 8px"}}>
+                  {/* Contact Person */}
+                  <div style={{flex:"0 0 150px"}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Contact</Span>
+                    <Sel value={q.contactPersonId||""} onChange={e=>setQF(q.id,"contactPersonId",e.target.value)} style={{fontSize:11,padding:"3px 6px"}}>
                       <option value="">— Select —</option>
                       {(customers.find(c=>c.id===q.custId)?.contacts||[]).filter(ct=>ct.active).map(ct=><option key={ct.id} value={ct.id}>{ct.name}</option>)}
                     </Sel>
                   </div>
-                  <div style={{flex:"0 0 115px"}}>
-                    <Span s={10} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:3}}>Sales Price</Span>
-                    <Inp type="number" value={q.salesPrice} onChange={e=>updQO(q.id,q=>({...q,salesPrice:+e.target.value,lineItems:(q.lineItems||[]).map((li,i)=>i===0?{...li,unitPrice:+e.target.value}:li)}))} style={{fontSize:13,fontWeight:700,padding:"4px 8px"}}/>
+                  {/* Sales Price */}
+                  <div style={{flex:"0 0 90px"}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Price</Span>
+                    <Inp type="number" value={q.salesPrice} onChange={e=>updQO(q.id,q=>({...q,salesPrice:+e.target.value,lineItems:(q.lineItems||[]).map((li,i)=>i===0?{...li,unitPrice:+e.target.value}:li)}))} style={{fontSize:12,fontWeight:700,padding:"3px 6px"}}/>
                   </div>
-                  <div style={{flex:"0 0 60px"}}>
-                    <Span s={10} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:3}}>Months</Span>
-                    <Inp type="number" value={months} onChange={e=>setQF(q.id,"projectMonths",+e.target.value)} style={{fontSize:12,padding:"4px 6px"}}/>
+                  {/* Months */}
+                  <div style={{flex:"0 0 52px"}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Mo.</Span>
+                    <Inp type="number" value={months} onChange={e=>setQF(q.id,"projectMonths",+e.target.value)} style={{fontSize:11,padding:"3px 5px"}}/>
                   </div>
-                  <div style={{padding:"8px 14px",borderRadius:7,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center"}}>
-                    <Span s={10} c={+qMg>=30?"#16a34a":"#dc2626"}>Margin</Span>
-                    <div style={{fontWeight:900,fontSize:20,color:+qMg>=30?"#16a34a":"#dc2626"}}>{qMg}%</div>
-                    <div style={{fontWeight:700,fontSize:12,color:+qMg>=30?"#16a34a":"#dc2626"}}>฿{fmt(marginAmt(q.salesPrice,qTC))}</div>
-                    <Span s={9} c="#64748b">Cost ฿{fmt(qTC)}</Span>
+                  {/* Margin badge */}
+                  <div style={{flex:"0 0 72px",padding:"5px 8px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center",flexShrink:0}}>
+                    <div style={{fontWeight:900,fontSize:15,color:+qMg>=30?"#16a34a":"#dc2626",lineHeight:1.2}}>{qMg}%</div>
+                    <div style={{fontWeight:700,fontSize:10,color:+qMg>=30?"#16a34a":"#dc2626"}}>{fmtK(marginAmt(q.salesPrice,qTC))}</div>
                   </div>
+                  {/* Close button */}
+                  <button onClick={()=>delQO(q.id)} title="Close" style={{flexShrink:0,marginLeft:4,background:"none",color:"#94a3b8",border:"1px solid #e2e8f0",borderRadius:5,fontSize:16,fontWeight:700,width:26,height:26,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>✕</button>
                 </div>
 
                 {/* Cost grids */}
@@ -3332,7 +3355,7 @@ function App() {
       <div style={{maxWidth:1440,margin:"0 auto",padding:24}}>
         {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI} toast={toast}/>}
         {page==="customers" && <CustomersPage user={user} customers={customers} opps={opps} onSave={saveItem(sCusts,"customers")} onDelete={deleteItem(sCusts,"customers")} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)}/>}
-        {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)}/>}
+        {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} onDelete={deleteItem(sOpps,"opportunities")} onSaveCS={saveCS} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)}/>}
         {page==="delivery"  && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}}/>}
         {page==="costsheet" && <CostSheetPage costSheets={costSheets} onSave={saveCS} customers={customers} opps={opps} user={user} onSaveOpp={saveOpp} toast={toast} initSvcCode={initSvcCode} onSvcReady={()=>sSvcCode(null)}/>}
         {page==="setup"     && <SetupPage/>}
