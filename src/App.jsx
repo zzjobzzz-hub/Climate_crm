@@ -1026,11 +1026,7 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
 
   const buildDeliverables = () => {
     if(qSnap?.deliverables?.length) return qSnap.deliverables.map(d=>({...d,id:d.id||uid()}));
-    return [
-      {id:uid(),item:"รายงานคาร์บอนฟุตพริ้นท์ (PDF & Hard Copy 3 ชุด)"},
-      {id:uid(),item:"นำเสนอผลการศึกษาแก่ผู้บริหาร"},
-      {id:uid(),item:"เอกสารใบรับรอง / Verification Statement"},
-    ];
+    return [{id:uid(),item:""}];
   };
 
   const initIssue = today();
@@ -2486,11 +2482,9 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
       ],
       lineItems:[{id:uid(),description:"",qty:1,unit:"Job",unitPrice:0}],
       deliverables:[
-        {id:uid(),item:"รายงานคาร์บอนฟุตพริ้นท์ (PDF & Hard Copy 3 ชุด)"},
-        {id:uid(),item:"นำเสนอผลการศึกษาแก่ผู้บริหาร"},
-        {id:uid(),item:"เอกสารใบรับรอง / Verification Statement"},
+        {id:uid(),item:""},
       ],
-      notes:"• ค่าใช้จ่ายในการเดินทางเพื่อ Site Visit รวมอยู่ในราคาข้างต้น\n• ค่าธรรมเนียม TGO (ถ้ามี) ลูกค้ารับผิดชอบตามจริง\n• ราคานี้มีผลภายใน 30 วันนับจากวันที่ออกใบเสนอราคา\n• ราคาดังกล่าวยังไม่รวมภาษีมูลค่าเพิ่ม (VAT) 7%",
+      notes:"",
     }]}));
   };
   const delQO=id=>sECS(p=>({...p,quoteOverrides:(p.quoteOverrides||[]).filter(r=>r.id!==id)}));
@@ -2758,7 +2752,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
             return (
               <Card key={q.id} style={{marginBottom:14,overflow:"hidden",position:"relative"}}>
                 {/* Remove button — top-right corner */}
-                <button onClick={()=>delQO(q.id)} title="Remove this quotation" style={{position:"absolute",top:10,right:12,zIndex:10,background:"#fee2e2",color:"#dc2626",border:"1px solid #fecaca",borderRadius:5,fontSize:11,fontWeight:700,padding:"3px 10px",cursor:"pointer",lineHeight:1.4}}>✕ Remove</button>
+                <button onClick={()=>delQO(q.id)} title="Remove this quotation" style={{position:"absolute",top:10,right:12,zIndex:10,background:"#fee2e2",color:"#dc2626",border:"1px solid #fecaca",borderRadius:5,fontSize:14,fontWeight:700,width:26,height:26,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>✕</button>
                 {/* Header row */}
                 <div style={{padding:"14px 20px",background:+qMg>=30?"#f0fdf4":"#fffbeb",borderBottom:"1px solid #e2e8f0",display:"flex",gap:12,alignItems:"flex-end",flexWrap:"wrap",paddingRight:110}}>
                   <div style={{flex:"0 0 155px"}}>
@@ -2811,55 +2805,60 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                 {/* Cost grids */}
                 <div style={{padding:16,display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
                   <div>
-                    {/* Internal at top */}
-                    <div style={{marginBottom:4}}>
-                      <Span s={11} w={700}>COGS — Internal</Span>
+                    {/* Unified COGS table */}
+                    <div style={{marginBottom:4,display:"flex",alignItems:"center",gap:8}}>
+                      <Span s={11} w={700}>COGS</Span>
+                      <Span s={9} c="#94a3b8">(Internal = no vendor · External = vendor + Client? toggle)</Span>
                     </div>
-                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,marginBottom:6,tableLayout:"fixed"}}>
-                      <colgroup><col style={{width:"38%"}}/><col style={{width:"10%"}}/><col style={{width:"8%"}}/><col style={{width:"14%"}}/><col style={{width:"11%"}}/><col style={{width:"11%"}}/><col style={{width:"8%"}}/></colgroup>
-                      <TH cols={["Label","Unit","Qty","Rate","Total","Pay M.",""]}/>
-                      <tbody>{(q.internalCosts||[]).map(r=>(
-                        <tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
-                          <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQIC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
-                          <td style={{padding:"3px 3px"}}><Inp value={r.unit} onChange={e=>setQIC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
-                          <td style={{padding:"3px 3px"}}><Inp type="number" value={r.qty} onChange={e=>setQIC(q.id,r.id,"qty",+e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
-                          <td style={{padding:"3px 3px"}}><Inp type="number" value={r.rate} onChange={e=>setQIC(q.id,r.id,"rate",+e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
-                          <td style={{padding:"3px 3px",fontWeight:700,fontSize:10}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
-                          <td style={{padding:"3px 3px"}}>
-                            <Sel value={r.payMonth||1} onChange={e=>setQIC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:9,width:"100%"}}>
-                              {Array.from({length:months||3},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
-                            </Sel>
-                          </td>
-                          <td><Btn variant="danger" style={{fontSize:10,padding:"1px 4px"}} onClick={()=>delQIC(q.id,r.id)}>×</Btn></td>
-                        </tr>
-                      ))}
-                      {/* +Internal bottom-left under Label col */}
-                      <tr><td style={{padding:"3px 3px"}}><button onClick={()=>addQIC(q.id)} style={{fontSize:10,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:4,padding:"1px 7px",cursor:"pointer"}}>+ Internal</button></td><td colSpan={6}/></tr>
-                      </tbody>
-                    </table>
-                    {/* External at bottom */}
-                    <Span s={11} w={700} style={{display:"block",marginBottom:4}}>COGS — External</Span>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
-                      <colgroup><col style={{width:"28%"}}/><col style={{width:"11%"}}/><col style={{width:"8%"}}/><col style={{width:"6%"}}/><col style={{width:"11%"}}/><col style={{width:"10%"}}/><col style={{width:"7%"}}/><col style={{width:"10%"}}/><col style={{width:"9%"}}/></colgroup>
+                      <colgroup><col style={{width:"24%"}}/><col style={{width:"10%"}}/><col style={{width:"8%"}}/><col style={{width:"6%"}}/><col style={{width:"10%"}}/><col style={{width:"9%"}}/><col style={{width:"7%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"8%"}}/></colgroup>
                       <TH cols={["Label","Vendor","Unit","Qty","Rate","Total","Client?","Pay M.",""]}/>
-                      <tbody>{(q.externalCosts||[]).map(r=>(
-                        <tr key={r.id} style={{borderBottom:"1px solid #f8fafc",background:r.clientBorne?"#f0fdf4":"#fff"}}>
-                          <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQEC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
-                          <td style={{padding:"3px 3px"}}><Inp value={r.vendorName||""} onChange={e=>setQEC(q.id,r.id,"vendorName",e.target.value)} placeholder="Vendor" style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
-                          <td style={{padding:"3px 3px"}}><Inp value={r.unit||""} onChange={e=>setQEC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
-                          <td style={{padding:"3px 3px"}}><Inp type="number" value={r.qty} onChange={e=>setQEC(q.id,r.id,"qty",+e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
-                          <td style={{padding:"3px 3px"}}><Inp type="number" value={r.rate} onChange={e=>setQEC(q.id,r.id,"rate",+e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
-                          <td style={{padding:"3px 3px",fontWeight:700,fontSize:10,color:r.clientBorne?"#16a34a":"inherit"}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
-                          <td style={{padding:"3px 3px",textAlign:"center"}}><button onClick={()=>setQEC(q.id,r.id,"clientBorne",!r.clientBorne)} style={{padding:"1px 6px",borderRadius:10,fontSize:9,fontWeight:700,border:"1px solid",borderColor:r.clientBorne?"#86efac":"#fca5a5",background:r.clientBorne?"#dcfce7":"#fee2e2",color:r.clientBorne?"#16a34a":"#dc2626",cursor:"pointer"}}>{r.clientBorne?"Client":"Co."}</button></td>
-                          <td style={{padding:"3px 3px"}}>
-                            <Sel value={r.payMonth||1} onChange={e=>setQEC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:9,width:"100%"}}>
-                              {Array.from({length:months||3},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
-                            </Sel>
+                      <tbody>
+                        {(q.internalCosts||[]).map(r=>(
+                          <tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQIC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px",fontSize:9,color:"#94a3b8",textAlign:"center"}}>—</td>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.unit} onChange={e=>setQIC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><Inp type="number" value={r.qty} onChange={e=>setQIC(q.id,r.id,"qty",+e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><Inp type="number" value={r.rate} onChange={e=>setQIC(q.id,r.id,"rate",+e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px",fontWeight:700,fontSize:10}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
+                            <td style={{padding:"3px 3px",textAlign:"center",fontSize:9,color:"#94a3b8"}}>—</td>
+                            <td style={{padding:"3px 3px"}}>
+                              <Sel value={r.payMonth||1} onChange={e=>setQIC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:9,width:"100%"}}>
+                                {Array.from({length:months||3},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
+                              </Sel>
+                            </td>
+                            <td><Btn variant="danger" style={{fontSize:10,padding:"1px 4px"}} onClick={()=>delQIC(q.id,r.id)}>×</Btn></td>
+                          </tr>
+                        ))}
+                        {(q.externalCosts||[]).map(r=>(
+                          <tr key={r.id} style={{borderBottom:"1px solid #f8fafc",background:r.clientBorne?"#f0fdf4":"#fff"}}>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQEC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.vendorName||""} onChange={e=>setQEC(q.id,r.id,"vendorName",e.target.value)} placeholder="Vendor" style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.unit||""} onChange={e=>setQEC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><Inp type="number" value={r.qty} onChange={e=>setQEC(q.id,r.id,"qty",+e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><Inp type="number" value={r.rate} onChange={e=>setQEC(q.id,r.id,"rate",+e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px",fontWeight:700,fontSize:10,color:r.clientBorne?"#16a34a":"inherit"}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
+                            <td style={{padding:"3px 3px",textAlign:"center"}}><button onClick={()=>setQEC(q.id,r.id,"clientBorne",!r.clientBorne)} style={{padding:"1px 6px",borderRadius:10,fontSize:9,fontWeight:700,border:"1px solid",borderColor:r.clientBorne?"#86efac":"#fca5a5",background:r.clientBorne?"#dcfce7":"#fee2e2",color:r.clientBorne?"#16a34a":"#dc2626",cursor:"pointer"}}>{r.clientBorne?"Client":"Co."}</button></td>
+                            <td style={{padding:"3px 3px"}}>
+                              <Sel value={r.payMonth||1} onChange={e=>setQEC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:9,width:"100%"}}>
+                                {Array.from({length:months||3},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
+                              </Sel>
+                            </td>
+                            <td><Btn variant="danger" style={{fontSize:10,padding:"1px 4px"}} onClick={()=>delQEC(q.id,r.id)}>×</Btn></td>
+                          </tr>
+                        ))}
+                        <tr>
+                          <td style={{padding:"4px 3px"}}>
+                            <div style={{display:"flex",gap:4}}>
+                              <button onClick={()=>addQIC(q.id)} style={{fontSize:10,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:4,padding:"1px 7px",cursor:"pointer"}}>+ Internal</button>
+                              <button onClick={()=>addQEC(q.id)} style={{fontSize:10,color:"#7c3aed",background:"none",border:"1px dashed #ddd6fe",borderRadius:4,padding:"1px 7px",cursor:"pointer"}}>+ External</button>
+                            </div>
                           </td>
-                          <td><Btn variant="danger" style={{fontSize:10,padding:"1px 4px"}} onClick={()=>delQEC(q.id,r.id)}>×</Btn></td>
+                          <td colSpan={6}/>
+                          <td style={{padding:"5px 3px",fontWeight:900,fontSize:11}}>฿{fmt(qIC+qEC)}</td>
+                          <td style={{padding:"5px 3px",fontSize:9,color:"#94a3b8",fontWeight:700}}>Total COGS</td>
                         </tr>
-                      ))}
-                      <tr><td style={{padding:"3px 3px"}}><button onClick={()=>addQEC(q.id)} style={{fontSize:10,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:4,padding:"1px 7px",cursor:"pointer"}}>+ External</button></td><td colSpan={6}/><td style={{padding:"5px 3px",fontWeight:900,fontSize:11}}>฿{fmt(qIC+qEC)}</td><td style={{padding:"5px 3px",fontSize:9,color:"#94a3b8",fontWeight:700}}>Total COGS</td></tr>
                       </tbody>
                     </table>
                   </div>
@@ -2960,13 +2959,13 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                 <div style={{padding:"0 20px 16px",borderTop:"1px solid #f1f5f9"}}>
                   <div style={{marginTop:14,marginBottom:12}}>
                     <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:3}}>Service Description</Span>
-                    <span style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:6}}>ชื่อโครงการที่จะปรากฏใน Description — e.g. "Verification of CFO per TGO / ISO 14064-1"</span>
-                    <Inp value={q.projectTitle||""} onChange={e=>setQF(q.id,"projectTitle",e.target.value)} placeholder='e.g. Verification of Carbon Footprint for Organization per TGO guideline' style={{fontSize:12}}/>
+                    <span style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:6}}>ชื่อโครงการที่จะปรากฏใน Quotation Description</span>
+                    <Inp value={q.projectTitle||""} onChange={e=>setQF(q.id,"projectTitle",e.target.value)} placeholder="Verification of Carbon Footprint for Organization per TGO guideline" style={{fontSize:12}}/>
                   </div>
                   <div>
                     <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:3}}>Project Scope</Span>
-                    <span style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:6}}>รายละเอียดขอบเขต — Project Address, Organisational Boundary, Base Year, Reporting Boundary ฯลฯ</span>
-                    <Txta value={q.projectScope||""} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder="e.g. Project Address: …&#10;Scope of operations: …&#10;Reporting Boundaries: Scope 1, 2, 3…" style={{minHeight:80,fontSize:12}}/>
+                    <span style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:6}}>รายละเอียดขอบเขต — Project Address, Organisational Boundary, Base Year, Reporting Boundary</span>
+                    <Txta value={q.projectScope||""} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder="Project Address: …&#10;Scope of operations: …&#10;Reporting Boundaries: Scope 1, 2, 3…" style={{minHeight:80,fontSize:12}}/>
                   </div>
                 </div>
 
@@ -2988,7 +2987,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                 {/* ── NOTES & CONDITIONS (full width) ── */}
                 <div style={{padding:"0 20px 16px"}}>
                   <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Notes & Conditions</Span>
-                  <Txta value={q.notes||""} onChange={e=>setQF(q.id,"notes",e.target.value)} placeholder="เงื่อนไขการชำระเงิน, ข้อกำหนดอื่นๆ…" style={{minHeight:80,fontSize:12}}/>
+                  <Txta value={q.notes||""} onChange={e=>setQF(q.id,"notes",e.target.value)} placeholder="• ค่าใช้จ่ายในการเดินทางเพื่อ Site Visit รวมอยู่ในราคาข้างต้น&#10;• ค่าธรรมเนียม TGO (ถ้ามี) ลูกค้ารับผิดชอบตามจริง&#10;• ราคานี้มีผลภายใน 30 วันนับจากวันที่ออกใบเสนอราคา&#10;• ราคาดังกล่าวยังไม่รวมภาษีมูลค่าเพิ่ม (VAT) 7%" style={{minHeight:80,fontSize:12}}/>
                 </div>
 
                 {/* Cost + margin footer */}
