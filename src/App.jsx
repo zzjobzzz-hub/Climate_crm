@@ -242,7 +242,13 @@ const TH = ({cols}) => <thead><tr style={{background:"#f8fafc"}}>{cols.map((c,i)
 const TR = ({children,onClick,hi}) => { const[h,sH]=useState(false); return <tr onClick={onClick} onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)} style={{borderBottom:"1px solid #f1f5f9",background:hi?"#fffbeb":h?"#f8fafc":"#fff",cursor:onClick?"pointer":"default"}}>{children}</tr>; };
 const TD = ({children,right,w,style}) => <td style={{padding:"9px 12px",fontSize:13,color:"#374151",maxWidth:w,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textAlign:right?"right":"left",...style}}>{children}</td>;
 
-const Modal = ({title,width=740,onClose,children}) => (
+const Modal = ({title,width=740,onClose,children}) => {
+  useEffect(()=>{
+    const h=e=>{if(e.key==="Escape")onClose();};
+    document.addEventListener("keydown",h);
+    return()=>document.removeEventListener("keydown",h);
+  },[onClose]);
+  return (
   <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
     <div style={{background:"#fff",borderRadius:10,width:"100%",maxWidth:width,maxHeight:"92vh",overflow:"auto",boxShadow:"0 24px 64px rgba(0,0,0,.22)"}}>
       <div style={{padding:"17px 24px",borderBottom:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff",zIndex:1}}>
@@ -252,7 +258,8 @@ const Modal = ({title,width=740,onClose,children}) => (
       <div style={{padding:24}}>{children}</div>
     </div>
   </div>
-);
+  );
+};
 
 // ── Toast (Req 15) ─────────────────────────────────────────
 const Toast = ({toasts}) => (
@@ -873,42 +880,96 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
         <MultiSelect label="Status"  options={CRM_STATUSES.map(s=>({value:s,label:s}))}            selected={fSt} onChange={setFSt} width={165}/>
         <MultiSelect label="Agents"  options={SALES_USERS.map(u=>({value:u.id,label:u.name.split(" ")[0]}))} selected={fAg} onChange={setFAg} width={175}/>
       </div>
-      <Card><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}>
-        <thead><tr style={{background:"#f8fafc"}}>
-          {[{l:"Reg. No.",c:"id"},{l:"Company",c:"companyEN"},{l:"Sector",c:"industry"},{l:"Province",c:"province"},
-            {l:"Contacts",c:null},{l:"Agent",c:"agent"},
-            {l:"Last Contact",c:"lastContact"},{l:"Remark",c:"remark"},{l:"Log",c:null},{l:"",c:null}
-          ].map(({l,c})=>(
-            <th key={l} onClick={c?()=>toggleSort(c):undefined}
-              style={{padding:"9px 12px",textAlign:"left",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",cursor:c?"pointer":"default",userSelect:"none",color:sort.col===c?"#0f172a":"#64748b",background:sort.col===c?"#f1f5f9":"#f8fafc",resize:"horizontal",overflow:"hidden",minWidth:60,position:"relative"}}>
-              {l}{c&&<SortIcon col={c}/>}
-            </th>
-          ))}
-        </tr></thead>
-        <tbody>{list.map(c=>(
-          <TR key={c.id}>
-            <TD style={{fontFamily:"monospace",fontSize:11}}>{c.id}</TD>
-            <TD w={200} style={{fontWeight:600}}>{c.companyEN}</TD>
-            <TD>{c.sector||c.industry||"—"}</TD><TD>{c.province}</TD>
-            <TD w={160}>
-              {activeContacts(c).slice(0,2).map((ct,i)=>(
-                <div key={ct.id} style={{fontSize:11,color:"#374151",lineHeight:1.4}}>{ct.name}{i===0&&ct.title&&<span style={{color:"#94a3b8",marginLeft:4,fontSize:10}}>{ct.title}</span>}</div>
-              ))}
-              {(c.contacts||[]).length>2&&<Span s={10} c="#94a3b8">+{(c.contacts||[]).length-2} more</Span>}
-            </TD>
-            <TD>{USERS.find(u=>u.id===c.assignedTo)?.name.split(" ")[0]||"-"}</TD>
-            <TD style={{color:getLastContact(c.id)?"#374151":"#94a3b8"}}>{getLastContact(c.id)||"—"}</TD>
-            <TD w={160} style={{color:"#64748b",fontSize:12}}>{c.remark||"—"}</TD>
-            <TD><button onClick={e=>{e.stopPropagation();sLog(c);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11}}>💬 {(c.workLog||[]).length}</button></TD>
-            <TD>
-              <div style={{display:"flex",gap:4}}>
-                <Btn variant="ghost" style={{fontSize:11,padding:"3px 8px"}} onClick={e=>{e.stopPropagation();sE(c);sF(true);}}>Edit</Btn>
-                <Btn variant="danger" style={{fontSize:11,padding:"3px 7px"}} onClick={e=>{e.stopPropagation();sDelConfirm(c);}}>Delete</Btn>
-              </div>
-            </TD>
-          </TR>
-        ))}</tbody>
-      </table>{list.length===0&&<div style={{padding:40,textAlign:"center",color:"#94a3b8"}}>No records.</div>}</div></Card>
+      <Card><div style={{overflowX:"auto"}}>
+      {(()=>{
+        const COLS = [
+          {l:"Reg. No.",  c:"id",          w:130},
+          {l:"Company",   c:"companyEN",   w:220},
+          {l:"Sector",    c:"industry",    w:200},
+          {l:"Province",  c:"province",    w:110},
+          {l:"Contacts",  c:null,          w:180},
+          {l:"Agent",     c:"agent",       w:90},
+          {l:"Last Contact",c:"lastContact",w:120},
+          {l:"Remark",    c:"remark",      w:140},
+          {l:"Log",       c:null,          w:60},
+          {l:"",          c:null,          w:120},
+        ];
+        const [colWidths,setColWidths] = React.useState(COLS.map(c=>c.w));
+        const startResize = (i,e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const startX=e.clientX, startW=colWidths[i];
+          const onMove=ev=>{const diff=ev.clientX-startX;setColWidths(p=>{const n=[...p];n[i]=Math.max(50,startW+diff);return n;});};
+          const onUp=()=>{document.removeEventListener("mousemove",onMove);document.removeEventListener("mouseup",onUp);};
+          document.addEventListener("mousemove",onMove);
+          document.addEventListener("mouseup",onUp);
+        };
+        // Double-click handle → auto-fit to content width (like Excel)
+        const autoFitCol = (i,e) => {
+          e.preventDefault(); e.stopPropagation();
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          // header text
+          ctx.font = "700 11px 'DM Sans',system-ui,sans-serif";
+          let maxW = ctx.measureText(COLS[i].l).width + 40; // padding
+          // cell text per column
+          ctx.font = "13px 'DM Sans',system-ui,sans-serif";
+          const getCellText = (c) => {
+            if(i===0) return c.id||"";
+            if(i===1) return c.companyEN||"";
+            if(i===2) return c.sector||c.industry||"";
+            if(i===3) return c.province||"";
+            if(i===4) return activeContacts(c).slice(0,2).map(ct=>ct.name+(ct.title?" "+ct.title:"")).join(" / ");
+            if(i===5) return USERS.find(u=>u.id===c.assignedTo)?.name.split(" ")[0]||"";
+            if(i===6) return getLastContact(c.id)||"";
+            if(i===7) return c.remark||"";
+            if(i===8) return "💬 0";
+            if(i===9) return "Edit  Delete";
+            return "";
+          };
+          list.forEach(c=>{ const w=ctx.measureText(getCellText(c)).width+24; if(w>maxW) maxW=w; });
+          setColWidths(p=>{const n=[...p];n[i]=Math.min(Math.max(50,Math.ceil(maxW)),500);return n;});
+        };
+        return (
+        <table style={{borderCollapse:"collapse",tableLayout:"fixed",width:colWidths.reduce((s,w)=>s+w,0)}}>
+          <colgroup>{colWidths.map((w,i)=><col key={i} style={{width:w}}/>)}</colgroup>
+          <thead><tr style={{background:"#f8fafc"}}>
+            {COLS.map(({l,c},i)=>(
+              <th key={i} onClick={c?()=>toggleSort(c):undefined}
+                style={{padding:"9px 12px",textAlign:"left",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",cursor:c?"pointer":"default",userSelect:"none",color:sort.col===c?"#0f172a":"#64748b",background:sort.col===c?"#f1f5f9":"#f8fafc",position:"relative",overflow:"hidden"}}>
+                <span style={{overflow:"hidden",textOverflow:"ellipsis",display:"block"}}>{l}{c&&<SortIcon col={c}/>}</span>
+                <span onMouseDown={e=>startResize(i,e)} onDoubleClick={e=>autoFitCol(i,e)} onClick={e=>e.stopPropagation()} style={{position:"absolute",right:0,top:0,bottom:0,width:6,cursor:"col-resize",background:"transparent",zIndex:2}}/>
+              </th>
+            ))}
+          </tr></thead>
+          <tbody>{list.map(c=>(
+            <TR key={c.id}>
+              <TD style={{fontFamily:"monospace",fontSize:11,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.id}</TD>
+              <TD style={{fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.companyEN}</TD>
+              <TD style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.sector||c.industry||"—"}</TD>
+              <TD style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.province}</TD>
+              <TD style={{overflow:"hidden"}}>
+                {activeContacts(c).slice(0,2).map((ct,i)=>(
+                  <div key={ct.id} style={{fontSize:11,color:"#374151",lineHeight:1.4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ct.name}{i===0&&ct.title&&<span style={{color:"#94a3b8",marginLeft:4,fontSize:10}}>{ct.title}</span>}</div>
+                ))}
+                {(c.contacts||[]).length>2&&<Span s={10} c="#94a3b8">+{(c.contacts||[]).length-2} more</Span>}
+              </TD>
+              <TD style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{USERS.find(u=>u.id===c.assignedTo)?.name.split(" ")[0]||"-"}</TD>
+              <TD style={{color:getLastContact(c.id)?"#374151":"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{getLastContact(c.id)||"—"}</TD>
+              <TD style={{color:"#64748b",fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.remark||"—"}</TD>
+              <TD><button onClick={e=>{e.stopPropagation();sLog(c);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11}}>💬 {(c.workLog||[]).length}</button></TD>
+              <TD>
+                <div style={{display:"flex",gap:4}}>
+                  <Btn variant="ghost" style={{fontSize:11,padding:"3px 8px"}} onClick={e=>{e.stopPropagation();sE(c);sF(true);}}>Edit</Btn>
+                  <Btn variant="danger" style={{fontSize:11,padding:"3px 7px"}} onClick={e=>{e.stopPropagation();sDelConfirm(c);}}>Delete</Btn>
+                </div>
+              </TD>
+            </TR>
+          ))}</tbody>
+        </table>
+        );
+      })()}
+      {list.length===0&&<div style={{padding:40,textAlign:"center",color:"#94a3b8"}}>No records.</div>}</div></Card>
       {form&&<CustForm initial={edit} user={user} onSave={c=>{onSave(c);sF(false);toast("Customer saved",c.companyEN);}} onClose={()=>sF(false)}/>}
       {gs&&<GSGuideModal module="Customers" headers={CUST_HDR} onClose={()=>sGS(false)}/>}
       {delConfirm&&(
@@ -3119,7 +3180,16 @@ const NAV = [
 
 function App() {
   const [user,sUser] = useState(()=>{ try { const s=localStorage.getItem("crm_user"); if(s){ const p=JSON.parse(s); return USERS.find(u=>u.id===p.id)||null; } } catch(e){} return null; });
-  const [page,sPage]         = useState("dashboard");
+
+  // Hash-based routing — syncs with browser back/forward
+  const getPageFromHash = () => { const h=location.hash.replace("#",""); return NAV.find(n=>n.key===h)?h:"dashboard"; };
+  const [page,setPageState] = useState(getPageFromHash);
+  const sPage = (p) => { location.hash = p; setPageState(p); };
+  useEffect(()=>{
+    const onHash = () => setPageState(getPageFromHash());
+    window.addEventListener("hashchange", onHash);
+    return ()=>window.removeEventListener("hashchange", onHash);
+  },[]);
   const [customers,sCusts]   = useState(SEED_CUSTOMERS);
   const [opps,sOpps]         = useState(SEED_OPPS);
   const [deliveries,sDlv]    = useState(SEED_DELIVERIES);
@@ -3247,7 +3317,7 @@ function App() {
       <style>{`@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}`}</style>
       <div style={{background:"#fff",borderBottom:"1px solid #e2e8f0",position:"sticky",top:0,zIndex:100}}>
         <div style={{maxWidth:1440,margin:"0 auto",padding:"0 24px",display:"flex",alignItems:"center",gap:0}}>
-          <div style={{paddingRight:18,borderRight:"1px solid #f1f5f9",marginRight:4,flexShrink:0}}>
+          <div onClick={()=>sPage("dashboard")} style={{paddingRight:18,borderRight:"1px solid #f1f5f9",marginRight:4,flexShrink:0,cursor:"pointer"}}>
             <div style={{fontSize:13,fontWeight:900,color:"#0f172a",letterSpacing:"-0.04em",lineHeight:1.2}}>Climate<br/>CRM</div>
           </div>
           <nav style={{display:"flex",flex:1,overflow:"auto"}}>
