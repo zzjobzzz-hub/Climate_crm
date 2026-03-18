@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 const USERS = [
   { id:"korakoj.s",     email:"korakoj.s@wavebcg.com",      name:"Korakoj Sanguanpiyapan",     role:"md",        password:"Krj@Wave26!" },
-  { id:"chawapol.ta",   email:"chawapol.ta@wavebcg.com",    name:"Chawapol Tangsirichoochuay", role:"admin",     password:"19" },
+  { id:"chawapol.ta",   email:"chawapol.ta@wavebcg.com",    name:"Chawapol Tangsirichoochuay", role:"admin",     password:"888" },
   { id:"songyot.kr",    email:"songyot.kr@wavebcg.com",     name:"Songyot Kraprom",            role:"sales",     password:"Sgt@Wave26!" },
   { id:"theerayut.c",   email:"theerayut.c@wavebcg.com",    name:"Theerayut Chimpitak",        role:"sales",     password:"Trt@Wave26!" },
   { id:"nattapon.yi",   email:"nattapon.yi@wavebcg.com",    name:"Nattapon Yingsakda",         role:"operation", password:"Ntp@Wave26!" },
@@ -1014,9 +1014,8 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
   };
 
   const buildLineItems = () => {
-    // Use qSnap lineItems if present, else default with salesPrice as unitPrice
-    if(qSnap?.lineItems?.length) return qSnap.lineItems.map(li=>({...li,id:li.id||uid()}));
-    return [{id:uid(), description:qSnap?.serviceType||opp?.serviceType||"", qty:1, unit:"Job", unitPrice:qPrice}];
+    if(qSnap?.lineItems?.length) return qSnap.lineItems.map(li=>({...li,id:li.id||uid(),description:li.description||(qSnap.projectTitle||opp?.serviceType||"")}));
+    return [{id:uid(), description:qSnap?.projectTitle||opp?.serviceType||"", qty:1, unit:"Job", unitPrice:qPrice}];
   };
 
   const buildDeliverables = () => {
@@ -1310,22 +1309,23 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
   return (
     <Modal title={`Quotation — ${f.quoteNo||"Draft"}`} width={1020} onClose={onClose}>
 
-      {/* TOP EDIT CONTROLS */}
+      {/* TOP INFO BAR — read-only */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14,padding:"14px 16px",background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0"}}>
-        <FRow label="Quote No."><Inp value={f.quoteNo} onChange={e=>set("quoteNo",e.target.value)}/></FRow>
-        <FRow label="Issue Date"><Inp type="date" value={f.issueDate} onChange={e=>setIssue(e.target.value)}/></FRow>
-        <FRow label="Valid Until (+30d auto)"><Inp type="date" value={f.dueDate} onChange={e=>set("dueDate",e.target.value)}/></FRow>
-        <FRow label="Sales Agent">
-          <Sel value={f.salesAgentId} onChange={e=>set("salesAgentId",e.target.value)}>
-            <option value="">— Select —</option>
-            {SALES_USERS.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
-          </Sel>
-          {agentMob&&<div style={{fontSize:10,color:"#0ea5e9",fontWeight:700,marginTop:3}}>📱 {agentMob}</div>}
-        </FRow>
-        <FRow label="Sales Price (THB)"><Inp type="number" value={f.salesPrice} onChange={e=>set("salesPrice",+e.target.value)}/></FRow>
-        <FRow label="Project Title"><Inp value={f.projectTitle} onChange={e=>set("projectTitle",e.target.value)}/></FRow>
-        <FRow label="Duration (months)"><Inp type="number" value={f.projectDuration} onChange={e=>set("projectDuration",+e.target.value)} min={1}/></FRow>
-        <FRow label="Est. Start Date"><Inp type="date" value={f.projectStartDate} onChange={e=>set("projectStartDate",e.target.value)}/></FRow>
+        {[
+          ["Quote No.",   f.quoteNo,           true],
+          ["Issue Date",  f.issueDate,          false],
+          ["Valid Until", f.dueDate,            false],
+          ["Sales Agent", agent?.name||"—",     false],
+          ["Mobile",      agentMob||"—",        false],
+          ["Sales Price (THB)", `฿${fmt(f.salesPrice)}`, false],
+          ["Duration (months)", `${f.projectDuration} months`, false],
+          ["Est. Start Date", f.projectStartDate||"—", false],
+        ].map(([label,val,mono])=>(
+          <div key={label}>
+            <div style={{fontSize:9,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>{label}</div>
+            <div style={{fontSize:12,fontWeight:700,color:"#0f172a",fontFamily:mono?"monospace":"inherit"}}>{val}</div>
+          </div>
+        ))}
       </div>
 
       {/* PRINT AREA */}
@@ -2946,12 +2946,19 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                   })()}
                 </div>
 
-                {/* ── PROJECT (full width, textarea) ── */}
+                {/* ── PROJECT SCOPE (full width) ── */}
                 <div style={{padding:"0 20px 16px",borderTop:"1px solid #f1f5f9"}}>
-                  <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6,marginTop:14}}>Project Title</Span>
-                  <Inp value={q.projectTitle||""} onChange={e=>setQF(q.id,"projectTitle",e.target.value)} placeholder="e.g. Verification of Carbon Footprint for Organization according to TGO guideline and ISO 14064-1: 2018" style={{fontSize:12,marginBottom:12}}/>
-                  <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Project Scope</Span>
-                  <Txta value={q.projectScope||""} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder="ขอบเขตโครงการ — Describe scope, objectives, organisational boundary, base year…" style={{minHeight:72,fontSize:12}}/>
+                  <div style={{marginTop:14,marginBottom:12}}>
+                    <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:3}}>Service Description</Span>
+                    <span style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:6}}>ชื่อโครงการที่จะปรากฏใน Description — e.g. "Verification of CFO per TGO / ISO 14064-1"</span>
+                    <Inp value={q.projectTitle||""} onChange={e=>setQF(q.id,"projectTitle",e.target.value)} placeholder='e.g. Verification of Carbon Footprint for Organization per TGO guideline' style={{fontSize:12}}/>
+                  </div>
+                  <div>
+                    <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:3}}>Project Scope</Span>
+                    <span style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:6}}>รายละเอียดขอบเขต — Project Address, Organisational Boundary, Base Year, Reporting Boundary ฯลฯ</span>
+                    <Txta value={q.projectScope||""} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder="e.g. Project Address: …&#10;Scope of operations: …&#10;Reporting Boundaries: Scope 1, 2, 3…" style={{minHeight:80,fontSize:12}}/>
+                  </div>
+                </div>
                 </div>
 
                 {/* ── DELIVERABLES (full width, editable list + preview) ── */}
