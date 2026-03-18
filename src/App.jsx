@@ -810,9 +810,9 @@ const CustForm = ({initial,user,onSave,onClose,onDelete}) => {
         </div>
       ))}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:8}}>
-        {onDelete&&<Btn variant="danger" style={{marginRight:"auto"}} onClick={()=>onDelete(f)}>🗑 Delete</Btn>}
+        {onDelete&&<Btn variant="danger" style={{marginRight:"auto"}} onClick={()=>onDelete(f)}>Delete</Btn>}
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn onClick={()=>onSave({...f,lastContact:today()})}>Save Customer</Btn>
+        <Btn onClick={()=>onSave({...f,lastContact:today()})}>Save</Btn>
       </div>
     </Modal>
   );
@@ -873,7 +873,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div><Span s={20} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Customers</Span><Span s={13} c="#94a3b8" style={{marginLeft:8}}>{list.length} records</Span></div>
-        <div style={{display:"flex",gap:8}}><ExportBar onCSV={()=>dlCSV("customers.csv",CUST_HDR,list.map(c=>[c.id,c.companyEN,c.industry,c.province,(c.contacts||[]).map(ct=>ct.name).join("; "),USERS.find(u=>u.id===c.assignedTo)?.name||c.assignedTo,c.ranking,c.status,getLastContact(c.id),c.remark||""]))} onGS={()=>sGS(true)}/><Btn onClick={()=>{sE(null);sF(true);}}>+ Add Customer</Btn></div>
+        <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("customers.csv",CUST_HDR,list.map(c=>[c.id,c.companyEN,c.industry,c.province,(c.contacts||[]).map(ct=>ct.name).join("; "),USERS.find(u=>u.id===c.assignedTo)?.name||c.assignedTo,c.ranking,c.status,getLastContact(c.id),c.remark||""]))}>↓ CSV</Btn><Btn onClick={()=>{sE(null);sF(true);}}>+ Add Customer</Btn></div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
         <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:220}}/>
@@ -965,8 +965,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
         );
       })()}
       {list.length===0&&<div style={{padding:40,textAlign:"center",color:"#94a3b8"}}>No records.</div>}</div></Card>
-      {form&&<CustForm initial={edit} user={user} onSave={c=>{onSave(c);sF(false);toast("Customer saved",c.companyEN);}} onClose={()=>sF(false)} onDelete={edit?c=>{sF(false);sDelConfirm(c);}:null}/>}
-      {gs&&<GSGuideModal module="Customers" headers={CUST_HDR} onClose={()=>sGS(false)}/>}
+      {form&&<CustForm initial={edit} user={user} onSave={c=>{onSave(c);sF(false);toast("Customer saved",c.companyEN);}} onClose={()=>sF(false)} onDelete={edit?c=>{sF(false);sDelConfirm(c);}:null}/>
       {delConfirm&&(
         <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,.5)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
           <div style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:420,boxShadow:"0 32px 80px rgba(0,0,0,.2)",overflow:"hidden"}}>
@@ -1751,7 +1750,7 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
                       <span style={{color:"#cbd5e1",fontSize:14,cursor:"grab",lineHeight:1}}>⠿</span>
                     </div>
                     <div style={{fontSize:12,fontWeight:700,color:"#0f172a",marginBottom:4,lineHeight:1.3}}>{c?.companyEN||"-"}</div>
-                    {o.csCode&&<div style={{marginBottom:5}}><span style={{fontFamily:"monospace",fontWeight:700,fontSize:10,background:"#fef3c7",color:"#92400e",padding:"2px 7px",borderRadius:4,border:"1px solid #fde68a"}}>🔗 {o.csCode}</span></div>}
+                    {o.csCode&&<div style={{marginBottom:5}}><span style={{fontFamily:"monospace",fontWeight:700,fontSize:10,background:"#fef3c7",color:"#92400e",padding:"2px 7px",borderRadius:4,border:"1px solid #fde68a"}}>{o.csCode}</span></div>}
                     <div style={{display:"flex",gap:5,marginBottom:6,flexWrap:"wrap"}}><SvcBadge code={o.serviceCode}/><span style={{background:+mg>=30?"#dcfce7":"#fee2e2",color:+mg>=30?"#16a34a":"#dc2626",fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4}}>{mg}%</span></div>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                       <span style={{fontWeight:900,fontSize:13}}>฿{fmt(o.salesPrice)}</span>
@@ -1781,7 +1780,7 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div><Span s={20} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Opportunities</Span><Span s={13} c="#94a3b8" style={{marginLeft:8}}>{list.length} · Pipeline ฿{fmtM(totalPipeline)} · Won ฿{fmtM(totalWon)}</Span></div>
-        <div style={{display:"flex",gap:8}}><ExportBar onCSV={()=>dlCSV("opps.csv",OPP_HDR,list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);return[o.oppCode,o.quoteNo,o.csCode||"",o.jobCode||"",c?.companyEN||"",o.serviceCode,o.serviceType,o.salesPrice,o.totalCost||0,mg,marginAmt(o.salesPrice,o.totalCost||0),o.status,USERS.find(u=>u.id===o.assignedTo)?.name||"",o.createdDate,o.lostReason||""];}))} onGS={()=>sGS(true)}/></div>
+        <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("opps.csv",OPP_HDR,list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);return[o.oppCode,o.quoteNo,o.csCode||"",o.jobCode||"",c?.companyEN||"",o.serviceCode,o.serviceType,o.salesPrice,o.totalCost||0,mg,marginAmt(o.salesPrice,o.totalCost||0),o.status,USERS.find(u=>u.id===o.assignedTo)?.name||"",o.createdDate,o.lostReason||""];}))}>↓ CSV</Btn></div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:220}}/>
@@ -1799,18 +1798,18 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
         <Card><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}>
           <thead><tr style={{background:"#f8fafc"}}>
             {[
-              {label:"OPP Code",  col:"oppCode"},
-              {label:"QT No.",    col:"quoteNo"},
-              {label:"CS Code",   col:"csCode"},
-              {label:"Company",   col:"company"},
-              {label:"Ranking",   col:"ranking"},
-              {label:"Code",      col:"serviceCode"},
-              {label:"Price",     col:"salesPrice"},
-              {label:"Cost",      col:"totalCost"},
-              {label:"Margin % / ฿",col:"margin"},
-              {label:"Status",    col:"status"},
-              {label:"Agent",     col:"agent"},
-              {label:"Log",       col:"log"},
+              {label:"OPP Code",     col:"oppCode"},
+              {label:"QT No.",       col:"quoteNo"},
+              {label:"CS Code",      col:"csCode"},
+              {label:"Company",      col:"company"},
+              {label:"Code",         col:"serviceCode"},
+              {label:"Price",        col:"salesPrice"},
+              {label:"Cost",         col:"totalCost"},
+              {label:"Margin % / ฿", col:"margin"},
+              {label:"Status",       col:"status"},
+              {label:"Agent",        col:"agent"},
+              {label:"Ranking",      col:"ranking"},
+              {label:"Log",          col:"log"},
             ].map(({label,col})=>(
               <th key={col} onClick={()=>toggleSort(col)}
                 style={{padding:"9px 12px",textAlign:"left",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",cursor:"pointer",userSelect:"none",color:sort.col===col?"#0f172a":"#64748b",background:sort.col===col?"#f1f5f9":"#f8fafc"}}>
@@ -1821,20 +1820,17 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
           <tbody>{list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);const mAmt=marginAmt(o.salesPrice,o.totalCost||0);const oRank=o.ranking||"Medium";return(
             <TR key={o.id} onClick={()=>{sE(o);sF(true);}}>
               <TD style={{fontWeight:700,color:"#1e40af",fontFamily:"monospace",fontSize:12}}>{o.oppCode}</TD>
-              {/* Req 4: Quote No. as hyperlink → opens quotation tab */}
               <TD>
                 {o.quoteNo
                   ? <button onClick={e=>{e.stopPropagation();sE(o);sQT(o);}} style={{fontFamily:"monospace",fontSize:11,background:"none",border:"none",color:"#1e40af",cursor:"pointer",padding:0,textDecoration:"underline",fontWeight:600}}>{o.quoteNo}</button>
                   : "—"}
               </TD>
-              {/* CS Code → navigate to Cost Sheet Per-Quotation tab */}
               <TD>
                 {o.csCode
-                  ? <button onClick={e=>{e.stopPropagation();if(onGoToCS)onGoToCS(o.serviceCode);}} style={{fontFamily:"monospace",fontWeight:700,fontSize:11,background:"#fef3c7",color:"#92400e",padding:"2px 7px",borderRadius:4,border:"1px solid #fde68a",cursor:"pointer",textDecoration:"underline"}}>🔗 {o.csCode}</button>
+                  ? <button onClick={e=>{e.stopPropagation();if(onGoToCS)onGoToCS(o.serviceCode);}} style={{fontFamily:"monospace",fontWeight:700,fontSize:11,background:"none",color:"#1e40af",padding:"2px 0",border:"none",cursor:"pointer",textDecoration:"underline"}}>{o.csCode}</button>
                   : "—"}
               </TD>
               <TD w={180}>{c?.companyEN||"-"}</TD>
-              <TD>{oRank?<span style={{background:RANK_CLR[oRank]?.bg||"#f1f5f9",color:RANK_CLR[oRank]?.c||"#64748b",padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{oRank}</span>:"—"}</TD>
               <TD><SvcBadge code={o.serviceCode}/></TD>
               <TD right style={{fontWeight:700}}>฿{fmt(o.salesPrice)}</TD>
               <TD right style={{color:"#64748b"}}>฿{fmt(o.totalCost||0)}</TD>
@@ -1848,6 +1844,7 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
                 {o.status==="Won"&&o.jobCode&&<div style={{fontSize:10,color:"#16a34a",fontFamily:"monospace",fontWeight:700,marginTop:2}}>{o.jobCode}</div>}
               </TD>
               <TD>{USERS.find(u=>u.id===o.assignedTo)?.name.split(" ")[0]||"-"}</TD>
+              <TD>{oRank?<span style={{background:RANK_CLR[oRank]?.bg||"#f1f5f9",color:RANK_CLR[oRank]?.c||"#64748b",padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{oRank}</span>:"—"}</TD>
               <TD><button onClick={e=>{e.stopPropagation();sLog(o);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11}}>💬 {o.activityLog?.length||0}</button></TD>
             </TR>
           );})}
@@ -1858,8 +1855,6 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
 
       {form&&<OppForm initial={edit} customers={customers} opps={opps} user={user} onSave={handleSave} onClose={()=>{sF(false);sE(null);sQT(null);}} costSheets={costSheets} onGoToCS={onGoToCS}/>}
       {quotationOpp&&!form&&<QuotationPreview opp={quotationOpp} customer={customers.find(c=>c.id===quotationOpp.custId)} costSheets={costSheets||[]} onClose={()=>sQT(null)} onSaveQuotation={qd=>{onSave({...quotationOpp,quotationData:qd});sQT(null);}}/>}
-      {gs&&<GSGuideModal module="Opportunities" headers={OPP_HDR} onClose={()=>sGS(false)}/>}
-
       {logOpp&&(
         <Modal title={`Activity Log — ${logOpp.oppCode}`} width={680} onClose={()=>sLog(null)}>
           <div style={{marginBottom:12,padding:"8px 14px",background:"#f8fafc",borderRadius:6,display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
@@ -2684,7 +2679,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <Span s={20} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Cost Sheet & Pricing</Span>
-        <div style={{display:"flex",gap:8}}><ExportBar onCSV={()=>dlCSV("costsheets.csv",["Service","COGS (Internal)","COGS (External Co.)","OPEX","Total Cost","Std Price","Margin%","Margin ฿"],costSheets.map(cs=>{const ic=calcIC(cs.internalCosts||[]),ec=calcEC(cs.externalCosts||[],true),opex=calcTask(cs.tasks||[]),tc=ic+ec+opex;return[cs.serviceType,ic,ec,opex,tc,cs.stdPrice,margin(cs.stdPrice,tc),marginAmt(cs.stdPrice,tc)];}))} onGS={()=>sGS(true)}/><Btn onClick={handleSave}>💾 Save Cost Sheet</Btn></div>
+        <div style={{display:"flex",gap:8}}><ExportBar onCSV={()=>dlCSV("costsheets.csv",["Service","COGS (Internal)","COGS (External Co.)","OPEX","Total Cost","Std Price","Margin%","Margin ฿"],costSheets.map(cs=>{const ic=calcIC(cs.internalCosts||[]),ec=calcEC(cs.externalCosts||[],true),opex=calcTask(cs.tasks||[]),tc=ic+ec+opex;return[cs.serviceType,ic,ec,opex,tc,cs.stdPrice,margin(cs.stdPrice,tc),marginAmt(cs.stdPrice,tc)];}))} onGS={()=>sGS(true)}/><Btn onClick={handleSave}>Save Cost Sheet</Btn></div>
       </div>
 
       <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:14}}>
@@ -2853,8 +2848,14 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
               {/* Show previously saved quotations from save log with re-edit option */}
               {(editCS.saveLog||[]).filter(l=>l.quoteSnapshot).length>0&&(
                 <div style={{marginTop:20,textAlign:"left"}}>
-                  <Span s={11} w={700} style={{display:"block",marginBottom:8,color:"#374151"}}>Previously saved quotations (click to re-edit):</Span>
-                  {[...(editCS.saveLog||[])].filter(l=>l.quoteSnapshot).reverse().map(l=>(
+                  <Span s={11} w={700} style={{display:"block",marginBottom:8,color:"#374151"}}>Previously saved quotations:</Span>
+                  {Object.values(
+                    [...(editCS.saveLog||[])].filter(l=>l.quoteSnapshot).reduce((acc,l)=>{
+                      const key=l.quoteSnapshot.quoteNo;
+                      if(!acc[key]||l.ts>acc[key].ts) acc[key]=l;
+                      return acc;
+                    },{})
+                  ).sort((a,b)=>b.ts.localeCompare(a.ts)).map(l=>(
                     <div key={l.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:6,marginBottom:6}}>
                       <span style={{fontSize:10,color:"#64748b",whiteSpace:"nowrap"}}>{l.ts}</span>
                       <span style={{fontSize:10,fontWeight:700,fontFamily:"monospace",color:"#92400e",background:"#fef3c7",padding:"1px 7px",borderRadius:3}}>{l.quoteSnapshot.csCode}</span>
@@ -2863,7 +2864,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                         sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid()}]}));
                         const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} · ${l.quoteSnapshot.quoteNo} for editing`};
                         sECS(p=>({...p,saveLog:[...(p.saveLog||[]),logEntry]}));
-                      }}>Re-open to Edit</Btn>
+                      }}>Edit</Btn>
                     </div>
                   ))}
                 </div>
