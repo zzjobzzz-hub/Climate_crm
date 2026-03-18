@@ -104,6 +104,7 @@ const DEFAULT_SPLIT = [0,0,0,0,0,0,0,0,0,0,0,0]; // Adjust & Save in Dashboard K
 const fmt   = n => new Intl.NumberFormat("en-US").format(Math.round(n||0));
 const fmtM  = n => `${((n||0)/1e6).toFixed(2)}M`;
 const fmtK  = n => (n||0)>=1e6?`฿${((n||0)/1e6).toFixed(1)}M`:(n||0)>=1000?`฿${Math.round((n||0)/1000)}K`:`฿${fmt(n)}`;
+const fmtDate = d => { if(!d) return "—"; const [y,m,day]=String(d).split("-"); if(!y||!m||!day) return d; return `${day}-${MONTHS[+m-1]||m}-${y}`; };
 const uid   = () => `${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
 const today = () => new Date().toISOString().slice(0,10);
 const nowTS = () => { const d=new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
@@ -1233,8 +1234,8 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
     <div class="quo-title">QUOTATION</div>
     <table class="meta" style="margin-left:auto;width:auto">
       <tr><td class="meta-key">QUOTE #</td><td class="meta-val" style="font-family:'Inter',monospace;font-weight:700;letter-spacing:0.02em">${f.quoteNo}</td></tr>
-      <tr><td class="meta-key">ISSUED</td><td class="meta-val">${f.issueDate}</td></tr>
-      <tr><td class="meta-key">VALID UNTIL</td><td class="meta-val">${f.dueDate}</td></tr>
+      <tr><td class="meta-key">ISSUED</td><td class="meta-val">${fmtDate(f.issueDate)}</td></tr>
+      <tr><td class="meta-key">VALID UNTIL</td><td class="meta-val">${fmtDate(f.dueDate)}</td></tr>
       <tr><td class="meta-key">SALES</td><td class="meta-val">${agentName}</td></tr>
       <tr><td class="meta-key">MOBILE</td><td class="meta-val">${agentMobP}</td></tr>
     </table>
@@ -1300,7 +1301,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
   <div>
     <div class="sig-lbl">On behalf of ${WAVE_CO.name}</div>
     <div class="sig-line"></div>
-    <div class="sig-detail">Name: <strong>${WAVE_CO.signer}</strong><br/>Title: ${WAVE_CO.signerTitle}<br/>Date: ${f.issueDate}</div>
+    <div class="sig-detail">Name: <strong>${WAVE_CO.signer}</strong><br/>Title: ${WAVE_CO.signerTitle}<br/>Date: ${fmtDate(f.issueDate)}</div>
   </div>
   <div>
     <div class="sig-lbl">Accepted by: ${custName}</div>
@@ -1321,8 +1322,8 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14,padding:"14px 16px",background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0"}}>
         {[
           ["Quote No.",   f.quoteNo,           true],
-          ["Issue Date",  f.issueDate,          false],
-          ["Valid Until", f.dueDate,            false],
+          ["Issue Date",  fmtDate(f.issueDate), false],
+          ["Valid Until", fmtDate(f.dueDate),   false],
           ["Sales Agent", agent?.name||"—",     false],
           ["Mobile",      agentMob||"—",        false],
           ["Sales Price (THB)", `฿${fmt(f.salesPrice)}`, false],
@@ -1357,7 +1358,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
             <div style={{fontSize:22,fontWeight:900,color:"#0c1a2e",letterSpacing:"-0.04em",marginBottom:6,lineHeight:1,fontFamily:"'Inter Tight','Inter',system-ui,sans-serif"}}>QUOTATION</div>
             <table style={{marginLeft:"auto",borderCollapse:"collapse",fontSize:10.5}}>
               <tbody>
-                {[["QUOTE #",f.quoteNo,true],["ISSUED",f.issueDate,false],["VALID UNTIL",f.dueDate,false],["SALES",agent?.name||"—",false],["MOBILE",agentMob||"—",false]].map(([k,v,mono])=>(
+                {[["QUOTE #",f.quoteNo,true],["ISSUED",fmtDate(f.issueDate),false],["VALID UNTIL",fmtDate(f.dueDate),false],["SALES",agent?.name||"—",false],["MOBILE",agentMob||"—",false]].map(([k,v,mono])=>(
                   <tr key={k}>
                     <td style={{color:"#94a3b8",paddingRight:12,paddingBottom:3,fontWeight:600,fontSize:8.5,textTransform:"uppercase",letterSpacing:"0.05em",textAlign:"right"}}>{k}</td>
                     <td style={{fontWeight:700,fontFamily:mono?"'Inter',monospace":"inherit",letterSpacing:mono?"0.02em":"inherit",color:"#0c1a2e"}}>{v}</td>
@@ -1472,7 +1473,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
         {/* SIGNATURE BLOCK */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:48,borderTop:"1px solid #e2e8f0",paddingTop:22}}>
           {[
-            {label:`On behalf of ${WAVE_CO.name}`,name:WAVE_CO.signer,title:WAVE_CO.signerTitle,date:f.issueDate},
+            {label:`On behalf of ${WAVE_CO.name}`,name:WAVE_CO.signer,title:WAVE_CO.signerTitle,date:fmtDate(f.issueDate)},
             {label:`Accepted by: ${customer?.companyEN||"Client"}`,name:"",title:"",date:""},
           ].map((s,i)=>(
             <div key={i}>
@@ -2755,9 +2756,11 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
             const months=q.projectMonths||editCS.projectMonths||3;
             const instSum=(q.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
             return (
-              <Card key={q.id} style={{marginBottom:14,overflow:"hidden"}}>
+              <Card key={q.id} style={{marginBottom:14,overflow:"hidden",position:"relative"}}>
+                {/* Remove button — top-right corner */}
+                <button onClick={()=>delQO(q.id)} title="Remove this quotation" style={{position:"absolute",top:10,right:12,zIndex:10,background:"#fee2e2",color:"#dc2626",border:"1px solid #fecaca",borderRadius:5,fontSize:11,fontWeight:700,padding:"3px 10px",cursor:"pointer",lineHeight:1.4}}>✕ Remove</button>
                 {/* Header row */}
-                <div style={{padding:"14px 20px",background:+qMg>=30?"#f0fdf4":"#fffbeb",borderBottom:"1px solid #e2e8f0",display:"flex",gap:12,alignItems:"flex-end",flexWrap:"wrap"}}>
+                <div style={{padding:"14px 20px",background:+qMg>=30?"#f0fdf4":"#fffbeb",borderBottom:"1px solid #e2e8f0",display:"flex",gap:12,alignItems:"flex-end",flexWrap:"wrap",paddingRight:110}}>
                   <div style={{flex:"0 0 155px"}}>
                     <Span s={10} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:3}}>CS Code <span style={{background:"#fef3c7",color:"#92400e",padding:"1px 5px",borderRadius:3,fontSize:9,fontWeight:700}}>AUTO</span></Span>
                     <div style={{fontFamily:"monospace",fontWeight:900,fontSize:13,color:"#92400e",background:"#fef3c7",border:"1px solid #fde68a",borderRadius:5,padding:"5px 8px"}}>{q.csCode}</div>
@@ -2803,7 +2806,6 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                     <div style={{fontWeight:700,fontSize:12,color:+qMg>=30?"#16a34a":"#dc2626"}}>฿{fmt(marginAmt(q.salesPrice,qTC))}</div>
                     <Span s={9} c="#64748b">Cost ฿{fmt(qTC)}</Span>
                   </div>
-                  <Btn variant="danger" style={{fontSize:12,padding:"5px 10px"}} onClick={()=>delQO(q.id)}>Remove</Btn>
                 </div>
 
                 {/* Cost grids */}
