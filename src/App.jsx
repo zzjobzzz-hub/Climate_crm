@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 const USERS = [
   { id:"korakoj.s",     email:"korakoj.s@wavebcg.com",      name:"Korakoj Sanguanpiyapan",     role:"md",        password:"Krj@Wave26!" },
-  { id:"chawapol.ta",   email:"chawapol.ta@wavebcg.com",    name:"Chawapol Tangsirichoochuay", role:"admin",     password:"888" },
+  { id:"chawapol.ta",   email:"chawapol.ta@wavebcg.com",    name:"Chawapol Tangsirichoochuay", role:"admin",     password:"Cwp@Wave26!" },
   { id:"songyot.kr",    email:"songyot.kr@wavebcg.com",     name:"Songyot Kraprom",            role:"sales",     password:"Sgt@Wave26!" },
   { id:"theerayut.c",   email:"theerayut.c@wavebcg.com",    name:"Theerayut Chimpitak",        role:"sales",     password:"Trt@Wave26!" },
   { id:"nattapon.yi",   email:"nattapon.yi@wavebcg.com",    name:"Nattapon Yingsakda",         role:"operation", password:"Ntp@Wave26!" },
@@ -2958,7 +2958,6 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                     <span style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:6}}>รายละเอียดขอบเขต — Project Address, Organisational Boundary, Base Year, Reporting Boundary ฯลฯ</span>
                     <Txta value={q.projectScope||""} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder="e.g. Project Address: …&#10;Scope of operations: …&#10;Reporting Boundaries: Scope 1, 2, 3…" style={{minHeight:80,fontSize:12}}/>
                   </div>
-                </div>
                 </div>
 
                 {/* ── DELIVERABLES (full width, editable list + preview) ── */}
