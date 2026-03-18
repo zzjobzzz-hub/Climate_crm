@@ -734,9 +734,20 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
 // ═══════════════════════════════════════════════════════════════════════════
 // CUSTOMERS
 // ═══════════════════════════════════════════════════════════════════════════
+const INDUSTRY_SECTORS = {
+  "Agro Food":           ["Agribusiness","Food & Beverage"],
+  "Consumer Products":   ["Fashion","Home & Office Products","Personal Products & Pharmaceuticals"],
+  "Financials":          ["Banking","Finance & Securities","Insurance"],
+  "Industrials":         ["Automotive","Industrial Materials & Machinery","Paper & Printing Materials","Petrochemicals & Chemicals","Packaging","Steel & Metal Products","Textile"],
+  "Property Construction":["Construction Material","Construction Services","Property Fund & REITs","Property Development"],
+  "Resources":           ["Mining","Energy & Utilities"],
+  "Services":            ["Commerce","Health Care Services","Media & Publishing","Professional Services","Tourism & Leisure","Transportation & Logistics"],
+  "Technology":          ["Electronic Components","Information & Communication Technology"],
+};
+
 const CustForm = ({initial,user,onSave,onClose}) => {
   const blankContact = () => ({id:uid(),name:"",title:"",email:"",phone:"",active:true});
-  const blank={id:"",companyEN:"",industry:"",sector:"",businessNo:"",businessType:"",companySize:"",address:"",province:"",contacts:[blankContact()],assignedTo:"",remark:"",lastContact:today()};
+  const blank={id:"",companyEN:"",industry:"",sector:"",businessType:"",companySize:"",address:"",province:"",contacts:[blankContact()],assignedTo:"",remark:"",lastContact:today()};
   const [f,sF] = useState(initial?{...initial,contacts:initial.contacts||[{id:uid(),name:initial.contactName||"",title:initial.titlePosition||"",email:initial.email||"",phone:initial.phone||"",active:true}]}:blank);
   const set = (k,v) => sF(p=>({...p,[k]:v}));
   const setCt=(id,k,v)=>sF(p=>({...p,contacts:p.contacts.map(c=>c.id===id?{...c,[k]:v}:c)}));
@@ -747,8 +758,18 @@ const CustForm = ({initial,user,onSave,onClose}) => {
       <G2>
         <FRow label="Customer ID"><Inp value={f.id} onChange={e=>set("id",e.target.value)} placeholder="Company Registration No. (e.g. 0105536088510)"/></FRow>
         <FRow label="Company (EN)"><Inp value={f.companyEN} onChange={e=>set("companyEN",e.target.value.toUpperCase())}/></FRow>
-        <FRow label="Industry"><Inp value={f.industry} onChange={e=>set("industry",e.target.value)}/></FRow>
-        <FRow label="Sector"><Inp value={f.sector} onChange={e=>set("sector",e.target.value)}/></FRow>
+        <FRow label="Industry">
+          <Sel value={f.industry} onChange={e=>sF(p=>({...p,industry:e.target.value,sector:""}))}>
+            <option value="">— Select Industry —</option>
+            {Object.keys(INDUSTRY_SECTORS).map(ind=><option key={ind} value={ind}>{ind}</option>)}
+          </Sel>
+        </FRow>
+        <FRow label="Sector">
+          <Sel value={f.sector} onChange={e=>set("sector",e.target.value)} disabled={!f.industry}>
+            <option value="">{f.industry?"— Select Sector —":"— Select Industry first —"}</option>
+            {(INDUSTRY_SECTORS[f.industry]||[]).map(s=><option key={s} value={s}>{s}</option>)}
+          </Sel>
+        </FRow>
         <FRow label="Business Type"><Inp value={f.businessType} onChange={e=>set("businessType",e.target.value)}/></FRow>
         <FRow label="Company Size"><Sel value={f.companySize} onChange={e=>set("companySize",e.target.value)}>{["","Micro","Small","Medium","Large Enterprise"].map(v=><option key={v}>{v}</option>)}</Sel></FRow>
         <FRow label="Province"><Inp value={f.province} onChange={e=>set("province",e.target.value)}/></FRow>
@@ -859,13 +880,13 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
             {l:"Last Contact",c:"lastContact"},{l:"Remark",c:"remark"},{l:"Log",c:null},{l:"",c:null}
           ].map(({l,c})=>(
             <th key={l} onClick={c?()=>toggleSort(c):undefined}
-              style={{padding:"9px 12px",textAlign:"left",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",cursor:c?"pointer":"default",userSelect:"none",color:sort.col===c?"#0f172a":"#64748b",background:sort.col===c?"#f1f5f9":"#f8fafc"}}>
+              style={{padding:"9px 12px",textAlign:"left",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",cursor:c?"pointer":"default",userSelect:"none",color:sort.col===c?"#0f172a":"#64748b",background:sort.col===c?"#f1f5f9":"#f8fafc",resize:"horizontal",overflow:"hidden",minWidth:60,position:"relative"}}>
               {l}{c&&<SortIcon col={c}/>}
             </th>
           ))}
         </tr></thead>
         <tbody>{list.map(c=>(
-          <TR key={c.id} onClick={()=>{sE(c);sF(true);}}>
+          <TR key={c.id}>
             <TD style={{fontFamily:"monospace",fontSize:11}}>{c.id}</TD>
             <TD w={200} style={{fontWeight:600}}>{c.companyEN}</TD>
             <TD>{c.sector||c.industry||"—"}</TD><TD>{c.province}</TD>
