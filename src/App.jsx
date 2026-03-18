@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 const USERS = [
   { id:"korakoj.s",     email:"korakoj.s@wavebcg.com",      name:"Korakoj Sanguanpiyapan",     role:"md",        password:"Krj@Wave26!" },
-  { id:"chawapol.ta",   email:"chawapol.ta@wavebcg.com",    name:"Chawapol Tangsirichoochuay", role:"admin",     password:"12" },
+  { id:"chawapol.ta",   email:"chawapol.ta@wavebcg.com",    name:"Chawapol Tangsirichoochuay", role:"admin",     password:"19" },
   { id:"songyot.kr",    email:"songyot.kr@wavebcg.com",     name:"Songyot Kraprom",            role:"sales",     password:"Sgt@Wave26!" },
   { id:"theerayut.c",   email:"theerayut.c@wavebcg.com",    name:"Theerayut Chimpitak",        role:"sales",     password:"Trt@Wave26!" },
   { id:"nattapon.yi",   email:"nattapon.yi@wavebcg.com",    name:"Nattapon Yingsakda",         role:"operation", password:"Ntp@Wave26!" },
@@ -1014,8 +1014,9 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
   };
 
   const buildLineItems = () => {
+    // Use qSnap lineItems if present, else default with salesPrice as unitPrice
     if(qSnap?.lineItems?.length) return qSnap.lineItems.map(li=>({...li,id:li.id||uid()}));
-    return [{id:uid(),description:opp?.serviceType||"",qty:1,unit:"Job",unitPrice:qPrice}];
+    return [{id:uid(), description:qSnap?.serviceType||opp?.serviceType||"", qty:1, unit:"Job", unitPrice:qPrice}];
   };
 
   const buildDeliverables = () => {
@@ -1034,6 +1035,10 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
   const defaultNotes = qSnap?.notes ||
     "• ค่าใช้จ่ายในการเดินทางเพื่อ Site Visit รวมอยู่ในราคาข้างต้น\n• ค่าธรรมเนียม TGO (ถ้ามี) ลูกค้ารับผิดชอบตามจริง\n• ราคานี้มีผลภายใน 30 วันนับจากวันที่ออกใบเสนอราคา\n• ราคาดังกล่าวยังไม่รวมภาษีมูลค่าเพิ่ม (VAT) 7%";
 
+  const qIssueDate = qSnap?.issueDate || initIssue;
+  const qDueDate   = qSnap?.dueDate   || addDays(qIssueDate, 30);
+  const qQuoteNo   = qSnap?.quoteNo   || opp?.quoteNo || "";
+
   const [f, sF] = useState(savedQD ? {
     ...savedQD,
     // Always re-sync arrays from CS if savedQD's copy is missing/empty
@@ -1041,18 +1046,21 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
     installments:  Array.isArray(savedQD.installments) && savedQD.installments.length  ? savedQD.installments  : buildInstallments(),
     lineItems:     Array.isArray(savedQD.lineItems)    && savedQD.lineItems.length     ? savedQD.lineItems     : buildLineItems(),
     // Sync text fields from CS if savedQD has blanks
+    quoteNo:       savedQD.quoteNo       || qQuoteNo,
+    issueDate:     savedQD.issueDate     || qIssueDate,
+    dueDate:       savedQD.dueDate       || qDueDate,
     projectScope:  savedQD.projectScope  || qSnap?.projectScope  || "",
     notes:         savedQD.notes         || defaultNotes,
     salesPrice:    savedQD.salesPrice    || qPrice,
-    projectTitle:  savedQD.projectTitle  || qSnap?.serviceType   || opp?.serviceType || cs?.serviceType || "",
+    projectTitle:  savedQD.projectTitle  || qSnap?.projectTitle  || qSnap?.serviceType   || opp?.serviceType || cs?.serviceType || "",
     projectDuration: savedQD.projectDuration || qSnap?.projectMonths || cs?.projectMonths || 3,
     salesAgentId:  savedQD.salesAgentId  || qSnap?.salesAgent    || opp?.assignedTo   || SALES_USERS[0]?.id || "",
   } : {
-    quoteNo:         opp?.quoteNo||"",
-    issueDate:       initIssue,
-    dueDate:         addDays(initIssue,30),
+    quoteNo:         qQuoteNo,
+    issueDate:       qIssueDate,
+    dueDate:         qDueDate,
     salesAgentId:    qSnap?.salesAgent   || opp?.assignedTo || SALES_USERS[0]?.id||"",
-    projectTitle:    qSnap?.serviceType  || opp?.serviceType||cs?.serviceType||"",
+    projectTitle:    qSnap?.projectTitle || qSnap?.serviceType  || opp?.serviceType||cs?.serviceType||"",
     projectScope:    qSnap?.projectScope || "",
     projectDuration: qSnap?.projectMonths|| cs?.projectMonths||3,
     projectStartDate:"",
@@ -2455,7 +2463,8 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
     const csCode=genCSCode(quoteNo);
     const oppCode=genOppCode(opps);
     sECS(p=>({...p,quoteOverrides:[{
-      id:uid(),csCode,oppCode,quoteNo,custId:"",salesAgent:"",contactPersonId:"",salesPrice:0,notes:"• ค่าใช้จ่ายในการเดินทางเพื่อ Site Visit รวมอยู่ในราคาข้างต้น\n• ค่าธรรมเนียม TGO (ถ้ามี) ลูกค้ารับผิดชอบตามจริง\n• ราคานี้มีผลภายใน 30 วันนับจากวันที่ออกใบเสนอราคา\n• ราคาดังกล่าวยังไม่รวมภาษีมูลค่าเพิ่ม (VAT) 7%",
+      id:uid(),csCode,oppCode,quoteNo,custId:"",salesAgent:"",contactPersonId:"",salesPrice:0,
+      projectTitle:"",
       projectScope:"",
       projectMonths:editCS.projectMonths||3,
       internalCosts:(editCS.internalCosts||[]).map(r=>({...r,id:uid()})),
@@ -2472,6 +2481,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
         {id:uid(),item:"นำเสนอผลการศึกษาแก่ผู้บริหาร"},
         {id:uid(),item:"เอกสารใบรับรอง / Verification Statement"},
       ],
+      notes:"• ค่าใช้จ่ายในการเดินทางเพื่อ Site Visit รวมอยู่ในราคาข้างต้น\n• ค่าธรรมเนียม TGO (ถ้ามี) ลูกค้ารับผิดชอบตามจริง\n• ราคานี้มีผลภายใน 30 วันนับจากวันที่ออกใบเสนอราคา\n• ราคาดังกล่าวยังไม่รวมภาษีมูลค่าเพิ่ม (VAT) 7%",
     }]}));
   };
   const delQO=id=>sECS(p=>({...p,quoteOverrides:(p.quoteOverrides||[]).filter(r=>r.id!==id)}));
@@ -2773,7 +2783,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                   </div>
                   <div style={{flex:"0 0 115px"}}>
                     <Span s={10} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:3}}>Sales Price</Span>
-                    <Inp type="number" value={q.salesPrice} onChange={e=>setQF(q.id,"salesPrice",+e.target.value)} style={{fontSize:13,fontWeight:700,padding:"4px 8px"}}/>
+                    <Inp type="number" value={q.salesPrice} onChange={e=>updQO(q.id,q=>({...q,salesPrice:+e.target.value,lineItems:(q.lineItems||[]).map((li,i)=>i===0?{...li,unitPrice:+e.target.value}:li)}))} style={{fontSize:13,fontWeight:700,padding:"4px 8px"}}/>
                   </div>
                   <div style={{flex:"0 0 60px"}}>
                     <Span s={10} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:3}}>Months</Span>
@@ -2938,7 +2948,9 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
 
                 {/* ── PROJECT (full width, textarea) ── */}
                 <div style={{padding:"0 20px 16px",borderTop:"1px solid #f1f5f9"}}>
-                  <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6,marginTop:14}}>Project Scope</Span>
+                  <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6,marginTop:14}}>Project Title</Span>
+                  <Inp value={q.projectTitle||""} onChange={e=>setQF(q.id,"projectTitle",e.target.value)} placeholder="e.g. Verification of Carbon Footprint for Organization according to TGO guideline and ISO 14064-1: 2018" style={{fontSize:12,marginBottom:12}}/>
+                  <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Project Scope</Span>
                   <Txta value={q.projectScope||""} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder="ขอบเขตโครงการ — Describe scope, objectives, organisational boundary, base year…" style={{minHeight:72,fontSize:12}}/>
                 </div>
 
