@@ -1573,6 +1573,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
   const isWon=f.status==="Won", isLost=f.status==="Lost";
   const mg=margin(f.salesPrice,f.totalCost||0);
   const jobCode=isWon?genJobCode(f.oppCode):"";
+  const [delConfirm,setDelConfirm] = useState(false);
   return (
     <Modal title={initial?"Edit Opportunity":"New Opportunity"} width={820} onClose={onClose}>
       <div style={{display:"flex",gap:0,borderBottom:"2px solid #e2e8f0",marginBottom:16}}>
@@ -1626,10 +1627,41 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
       {tab==="log"&&<ActivityLog logs={f.activityLog||[]} currentUser={user} onAdd={entry=>sF(p=>({...p,activityLog:[...(p.activityLog||[]),entry]}))} placeholder="Log a call, meeting, email…"/>}
       {tab==="quotation"&&<QuotationPreview opp={f} customer={customers.find(c=>c.id===f.custId)} costSheets={costSheets||[]} onClose={onClose} onSaveQuotation={qd=>{const updated={...f,quotationData:qd,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""};onSave(updated);}}/>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
-        {initial&&onDelete&&<Btn variant="danger" style={{marginRight:"auto"}} onClick={()=>onDelete(f)}>Delete</Btn>}
+        {initial&&onDelete&&<Btn variant="danger" style={{marginRight:"auto"}} onClick={()=>setDelConfirm(true)}>Delete</Btn>}
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
         <Btn onClick={()=>onSave({...f,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""})}>{isWon?"Save & Auto-Create Delivery":"Save Opportunity"}</Btn>
       </div>
+
+      {delConfirm&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,.55)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:440,boxShadow:"0 32px 80px rgba(0,0,0,.22)",overflow:"hidden"}}>
+            <div style={{background:"#fef2f2",borderBottom:"1px solid #fecaca",padding:"22px 28px 18px",textAlign:"center"}}>
+              <div style={{width:44,height:44,background:"#fee2e2",border:"1.5px solid #fecaca",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 10px"}}>
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M8 4h4M3 6h14M5 6l1 10a1 1 0 001 1h6a1 1 0 001-1l1-10" stroke="#dc2626" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </div>
+              <div style={{fontSize:15,fontWeight:800,color:"#0f172a"}}>Delete Opportunity?</div>
+              <div style={{fontSize:12,color:"#ef4444",marginTop:3}}>This cannot be undone</div>
+            </div>
+            <div style={{padding:"18px 28px 22px"}}>
+              <div style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,padding:"10px 14px",marginBottom:14}}>
+                <div style={{fontFamily:"monospace",fontWeight:800,fontSize:13,color:"#1e40af"}}>{f.oppCode}</div>
+                {f.quoteNo&&<div style={{fontSize:11,color:"#64748b",marginTop:2}}>Quote: {f.quoteNo}</div>}
+                {f.csCode&&<div style={{fontSize:11,color:"#64748b"}}>CS Code: {f.csCode}</div>}
+              </div>
+              <div style={{fontSize:12,color:"#64748b",lineHeight:1.7,marginBottom:16}}>
+                การลบจะ:<br/>
+                • ลบ Opportunity นี้ออกจาก Google Sheets<br/>
+                {f.csCode&&<span>• ลบ CS Code <strong>{f.csCode}</strong> ออกจาก Cost Sheet<br/></span>}
+                • ลบ Quotation snapshot ที่บันทึกไว้ใน Cost Sheet
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <Btn variant="ghost" style={{flex:1}} onClick={()=>setDelConfirm(false)}>Cancel</Btn>
+                <button style={{flex:1,padding:"9px 16px",borderRadius:6,fontSize:13,fontWeight:700,cursor:"pointer",background:"#dc2626",color:"#fff",border:"none"}} onClick={()=>{setDelConfirm(false);onDelete(f);}}>Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 };
