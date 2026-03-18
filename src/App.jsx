@@ -856,7 +856,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
       <Card><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}>
         <thead><tr style={{background:"#f8fafc"}}>
           {[{l:"Reg. No.",c:"id"},{l:"Company",c:"companyEN"},{l:"Industry",c:"industry"},{l:"Province",c:"province"},
-            {l:"Contacts",c:null},{l:"Agent",c:"agent"},{l:"Ranking",c:"ranking"},{l:"Status",c:"status"},
+            {l:"Contacts",c:null},{l:"Agent",c:"agent"},
             {l:"Last Contact",c:"lastContact"},{l:"Remark",c:"remark"},{l:"Log",c:null},{l:"",c:null}
           ].map(({l,c})=>(
             <th key={l} onClick={c?()=>toggleSort(c):undefined}
@@ -877,8 +877,6 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
               {(c.contacts||[]).length>2&&<Span s={10} c="#94a3b8">+{(c.contacts||[]).length-2} more</Span>}
             </TD>
             <TD>{USERS.find(u=>u.id===c.assignedTo)?.name.split(" ")[0]||"-"}</TD>
-            <TD><Badge value={c.ranking} colorMap={RANK_CLR}/></TD>
-            <TD>{(()=>{const os=getOppStatus(c.id);const st=os||c.status;return<Badge value={st} colorMap={Object.fromEntries(CRM_STATUSES.map(s=>[s,{c:STATUS_CLR[s]}]))}/>})()}</TD>
             <TD style={{color:getLastContact(c.id)?"#374151":"#94a3b8"}}>{getLastContact(c.id)||"—"}</TD>
             <TD w={160} style={{color:"#64748b",fontSize:12}}>{c.remark||"—"}</TD>
             <TD><button onClick={e=>{e.stopPropagation();sLog(c);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11}}>💬 {(c.workLog||[]).length}</button></TD>
@@ -1560,32 +1558,36 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
   const [view,sView]=useState("table"); const [form,sF]=useState(false); const [edit,sE]=useState(null);
   const [logOpp,sLog]=useState(null); const [gs,sGS]=useState(false); const [quotationOpp,sQT]=useState(null);
   const [dragId,setDragId]=useState(null); const [dragOver,setDragOver]=useState(null);
-  const [sortCol,setSortCol]=useState("oppCode"); const [sortDir,setSortDir]=useState("asc");
-  const toggleSort=col=>{if(sortCol===col){setSortDir(d=>d==="asc"?"desc":"asc");}else{setSortCol(col);setSortDir("asc");}};
+  const [sort,setSort]=useState({col:"oppCode",dir:"asc"});
+  const toggleSort=col=>setSort(p=>({col,dir:p.col===col&&p.dir==="asc"?"desc":"asc"}));
+  const SortIcon=({col})=>sort.col===col?<span style={{marginLeft:3,fontSize:9,color:"#0f172a"}}>{sort.dir==="asc"?"▲":"▼"}</span>:<span style={{marginLeft:3,fontSize:9,color:"#cbd5e1"}}>⇅</span>;
   useEffect(()=>{if(initOppCode){const o=opps.find(x=>x.oppCode===initOppCode);if(o){sE(o);sF(true);}if(onOppReady)onOppReady();}},[initOppCode]);
-  const list=useMemo(()=>opps.filter(o=>{const c=customers.find(x=>x.id===o.custId);const q=search.toLowerCase();return(!search||o.oppCode.toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||o.quoteNo.toLowerCase().includes(q)||o.serviceCode.toLowerCase().includes(q))&&(fSt.length===0||fSt.includes(o.status))&&(fAg.length===0||fAg.includes(o.assignedTo))&&(fSvc.length===0||fSvc.includes(o.serviceCode));}),[opps,search,fSt,fAg,fSvc,customers]);
-  const sortedList=useMemo(()=>{
-    const getVal=(o,col)=>{
+  const list=useMemo(()=>{
+    const filtered=opps.filter(o=>{const c=customers.find(x=>x.id===o.custId);const q=search.toLowerCase();return(!search||o.oppCode.toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||o.quoteNo.toLowerCase().includes(q)||o.serviceCode.toLowerCase().includes(q))&&(fSt.length===0||fSt.includes(o.status))&&(fAg.length===0||fAg.includes(o.assignedTo))&&(fSvc.length===0||fSvc.includes(o.serviceCode));});
+    const {col,dir}=sort;
+    const getV=o=>{
       const c=customers.find(x=>x.id===o.custId);
       if(col==="oppCode")    return o.oppCode||"";
       if(col==="quoteNo")    return o.quoteNo||"";
       if(col==="csCode")     return o.csCode||"";
-      if(col==="company")    return c?.companyEN||"";
+      if(col==="company")    return (c?.companyEN||"").toLowerCase();
+      if(col==="ranking")    return ["High","Medium","Low"].indexOf(c?.ranking||"Medium");
+      if(col==="crmStatus")  return CRM_STATUSES.indexOf(c?.status||"");
       if(col==="serviceCode")return o.serviceCode||"";
       if(col==="salesPrice") return o.salesPrice||0;
       if(col==="totalCost")  return o.totalCost||0;
       if(col==="margin")     return o.salesPrice>0?(o.salesPrice-(o.totalCost||0))/o.salesPrice:0;
       if(col==="status")     return OPP_STATUSES.indexOf(o.status);
-      if(col==="agent")      return USERS.find(u=>u.id===o.assignedTo)?.name||"";
+      if(col==="agent")      return (USERS.find(u=>u.id===o.assignedTo)?.name||"").toLowerCase();
       if(col==="log")        return o.activityLog?.length||0;
       return "";
     };
-    return [...list].sort((a,b)=>{
-      const va=getVal(a,sortCol), vb=getVal(b,sortCol);
-      const cmp=typeof va==="number"?va-vb:String(va).localeCompare(String(vb));
-      return sortDir==="asc"?cmp:-cmp;
+    return [...filtered].sort((a,b)=>{
+      const va=getV(a),vb=getV(b);
+      const cmp=(typeof va==="number"&&typeof vb==="number")?va-vb:String(va).localeCompare(String(vb),"th");
+      return dir==="asc"?cmp:-cmp;
     });
-  },[list,sortCol,sortDir,customers]);
+  },[opps,customers,search,fSt,fAg,fSvc,sort]);
   const totalPipeline=list.filter(o=>o.status!=="Lost").reduce((s,o)=>s+o.salesPrice,0);
   const totalWon=list.filter(o=>o.status==="Won").reduce((s,o)=>s+o.salesPrice,0);
 
@@ -1719,6 +1721,8 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
               {label:"QT No.",    col:"quoteNo"},
               {label:"CS Code",   col:"csCode"},
               {label:"Company",   col:"company"},
+              {label:"Ranking",   col:"ranking"},
+              {label:"CRM Status",col:"crmStatus"},
               {label:"Code",      col:"serviceCode"},
               {label:"Price",     col:"salesPrice"},
               {label:"Cost",      col:"totalCost"},
@@ -1726,16 +1730,14 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
               {label:"Status",    col:"status"},
               {label:"Agent",     col:"agent"},
               {label:"Log",       col:"log"},
-            ].map(({label,col})=>{
-              const active=sortCol===col;
-              return(
-                <th key={col} onClick={()=>toggleSort(col)} style={{padding:"9px 12px",textAlign:"left",fontWeight:700,color:active?"#0f172a":"#64748b",fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",cursor:"pointer",userSelect:"none",background:active?"#f1f5f9":"#f8fafc"}}>
-                  {label}{" "}<span style={{fontSize:9,opacity:active?1:0.35}}>{active?(sortDir==="asc"?"▲":"▼"):"▲"}</span>
-                </th>
-              );
-            })}
+            ].map(({label,col})=>(
+              <th key={col} onClick={()=>toggleSort(col)}
+                style={{padding:"9px 12px",textAlign:"left",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",cursor:"pointer",userSelect:"none",color:sort.col===col?"#0f172a":"#64748b",background:sort.col===col?"#f1f5f9":"#f8fafc"}}>
+                {label}<SortIcon col={col}/>
+              </th>
+            ))}
           </tr></thead>
-          <tbody>{sortedList.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);const mAmt=marginAmt(o.salesPrice,o.totalCost||0);return(
+          <tbody>{list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);const mAmt=marginAmt(o.salesPrice,o.totalCost||0);const cRank=c?.ranking||"";const cStatus=c?.status||"";return(
             <TR key={o.id} onClick={()=>{sE(o);sF(true);}}>
               <TD style={{fontWeight:700,color:"#1e40af",fontFamily:"monospace",fontSize:12}}>{o.oppCode}</TD>
               {/* Req 4: Quote No. as hyperlink → opens quotation tab */}
@@ -1751,6 +1753,8 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
                   : "—"}
               </TD>
               <TD w={180}>{c?.companyEN||"-"}</TD>
+              <TD>{cRank?<span style={{background:RANK_CLR[cRank]?.bg||"#f1f5f9",color:RANK_CLR[cRank]?.c||"#64748b",padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{cRank}</span>:"—"}</TD>
+              <TD>{cStatus?<Badge value={cStatus} colorMap={STATUS_CLR}/>:"—"}</TD>
               <TD><SvcBadge code={o.serviceCode}/></TD>
               <TD right style={{fontWeight:700}}>฿{fmt(o.salesPrice)}</TD>
               <TD right style={{color:"#64748b"}}>฿{fmt(o.totalCost||0)}</TD>
