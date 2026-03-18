@@ -56,47 +56,47 @@ const SVC_PALETTE = ["#3b82f6","#f59e0b","#22c55e","#ef4444","#8b5cf6","#06b6d4"
 // Man-day rates: Manager=1,440  Senior=950  Junior=600 THB/day
 const SERVICES = [
   // CFO: 6M+14S+14J days + COGS ~15k
-  {code:"CFO",    name:"Carbon Footprint for Organization",  stdCost:44060,  stdPrice:65000},
+  {code:"CFO",    name:"Carbon Footprint for Organization",  stdCost:0,  stdPrice:0},
   // CFP: 5M+12S+10J + COGS ~12k
-  {code:"CFP",    name:"Carbon Footprint for Product",       stdCost:37600,  stdPrice:55000},
+  {code:"CFP",    name:"Carbon Footprint for Product",       stdCost:0,  stdPrice:0},
   // ISO14064: 7M+16S+16J + COGS ~25k
-  {code:"ISO14064",name:"ISO 14064-1 Verification",          stdCost:56880,  stdPrice:85000},
+  {code:"ISO14064",name:"ISO 14064-1 Verification",          stdCost:0,  stdPrice:0},
   // ISO14067: 6M+14S+14J + COGS ~20k
-  {code:"ISO14067",name:"ISO 14067 Verification",            stdCost:49460,  stdPrice:73000},
+  {code:"ISO14067",name:"ISO 14067 Verification",            stdCost:0,  stdPrice:0},
   // CFOISO bundle: CFO+ISO14064 bundled, ~15% discount on cost
-  {code:"CFOISO", name:"CFO + ISO 14064-1 Bundle",           stdCost:85000,  stdPrice:125000},
+  {code:"CFOISO", name:"CFO + ISO 14064-1 Bundle",           stdCost:0,  stdPrice:0},
   // CNE: 3M+8S+6J + COGS ~8k
-  {code:"CNE",    name:"Carbon Neutral Event",               stdCost:23920,  stdPrice:36000},
+  {code:"CNE",    name:"Carbon Neutral Event",               stdCost:0,  stdPrice:0},
   // DR: 8M+18S+12J + COGS ~20k
-  {code:"DR",     name:"Decarbonization Roadmap",            stdCost:57900,  stdPrice:85000},
+  {code:"DR",     name:"Decarbonization Roadmap",            stdCost:0,  stdPrice:0},
   // TRN: 2M+5S+4J + COGS ~5k
-  {code:"TRN",    name:"Training / Workshop",                stdCost:15030,  stdPrice:23000},
+  {code:"TRN",    name:"Training / Workshop",                stdCost:0,  stdPrice:0},
   // GSTC: 10M+22S+20J + COGS ~30k
-  {code:"GSTC",   name:"GSTC Certification Support",         stdCost:75900,  stdPrice:112000},
+  {code:"GSTC",   name:"GSTC Certification Support",         stdCost:0,  stdPrice:0},
   // GHOTEL: 6M+14S+12J + COGS ~18k
-  {code:"GHOTEL", name:"Green Hotel",                        stdCost:43040,  stdPrice:64000},
+  {code:"GHOTEL", name:"Green Hotel",                        stdCost:0,  stdPrice:0},
   // GHOTELP: 8M+18S+16J + COGS ~22k
-  {code:"GHOTELP",name:"Green Hotel Plus",                   stdCost:58700,  stdPrice:87000},
+  {code:"GHOTELP",name:"Green Hotel Plus",                   stdCost:0,  stdPrice:0},
   // CSRDIW: 7M+16S+14J + COGS ~20k
-  {code:"CSRDIW", name:"CSR-DIW",                            stdCost:53200,  stdPrice:79000},
+  {code:"CSRDIW", name:"CSR-DIW",                            stdCost:0,  stdPrice:0},
   // AWD: 8M+20S+20J + COGS ~25k
-  {code:"AWD",    name:"Alternate Wetting & Drying",         stdCost:62520,  stdPrice:93000},
+  {code:"AWD",    name:"Alternate Wetting & Drying",         stdCost:0,  stdPrice:0},
   // REF: 10M+24S+20J + COGS ~40k
-  {code:"REF",    name:"Reforestation Project",              stdCost:82800,  stdPrice:123000},
+  {code:"REF",    name:"Reforestation Project",              stdCost:0,  stdPrice:0},
   // CSRAWD: 7M+16S+14J + COGS ~20k
-  {code:"CSRAWD", name:"CSR-AWD",                            stdCost:53200,  stdPrice:79000},
+  {code:"CSRAWD", name:"CSR-AWD",                            stdCost:0,  stdPrice:0},
   // LCR: 6M+14S+12J + COGS ~18k
-  {code:"LCR",    name:"Low-Carbon Rice",                    stdCost:43040,  stdPrice:64000},
+  {code:"LCR",    name:"Low-Carbon Rice",                    stdCost:0,  stdPrice:0},
   // FS: 5M+12S+8J + COGS ~10k
-  {code:"FS",     name:"Feasibility Study",                  stdCost:31200,  stdPrice:46000},
+  {code:"FS",     name:"Feasibility Study",                  stdCost:0,  stdPrice:0},
   // CC: 10M+24S+20J + COGS ~50k
-  {code:"CC",     name:"Carbon Credit Development",          stdCost:92800,  stdPrice:138000},
+  {code:"CC",     name:"Carbon Credit Development",          stdCost:0,  stdPrice:0},
   // REC: 3M+6S+5J + COGS ~6k
-  {code:"REC",    name:"Renewable Energy Certificate",       stdCost:19020,  stdPrice:29000},
+  {code:"REC",    name:"Renewable Energy Certificate",       stdCost:0,  stdPrice:0},
 ];
 
 const ANNUAL_KPI    = 38000000;
-const DEFAULT_SPLIT = [0,0,0,0,0,0,0,0,0,0,0,0]; // Adjust & Save in Dashboard KPI tab
+const DEFAULT_SPLIT = [0,1,5,12,7,34,6,7,8,4,14,2]; // Adjust & Save in Dashboard KPI tab
 
 // ═══════════════════════════════════════════════════════════════════════════
 // UTILS
