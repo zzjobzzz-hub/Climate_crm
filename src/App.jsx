@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 const USERS = [
   { id:"korakoj.s",     email:"korakoj.s@wavebcg.com",      name:"Korakoj Sanguanpiyapan",     role:"md",        password:"Krj@Wave26!" },
-  { id:"chawapol.ta",   email:"chawapol.ta@wavebcg.com",    name:"Chawapol Tangsirichoochuay", role:"admin",     password:"2" },
+  { id:"chawapol.ta",   email:"chawapol.ta@wavebcg.com",    name:"Chawapol Tangsirichoochuay", role:"admin",     password:"3" },
   { id:"songyot.kr",    email:"songyot.kr@wavebcg.com",     name:"Songyot Kraprom",            role:"sales",     password:"Sgt@Wave26!" },
   { id:"theerayut.c",   email:"theerayut.c@wavebcg.com",    name:"Theerayut Chimpitak",        role:"sales",     password:"Trt@Wave26!" },
   { id:"nattapon.yi",   email:"nattapon.yi@wavebcg.com",    name:"Nattapon Yingsakda",         role:"operation", password:"Ntp@Wave26!" },
@@ -1667,8 +1667,8 @@ const OppsPage = ({user,customers,opps,onSave,deliveries,onSaveDelivery,toast,co
         <Card><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}>
           <TH cols={["OPP Code","QT No.","CS Code","Company","Code","Price","Cost","Margin % / ฿","Status","Agent","Log"]}/>
           <tbody>{list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);const mAmt=marginAmt(o.salesPrice,o.totalCost||0);return(
-            <TR key={o.id}>
-              <TD style={{fontWeight:700,color:"#1e40af",fontFamily:"monospace",fontSize:12,cursor:"pointer"}} onClick={()=>{sE(o);sF(true);}}>{o.oppCode}</TD>
+            <TR key={o.id} onClick={()=>{sE(o);sF(true);}}>
+              <TD style={{fontWeight:700,color:"#1e40af",fontFamily:"monospace",fontSize:12}}>{o.oppCode}</TD>
               {/* Req 4: Quote No. as hyperlink → opens quotation tab */}
               <TD>
                 {o.quoteNo
