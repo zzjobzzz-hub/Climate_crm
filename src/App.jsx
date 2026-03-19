@@ -1672,9 +1672,9 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
 };
 
 const OPP_HDR = ["OPP Code","Quote No.","CS Code","Job Code","Company","Service Code","Service Type","Sales Price","Total Cost","Margin%","Margin ฿","Status","Agent","Created","Lost Reason"];
-const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSaveDelivery,toast,costSheets,onGoToCS,initOppCode,onOppReady}) => {
+const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSaveDelivery,onDeleteDelivery,toast,costSheets,onGoToCS,initOppCode,onOppReady}) => {
   const [search,sS]=useState(""); const [fSt,setFSt]=useState([]); const [fAg,setFAg]=useState([]); const [fSvc,setFSvc]=useState([]);
-  const [view,sView]=useState("table"); const [form,sF]=useState(false); const [edit,sE]=useState(null);
+  const [view,sView]=useState("kanban"); const [form,sF]=useState(false); const [edit,sE]=useState(null);
   const [logOpp,sLog]=useState(null); const [gs,sGS]=useState(false); const [quotationOpp,sQT]=useState(null);
   const [dragId,setDragId]=useState(null); const [dragOver,setDragOver]=useState(null);
   const [sort,setSort]=useState({col:"oppCode",dir:"asc"});
@@ -1749,14 +1749,12 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
                     jobCode:nowWon?genJobCode(opp.oppCode):"",
                     activityLog:[...(opp.activityLog||[]),{id:uid(),ts:nowTS(),author:user.id,note:`Status changed from ${opp.status} to ${status} (drag & drop)`}]
                   };
-                  // ถ้าเคย Won แล้วเปลี่ยนกลับ → set Delivery On Hold
+                  // ถ้าเคย Won แล้วเปลี่ยนกลับ → ลบ Delivery ทิ้ง
                   if(wasWon&&!nowWon){
                     const dlv=deliveries.find(d=>d.oppCode===opp.oppCode);
-                    if(dlv){
-                      onSaveDelivery({...dlv,deliveryStatus:"On Hold",jobCode:"",workLog:[...(dlv.workLog||[]),{id:uid(),ts:nowTS(),author:user.id,note:`OPP ${opp.oppCode} moved back from Won to ${status} — Delivery set On Hold`}]});
-                      toast("Delivery set On Hold",`${dlv.jobCode} — OPP moved back from Won`,"error");
-                    }
+                    if(dlv&&onDeleteDelivery) onDeleteDelivery(dlv.id);
                   }
+
                   handleSave(updated);
                 }
               }
@@ -3268,7 +3266,7 @@ function App() {
       <div style={{maxWidth:1440,margin:"0 auto",padding:24}}>
         {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI} toast={toast}/>}
         {page==="customers" && <CustomersPage user={user} customers={customers} opps={opps} onSave={saveItem(sCusts,"customers")} onDelete={deleteItem(sCusts,"customers")} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)}/>}
-        {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} onDelete={deleteItem(sOpps,"opportunities")} onSaveCS={saveCS} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)}/>}
+        {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} onDelete={deleteItem(sOpps,"opportunities")} onSaveCS={saveCS} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} onDeleteDelivery={deleteItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)}/>}
         {page==="delivery"  && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}}/>}
         {page==="costsheet" && <CostSheetPage costSheets={costSheets} onSave={saveCS} customers={customers} opps={opps} user={user} onSaveOpp={saveOpp} toast={toast} initSvcCode={initSvcCode} onSvcReady={()=>sSvcCode(null)}/>}
         {page==="setup"     && <SetupPage/>}
