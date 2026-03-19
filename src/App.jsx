@@ -2784,7 +2784,17 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                   </tr>
                 ))}
                 {/* +Internal button bottom-left under Description col */}
-                <tr><td style={{padding:"5px 4px"}}><button onClick={addIC} style={{fontSize:11,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 9px",cursor:"pointer"}}>+ Internal</button></td><td colSpan={3}/><TD right style={{fontWeight:900,fontSize:13}}>฿{fmt(totalIC)}</TD><TD/></tr>
+                <tr>
+  <td style={{padding:"4px 3px"}}>
+    <div style={{display:"flex",gap:4}}>
+      <button onClick={()=>addQIC(q.id)} style={{fontSize:10,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:4,padding:"1px 7px",cursor:"pointer"}}>+ Internal</button>
+      <button onClick={()=>addQEC(q.id)} style={{fontSize:10,color:"#7c3aed",background:"none",border:"1px dashed #ddd6fe",borderRadius:4,padding:"1px 7px",cursor:"pointer"}}>+ External</button>
+    </div>
+  </td>
+  <td colSpan={6}/>
+  <td style={{padding:"5px 3px",fontWeight:900,fontSize:11}}>฿{fmt(qIC+qEC)}</td>
+  <td style={{padding:"5px 3px",fontSize:9,color:"#94a3b8",fontWeight:700}}>Total COGS</td>
+</tr>
                 </tbody>
               </table>
             </Card>
