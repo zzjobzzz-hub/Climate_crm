@@ -2228,7 +2228,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
       invoiceNo:"",invoiceDate:"",receiptNo:"",receiptDate:"",status:"Pending",recvMonth:ins.recvMonth||i+1,
     }));
     markDirty(null, inst);
-    toast("Installments loaded", `${inst.length} rows — click  Save to apply`);
+
   };
   useEffect(()=>{ if((d.installments||[]).length===0&&d.quoteNo) syncInst(); },[]);
 
@@ -2276,7 +2276,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
               <span style={{fontSize:13,fontWeight:900,color:x.c}}>฿{fmt(x.v)}</span>
             </div>
           ))}
-          <button onClick={()=>setOpen(true)} style={{padding:"6px 16px",background:"#0f172a",color:"#fff",border:"none",borderRadius:6,fontSize:12,fontWeight:700,cursor:"pointer"}}>Open to Edit</button>
+          <Btn variant="ghost" onClick={()=>setOpen(true)} style={{fontSize:12,padding:"5px 14px"}}>Edit</Btn>
         </div>
       </div>
       {(d.saveLog||[]).length>0&&(
@@ -2466,7 +2466,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div><Span s={20} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Delivery</Span><Span s={13} c="#94a3b8" style={{marginLeft:8}}>{list.length} contracts</Span></div>
-        <div style={{display:"flex",gap:8}}><ExportBar onCSV={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=(d.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))} onGS={()=>sGS(true)}/><Btn onClick={()=>{sE(null);sInitTab("detail");sF(true);}}>+ Add Delivery</Btn></div>
+        <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=(d.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}>↓ CSV</Btn><Btn onClick={()=>{sE(null);sInitTab("detail");sF(true);}}>+ Add Delivery</Btn></div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
         <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search Job Code / Company…" style={{maxWidth:240}}/>
@@ -2484,7 +2484,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
                 {list.length===0&&<Card style={{padding:40,textAlign:"center",color:"#94a3b8"}}>No delivery records found.</Card>}
       </div>
       {form&&<DeliveryForm initial={edit} customers={customers} opps={opps} user={user} onSave={d=>{onSave(d);sF(false);sE(null);sInitTab("detail");toast("Delivery saved",d.jobCode||d.id);}} onClose={()=>{sF(false);sE(null);sInitTab("detail");}} costSheets={costSheets} initTab={initTab}/>}
-      {gs&&<GSGuideModal module="Deliveries" headers={DLV_HDR} onClose={()=>sGS(false)}/>}
+
       {quotationOpp&&<QuotationPreview opp={quotationOpp} customer={customers.find(c=>c.id===quotationOpp.custId)} costSheets={costSheets||[]} onClose={()=>sQT(null)}/>}
     </div>
   );
