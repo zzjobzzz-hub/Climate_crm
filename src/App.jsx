@@ -2591,7 +2591,7 @@ const TaskTableWidget = ({tasks,onSet,onAdd,onDel,months}) => (
 const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,initSvcCode,onSvcReady}) => {
   const [selCode,sCode] = useState(SERVICES[0].code);
   useEffect(()=>{if(initSvcCode){sCode(initSvcCode);sView("quote");if(onSvcReady)onSvcReady();}},[initSvcCode]);
-  const [view,sView]    = useState("standard");
+  const [view,sView]    = useState("quote");
   const [gs,sGS]        = useState(false);
   const cs = useMemo(()=>costSheets.find(c=>c.serviceCode===selCode)||buildDefaultCS(SERVICES.find(s=>s.code===selCode)||SERVICES[0]),[costSheets,selCode]);
   const [editCS,sECS] = useState(cs);
@@ -2741,7 +2741,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <Span s={20} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Cost Sheet & Pricing</Span>
-        <div style={{display:"flex",gap:8}}><ExportBar onCSV={()=>dlCSV("costsheets.csv",["Service","COGS (Internal)","COGS (External Co.)","OPEX","Total Cost","Std Price","Margin%","Margin ฿"],costSheets.map(cs=>{const ic=calcIC(cs.internalCosts||[]),ec=calcEC(cs.externalCosts||[],true),opex=calcTask(cs.tasks||[]),tc=ic+ec+opex;return[cs.serviceType,ic,ec,opex,tc,cs.stdPrice,margin(cs.stdPrice,tc),marginAmt(cs.stdPrice,tc)];}))} onGS={()=>sGS(true)}/><Btn onClick={handleSave}>Save</Btn></div>
+        <div></div>
       </div>
 
       <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:14}}>
@@ -2757,148 +2757,20 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
         <SvcBadge code={selCode}/>
         <Span s={14} w={700} c="#0f172a">{curSvc?.name}</Span>
         
-        <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
-          <Span s={11} c="#64748b">Project duration:</Span>
-          <Inp type="number" value={editCS.projectMonths||3} onChange={e=>sECS(p=>({...p,projectMonths:+e.target.value}))} style={{width:50,padding:"3px 6px",fontSize:11}}/>
-          <Span s={11} c="#64748b">months</Span>
-        </div>
+
       </div>
 
-      <div style={{display:"flex",gap:2,borderBottom:"2px solid #e2e8f0",marginBottom:16}}>
-        {[["standard","Standard Cost & Pricing"],["quote","Per-Quotation (CS Code)"]].map(([k,l])=>(
-          <button key={k} onClick={()=>sView(k)} style={{padding:"9px 18px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:view===k?800:500,color:view===k?"#0f172a":"#94a3b8",borderBottom:view===k?"2.5px solid #0f172a":"2.5px solid transparent",marginBottom:-2}}>{l}</button>
-        ))}
-      </div>
 
-      {/*  STANDARD VIEW  */}
-      {view==="standard"&&(
-        <div style={{display:"grid",gridTemplateColumns:"1fr 300px",gap:16}}>
-          <div>
-            {/* COGS — Internal */}
-            <Card style={{padding:20,marginBottom:14}}>
-              <div style={{marginBottom:8}}>
-                <Span s={13} w={800}>COGS — Internal Cost</Span>
-                <Span s={11} c="#94a3b8" style={{marginLeft:8}}>Materials, tools, licenses (company cost)</Span>
-              </div>
-              <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
-                <colgroup><col style={{width:"44%"}}/><col style={{width:"12%"}}/><col style={{width:"10%"}}/><col style={{width:"16%"}}/><col style={{width:"12%"}}/><col style={{width:"6%"}}/></colgroup>
-                <TH cols={["Description","Unit","Qty","Rate/Unit","Total",""]}/>
-                <tbody>{(editCS.internalCosts||[]).map(r=>(
-                  <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9"}}>
-                    <TD><Inp value={r.label} onChange={e=>setIC(r.id,"label",e.target.value)} style={{padding:"4px 6px",fontSize:12,width:"100%",boxSizing:"border-box"}}/></TD>
-                    <TD><Inp value={r.unit} onChange={e=>setIC(r.id,"unit",e.target.value)} style={{padding:"4px 6px",fontSize:12,width:70}}/></TD>
-                    <TD><Inp type="number" value={r.qty} onChange={e=>setIC(r.id,"qty",+e.target.value)} style={{padding:"4px 6px",fontSize:12,width:55}}/></TD>
-                    <TD><Inp type="number" value={r.rate} onChange={e=>setIC(r.id,"rate",+e.target.value)} style={{padding:"4px 6px",fontSize:12,width:80}}/></TD>
-                    <TD right style={{fontWeight:700}}>฿{fmt((r.qty||0)*(r.rate||0))}</TD>
-                    <TD><Btn variant="danger" style={{fontSize:11,padding:"2px 7px"}} onClick={()=>delIC(r.id)}>×</Btn></TD>
-                  </tr>
-                ))}
-                {/* +Internal button bottom-left under Description col */}
-                <tr><td style={{padding:"5px 4px"}}><button onClick={addIC} style={{fontSize:11,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 9px",cursor:"pointer"}}>+ Internal</button></td><td colSpan={3}/><TD right style={{fontWeight:900,fontSize:13}}>฿{fmt(totalIC)}</TD><TD/></tr>
-                </tbody>
-              </table>
-            </Card>
-            {/* COGS — External */}
-            <Card style={{padding:20,marginBottom:14}}>
-              <div style={{marginBottom:8}}>
-                <Span s={13} w={800}>COGS — External Cost</Span>
-                <Span s={11} c="#94a3b8" style={{marginLeft:8}}>Outsource, verification, travel — toggle Client Borne</Span>
-              </div>
-              <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
-                <colgroup><col style={{width:"36%"}}/><col style={{width:"14%"}}/><col style={{width:"9%"}}/><col style={{width:"8%"}}/><col style={{width:"13%"}}/><col style={{width:"10%"}}/><col style={{width:"6%"}}/><col style={{width:"4%"}}/></colgroup>
-                <TH cols={["Description","Vendor","Unit","Qty","Rate/Unit","Total","Client?",""]}/>
-                <tbody>{(editCS.externalCosts||[]).map(r=>(
-                  <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9",background:r.clientBorne?"#f0fdf4":"#fff"}}>
-                    <TD><Inp value={r.label} onChange={e=>setEC(r.id,"label",e.target.value)} style={{padding:"4px 6px",fontSize:12,width:"100%",boxSizing:"border-box"}}/></TD>
-                    <TD><Inp value={r.vendorName||""} onChange={e=>setEC(r.id,"vendorName",e.target.value)} placeholder="Vendor" style={{padding:"4px 6px",fontSize:11,width:90}}/></TD>
-                    <TD><Inp value={r.unit} onChange={e=>setEC(r.id,"unit",e.target.value)} style={{padding:"4px 6px",fontSize:12,width:55}}/></TD>
-                    <TD><Inp type="number" value={r.qty} onChange={e=>setEC(r.id,"qty",+e.target.value)} style={{padding:"4px 6px",fontSize:12,width:45}}/></TD>
-                    <TD><Inp type="number" value={r.rate} onChange={e=>setEC(r.id,"rate",+e.target.value)} style={{padding:"4px 6px",fontSize:12,width:75}}/></TD>
-                    <TD right style={{fontWeight:700,color:r.clientBorne?"#16a34a":"#374151"}}>฿{fmt((r.qty||0)*(r.rate||0))}</TD>
-                    <TD style={{textAlign:"center"}}>
-                      <button onClick={()=>setEC(r.id,"clientBorne",!r.clientBorne)} style={{padding:"2px 8px",borderRadius:20,fontSize:10,fontWeight:700,border:"1px solid",borderColor:r.clientBorne?"#86efac":"#fca5a5",background:r.clientBorne?"#dcfce7":"#fee2e2",color:r.clientBorne?"#16a34a":"#dc2626",cursor:"pointer",whiteSpace:"nowrap"}}>
-                        {r.clientBorne?"Client":"Co."}
-                      </button>
-                    </TD>
-                    <TD><Btn variant="danger" style={{fontSize:11,padding:"2px 7px"}} onClick={()=>delEC(r.id)}>×</Btn></TD>
-                  </tr>
-                ))}
-                <tr><td style={{padding:"5px 4px"}}><button onClick={addEC} style={{fontSize:11,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 9px",cursor:"pointer"}}>+ External</button></td><td colSpan={4}/><TD right style={{fontWeight:900,fontSize:13}}>฿{fmt(totalEC)}</TD><td style={{padding:"8px 6px",fontSize:11,color:"#16a34a"}}>Client: ฿{fmt(totalECClient)}</td><TD/></tr>
-                </tbody>
-              </table>
-            </Card>
-            {/* OPEX — Tasks */}
-            <Card style={{padding:20}}>
-              <div style={{marginBottom:8}}>
-                <Span s={13} w={800}>OPEX — Man-day Tasks</Span>
-                <Span s={11} c="#94a3b8" style={{marginLeft:8}}>Enter man-days per level per task</Span>
-              </div>
-              <TaskTableWidget tasks={editCS.tasks||[]} onSet={setTK} onAdd={addTK} onDel={delTK} months={editCS.projectMonths||3}/>
-            </Card>
-          </div>
-          {/* Sidebar summary */}
-          <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            <Card style={{padding:18}}>
-              <Span s={13} w={700} style={{display:"block",marginBottom:12}}>Cost Summary</Span>
-              {[{l:"Internal COGS",v:totalIC,c:"#7c3aed"},{l:"External COGS (Co.)",v:totalEC,c:"#1e40af"},{l:"External (Client)",v:totalECClient,c:"#16a34a"},{l:"OPEX (Man-days)",v:totalOPEX,c:"#0f172a"},{l:"TOTAL COST",v:totalCost,bold:true}].map(x=>(
-                <div key={x.l} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #f1f5f9"}}>
-                  <Span s={12} c={x.c||"#64748b"} style={{fontWeight:x.bold?700:400}}>{x.l}</Span>
-                  <Span s={12} w={700} c={x.c||"#0f172a"}>฿{fmt(x.v)}</Span>
-                </div>
-              ))}
-            </Card>
-            <Card style={{padding:18}}>
-              <Span s={13} w={700} style={{display:"block",marginBottom:12}}>Standard Price</Span>
-              <FRow label="Price (THB)"><Inp type="number" value={editPrice} onChange={e=>sEP(+e.target.value)}/></FRow>
-              <div style={{padding:12,borderRadius:6,background:+mg>=30?"#f0fdf4":"#fef2f2",border:`1px solid ${+mg>=30?"#86efac":"#fca5a5"}`,textAlign:"center",marginTop:8}}>
-                <Span s={11} c="#64748b">Margin on Sales Price</Span>
-                <div style={{fontWeight:900,fontSize:26,color:+mg>=30?"#16a34a":"#dc2626"}}>{mg}%</div>
-                <div style={{fontWeight:700,fontSize:15,color:+mg>=30?"#16a34a":"#dc2626",marginTop:2}}>฿{fmt(marginAmt(editPrice,totalCost))}</div>
-                <Span s={10} c="#94a3b8">{+mg>=30?" Policy OK":" Below 30% min"}</Span>
-              </div>
-            </Card>
-            {/* Save Log */}
-            {(editCS.saveLog||[]).length>0&&(
-              <Card style={{padding:14}}>
-                <Span s={12} w={700} style={{display:"block",marginBottom:8}}>Save Log</Span>
-                <div style={{maxHeight:180,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
-                  {[...(editCS.saveLog||[])].reverse().map(l=>{
-                    const isQCommit=l.note&&l.note.startsWith("Quotation saved →");
-                    return(
-                      <div key={l.id} style={{fontSize:10,padding:"5px 8px",background:isQCommit?"#f0fdf4":"#f8fafc",borderRadius:4,border:`1px solid ${isQCommit?"#86efac":"#e2e8f0"}`}}>
-                        <div style={{display:"flex",gap:8,marginBottom:isQCommit?3:0}}>
-                          <span style={{color:"#64748b",whiteSpace:"nowrap"}}>{l.ts}</span>
-                          <span style={{color:"#1e40af",fontWeight:700}}>{USERS.find(u=>u.id===l.author)?.name.split(" ")[0]||l.author}</span>
-                          {!isQCommit&&<span style={{color:"#374151",flex:1}}>{l.note}</span>}
-                        </div>
-                        {isQCommit&&(
-                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                            <div style={{color:"#15803d",fontWeight:600,flex:1}}>{l.note.replace("Quotation saved → "," ")}</div>
-                            {l.quoteSnapshot&&<button onClick={()=>{
-                              sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid()}]}));
-                              const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} · ${l.quoteSnapshot.quoteNo} for editing`};
-                              sECS(p=>({...p,saveLog:[...(p.saveLog||[]),logEntry]}));
-                              sView("quote");
-                            }} style={{fontSize:9,color:"#1e40af",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:3,padding:"1px 7px",cursor:"pointer",whiteSpace:"nowrap",marginLeft:8}}>Re-open</button>}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
-            )}
-          </div>
-        </div>
-      )}
+
 
       {/*  PER-QUOTATION VIEW  */}
-      {view==="quote"&&(
-        <div>
+      <div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
             <div>
-              <Span s={16} w={800} c="#0f172a" style={{display:"block",marginBottom:2}}>Per-Quotation Cost Sheet{(editCS.quoteOverrides||[]).length>0?` · CS: ${editCS.quoteOverrides[0].csCode}`:""}</Span>
-              <Span s={12} c="#94a3b8">สร้าง CS Code อัตโนมัติต่อ 1 ใบเสนอราคา — เมื่อบันทึกจะสร้าง Opportunity พร้อมต้นทุนจริงให้อัตโนมัติ</Span>
+              <Span s={16} w={800} c="#0f172a" style={{display:"block",marginBottom:2}}>
+                Per-Quotation Cost Sheet{(editCS.quoteOverrides||[]).length>0?` · CS: ${editCS.quoteOverrides[0].csCode}`:""}
+              </Span>
+              <Span s={12} c="#94a3b8">สร้าง CS Code อัตโนมัติ 1 ใบต่อ 1 ใบเสนอราคา — เมื่อบันทึก ระบบจะสร้าง Opportunity พร้อมต้นทุนจริงให้อัตโนมัติ</Span>
             </div>
             {(editCS.quoteOverrides||[]).length===0&&<Btn onClick={addQO}>+ New Quotation</Btn>}
           </div>
@@ -3004,10 +2876,9 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                     {/* Unified COGS table */}
                     <div style={{marginBottom:4,display:"flex",alignItems:"center",gap:8}}>
                       <Span s={11} w={700}>COGS</Span>
-                      <Span s={9} c="#94a3b8">(Internal = no vendor · External = vendor + Client? toggle)</Span>
                     </div>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
-                      <colgroup><col style={{width:"30%"}}/><col style={{width:"15%"}}/><col style={{width:"10%"}}/><col style={{width:"8%"}}/><col style={{width:"15%"}}/><col style={{width:"14%"}}/><col style={{width:"8%"}}/></colgroup>
+                      <colgroup><col style={{width:"32%"}}/><col style={{width:"16%"}}/><col style={{width:"10%"}}/><col style={{width:"8%"}}/><col style={{width:"16%"}}/><col style={{width:"14%"}}/><col style={{width:"4%"}}/></colgroup>
                       <TH cols={["Label","Vendor","Unit","Qty","Rate","Total",""]}/>
                       <tbody>
                         {(q.internalCosts||[]).map(r=>(
@@ -3022,18 +2893,18 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                           </tr>
                         ))}
                         {(q.externalCosts||[]).map(r=>(
-                          <tr key={r.id} style={{borderBottom:"1px solid #f8fafc",background:r.clientBorne?"#f0fdf4":"#fff"}}>
+                          <tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
                             <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQEC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.vendorName||""} onChange={e=>setQEC(q.id,r.id,"vendorName",e.target.value)} placeholder="Vendor" style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.unit||""} onChange={e=>setQEC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp type="number" value={r.qty} onChange={e=>setQEC(q.id,r.id,"qty",+e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp type="number" value={r.rate} onChange={e=>setQEC(q.id,r.id,"rate",+e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px",fontWeight:700,fontSize:10,color:r.clientBorne?"#16a34a":"inherit"}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
+                            <td style={{padding:"3px 3px",fontWeight:700,fontSize:10}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
                             <td><Btn variant="danger" style={{fontSize:10,padding:"1px 4px"}} onClick={()=>delQEC(q.id,r.id)}>×</Btn></td>
                           </tr>
                         ))}
                         <tr style={{borderTop:"1px solid #f1f5f9"}}>
-                          <td colSpan={8} style={{padding:"5px 4px"}}>
+                          <td colSpan={5} style={{padding:"5px 4px"}}>
                             <button onClick={()=>addQEC(q.id)} style={{fontSize:10,color:"#1e40af",background:"#eff6ff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 12px",cursor:"pointer",fontWeight:600}}>+ Add</button>
                           </td>
                           <td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap"}}>
@@ -3083,11 +2954,9 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                             <td style={{padding:"4px 4px",width:20}}><Btn variant="danger" style={{fontSize:10,padding:"1px 4px"}} onClick={()=>delQInst(q.id,ins.id)}>×</Btn></td>
                           </tr>
                         ))}
-                        <tr>
-                          <td colSpan={6} style={{padding:"6px 4px"}}>
-                            <button onClick={()=>addQInst(q.id)} style={{fontSize:10,color:"#1e40af",background:"#eff6ff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 14px",cursor:"pointer",fontWeight:600}}>+ Installment</button>
-                          </td>
-                        </tr>
+                        <tr><td colSpan={6} style={{padding:"6px 4px"}}>
+                          <button onClick={()=>addQInst(q.id)} style={{fontSize:10,color:"#1e40af",background:"#eff6ff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 14px",cursor:"pointer",fontWeight:600}}>+ Installment</button>
+                        </td></tr>
                       </tbody>
                     </table>
                   </div>
@@ -3175,23 +3044,31 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                 </div>
 
                 {/* Cost + margin + Save/Cancel footer */}
-                <div style={{padding:"12px 20px",background:"#f8fafc",borderTop:"1px solid #e2e8f0",display:"flex",gap:14,flexWrap:"wrap",alignItems:"center"}}>
-                  {[{l:"COGS",v:qIC+qEC},{l:"OPEX",v:qOPEX},{l:"TOTAL COST",v:qTC,bold:true}].map(x=>(
-                    <div key={x.l} style={{textAlign:"center"}}><Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>{x.l}</Span><Span s={12} w={x.bold?900:700}>฿{fmt(x.v)}</Span></div>
-                  ))}
-                  <div style={{padding:"6px 14px",borderRadius:7,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center"}}>
-                    <Span s={9} c={+qMg>=30?"#16a34a":"#dc2626"} style={{display:"block"}}>Margin</Span>
-                    <Span s={16} w={900} c={+qMg>=30?"#16a34a":"#dc2626"}>{qMg}%</Span>
+                <div style={{borderTop:"1px solid #e2e8f0"}}>
+                  {/* Summary row */}
+                  <div style={{padding:"10px 20px",background:"#f8fafc",display:"flex",gap:16,flexWrap:"wrap",alignItems:"center"}}>
+                    {[{l:"COGS",v:qIC+qEC},{l:"OPEX",v:qOPEX},{l:"TOTAL COST",v:qTC,bold:true}].map(x=>(
+                      <div key={x.l} style={{textAlign:"center"}}>
+                        <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>{x.l}</Span>
+                        <Span s={13} w={x.bold?900:700}>฿{fmt(x.v)}</Span>
+                      </div>
+                    ))}
+                    <div style={{padding:"5px 12px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center"}}>
+                      <Span s={9} c={+qMg>=30?"#16a34a":"#dc2626"} style={{display:"block"}}>Margin</Span>
+                      <Span s={15} w={900} c={+qMg>=30?"#16a34a":"#dc2626"}>{qMg}%</Span>
+                    </div>
                   </div>
-                  <div style={{flex:1}}/>
-                  <Btn variant="ghost" onClick={()=>delQO(q.id)}>ยกเลิก</Btn>
-                  <Btn onClick={handleSave} style={{padding:"8px 24px"}}>บันทึก</Btn>
+                  {/* Save/Cancel row */}
+                  <div style={{padding:"12px 20px",background:"#fff",borderTop:"1px solid #f1f5f9",display:"flex",justifyContent:"flex-end",gap:8,alignItems:"center"}}>
+                    <Btn variant="ghost" onClick={()=>delQO(q.id)}>ยกเลิก</Btn>
+                    <Btn onClick={handleSave} style={{padding:"8px 24px"}}>บันทึก</Btn>
+                  </div>
                 </div>
               </Card>
             );
           })}
         </div>
-      )}
+
 
     </div>
   );
