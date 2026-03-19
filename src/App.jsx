@@ -93,6 +93,9 @@ const SERVICES = [
   {code:"CC",     name:"Carbon Credit",          stdCost:0,  stdPrice:0},
   // REC: 3M+6S+5J + COGS ~6k
   {code:"REC",    name:"Renewable Energy Certificate",       stdCost:0,  stdPrice:0},
+  // OTH: 3M+6S+5J + COGS ~k
+  {code:"OTH",    name:"Other Service",                      stdCost:0,  stdPrice:0},
+  
 ];
 
 const ANNUAL_KPI    = 38000000;
