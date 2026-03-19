@@ -895,7 +895,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
           {l:"Last Contact",c:"lastContact",w:120},
           {l:"Remark",    c:"remark",      w:140},
           {l:"Log",       c:null,          w:60},
-          {l:"",          c:null,          w:120},
+          {l:"",          c:null,          w:60},
         ];
         const [colWidths,setColWidths] = React.useState(COLS.map(c=>c.w));
         const startResize = (i,e) => {
@@ -2775,13 +2775,9 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
             {(editCS.quoteOverrides||[]).length===0&&<Btn onClick={addQO}>+ New Quotation</Btn>}
           </div>
           {(editCS.quoteOverrides||[]).length===0&&(
-            <Card style={{padding:48,textAlign:"center"}}>
-              <div style={{fontSize:32,marginBottom:8}}></div>
-              <Span s={14} w={700} c="#64748b">No per-quotation sheet yet</Span>
-              {/* Show previously saved quotations from save log with re-edit option */}
+            <div>
               {(editCS.saveLog||[]).filter(l=>l.quoteSnapshot).length>0&&(
-                <div style={{marginTop:20,textAlign:"left"}}>
-                  <Span s={11} w={700} style={{display:"block",marginBottom:8,color:"#374151"}}>Previously saved quotations:</Span>
+                <div style={{marginBottom:12}}>
                   {Object.values(
                     [...(editCS.saveLog||[])].filter(l=>l.quoteSnapshot).reduce((acc,l)=>{
                       const key=l.quoteSnapshot.quoteNo;
@@ -2789,20 +2785,20 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                       return acc;
                     },{})
                   ).sort((a,b)=>b.ts.localeCompare(a.ts)).map(l=>(
-                    <div key={l.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:6,marginBottom:6}}>
-                      <span style={{fontSize:10,color:"#64748b",whiteSpace:"nowrap"}}>{l.ts}</span>
-                      <span style={{fontSize:10,fontWeight:700,fontFamily:"monospace",color:"#92400e",background:"#fef3c7",padding:"1px 7px",borderRadius:3}}>{l.quoteSnapshot.csCode}</span>
-                      <span style={{fontSize:10,color:"#374151",flex:1}}>{l.quoteSnapshot.quoteNo} · {customers.find(c=>c.id===l.quoteSnapshot.custId)?.companyEN||l.quoteSnapshot.custId}</span>
-                      <Btn variant="ghost" style={{fontSize:10,padding:"2px 10px"}} onClick={()=>{
+                    <div key={l.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:7,marginBottom:6}}>
+                      <span style={{fontSize:10,color:'#94a3b8',whiteSpace:'nowrap'}}>{l.ts}</span>
+                      <span style={{fontSize:10,fontWeight:700,fontFamily:'monospace',color:'#92400e',background:'#fef3c7',padding:'2px 8px',borderRadius:4,border:'1px solid #fde68a'}}>{l.quoteSnapshot.csCode}</span>
+                      <span style={{fontSize:12,color:'#374151',flex:1}}>{l.quoteSnapshot.quoteNo} · {customers.find(c=>c.id===l.quoteSnapshot.custId)?.companyEN||l.quoteSnapshot.custId}</span>
+                      <Btn variant='ghost' style={{fontSize:11,padding:'4px 14px'}} onClick={()=>{
                         sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid()}]}));
-                        const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} · ${l.quoteSnapshot.quoteNo} for editing`};
+                        const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} for editing`};
                         sECS(p=>({...p,saveLog:[...(p.saveLog||[]),logEntry]}));
                       }}>Edit</Btn>
                     </div>
                   ))}
                 </div>
               )}
-            </Card>
+            </div>
           )}
           {(editCS.quoteOverrides||[]).map((q)=>{
             const qIC=calcIC(q.internalCosts||[]),qEC=calcEC(q.externalCosts||[],true),qOPEX=calcTask(q.tasks||[]);
@@ -3145,10 +3141,11 @@ function App() {
       if(o.length) sOpps(o.map(x=>({...x,id:String(x.id||""),custId:String(x.custId||"")})));
       if(d.length) sDlv(d.map(x=>({...x,id:String(x.id||""),custId:String(x.custId||"")})));
       // Merge loaded costSheets with defaults for any services not yet in Sheet
+      // Always clear quoteOverrides on load — user must click Edit to re-open
       if(cs.length){
         const merged = SEED_COST_SHEETS.map(def=>{
           const fromGS = cs.find(x=>x.serviceCode===def.serviceCode);
-          return fromGS ? {...def,...fromGS} : def;
+          return fromGS ? {...def,...fromGS, quoteOverrides:[]} : def;
         });
         sCS(merged);
       }
