@@ -1,8 +1,8 @@
 // React, useState, useMemo, useRef, useEffect, useCallback — globals from CDN
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // USERS — all roles see same Admin view (Req 16, 17, 18)
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 const USERS = [
   { id:"korakoj.s",     email:"korakoj.s@wavebcg.com",      name:"Korakoj Sanguanpiyapan",     role:"md",        password:"Krj@Wave26!" },
   { id:"chawapol.ta",   email:"chawapol.ta@wavebcg.com",    name:"Chawapol Tangsirichoochuay", role:"admin",     password:"Cwp@Wave26!" },
@@ -21,9 +21,9 @@ const USERS = [
 const SALES_USERS = USERS.filter(u => u.role === "sales");
 const OP_USERS    = USERS.filter(u => u.role === "operation");
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // CONSTANTS
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 const CRM_STATUSES = ["Lead","Qualified","Email Profile","Meeting","Proposal","Negotiation","Won","Lost"];
 const OPP_STATUSES = ["Proposal","Negotiation","Won","Lost"];
 const DLV_STATUSES = ["In Progress","Pending Client","Under Review","Delivered","Completed","On Hold"];
@@ -103,9 +103,9 @@ const SERVICES = [
 const ANNUAL_KPI    = 38000000;
 const DEFAULT_SPLIT = [0,0,0,0,0,0,0,0,0,0,0,0]; // Adjust & Save in Dashboard KPI tab
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // UTILS
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 const fmt   = n => new Intl.NumberFormat("en-US").format(Math.round(n||0));
 const fmtM  = n => `${((n||0)/1e6).toFixed(2)}M`;
 const fmtK  = n => (n||0)>=1e6?`฿${((n||0)/1e6).toFixed(1)}M`:(n||0)>=1000?`฿${Math.round((n||0)/1000)}K`:`฿${fmt(n)}`;
@@ -159,15 +159,15 @@ const buildDefaultCS = s => ({
   saveLog: [],        // [{ts, author, note}] — recorded on Save
 });
 
-// ── Seed data — empty by default, add via UI ─────────────────
+//  Seed data — empty by default, add via UI 
 const SEED_CUSTOMERS  = [];
 const SEED_OPPS       = [];
 const SEED_DELIVERIES = [];
 const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 const GS_URL = "https://script.google.com/macros/s/AKfycbywD_YAL8cVKFRxUqZjlGKlJhlI7JdmrCv9wKmNBFADKaoxl4Q9n_g9lWqYxvtEhW7_xw/exec";
 
 // Read a full collection from Google Sheets
@@ -209,9 +209,9 @@ const gsDelete = (collection, id) => {
     body: JSON.stringify({action:"delete", collection, id}),
   }).catch(()=>{});
 };
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // UI PRIMITIVES
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 const SI = {width:"100%",border:"1px solid #e2e8f0",borderRadius:5,padding:"7px 10px",fontSize:13,color:"#1e293b",background:"#fafafa",outline:"none",boxSizing:"border-box"};
 const Inp  = ({style,...p}) => <input {...p} style={{...SI,...style}}/>;
 const Sel  = ({style,children,...p}) => <select {...p} style={{...SI,...style}}>{children}</select>;
@@ -233,7 +233,7 @@ const Span  = ({s=13,w=400,c="#374151",style,children}) => <span style={{fontSiz
 const FRow  = ({label,children,tip}) => (
   <div style={{marginBottom:12}}>
     <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4,display:"flex",gap:5,alignItems:"center"}}>
-      {label}{tip&&<span title={tip} style={{cursor:"help",fontSize:10,color:"#cbd5e1"}}>ⓘ</span>}
+      {label}{tip&&<span title={tip} style={{cursor:"help",fontSize:10,color:"#cbd5e1"}}></span>}
     </div>
     {children}
   </div>
@@ -266,12 +266,12 @@ const Modal = ({title,width=740,onClose,children}) => {
   );
 };
 
-// ── Toast (Req 15) ─────────────────────────────────────────
+//  Toast (Req 15) 
 const Toast = ({toasts}) => (
   <div style={{position:"fixed",bottom:24,right:24,zIndex:9999,display:"flex",flexDirection:"column",gap:8,maxWidth:340}}>
     {toasts.map(t => (
       <div key={t.id} style={{background:t.type==="success"?"#16a34a":t.type==="error"?"#dc2626":"#0f172a",color:"#fff",padding:"12px 18px",borderRadius:8,fontSize:13,fontWeight:600,boxShadow:"0 8px 24px rgba(0,0,0,.2)",display:"flex",gap:10,alignItems:"center",animation:"slideIn .25s ease"}}>
-        <span style={{fontSize:16}}>{t.type==="success"?"✓":"ℹ"}</span>
+        <span style={{fontSize:16}}>{t.type==="success"?"":"ℹ"}</span>
         <div><div style={{fontWeight:700}}>{t.title}</div>{t.msg&&<div style={{fontSize:11,opacity:.85,marginTop:2}}>{t.msg}</div>}</div>
       </div>
     ))}
@@ -287,7 +287,7 @@ const useToast = () => {
   return {toasts,show};
 };
 
-// ── Multi-select (Req 11) ──────────────────────────────────
+//  Multi-select (Req 11) 
 const MultiSelect = ({label,options,selected,onChange,width=180}) => {
   const [open,sO] = useState(false);
   const ref = useRef();
@@ -299,14 +299,14 @@ const MultiSelect = ({label,options,selected,onChange,width=180}) => {
     <div ref={ref} style={{position:"relative",userSelect:"none"}}>
       <button onClick={()=>sO(!open)} style={{padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:5,background:"#fafafa",fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",gap:6,width,justifyContent:"space-between",color:"#1e293b"}}>
         <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,textAlign:"left"}}>{display}</span>
-        <span style={{fontSize:10,color:"#94a3b8",flexShrink:0}}>▾</span>
+        <span style={{fontSize:10,color:"#94a3b8",flexShrink:0}}></span>
       </button>
       {open && (
         <div style={{position:"absolute",top:"110%",left:0,zIndex:600,background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,boxShadow:"0 8px 32px rgba(0,0,0,.12)",minWidth:width,padding:8,maxHeight:260,overflow:"auto"}}>
-          <div onClick={()=>onChange([])} style={{padding:"6px 10px",cursor:"pointer",fontSize:12,fontWeight:allSel?700:400,color:allSel?"#0f172a":"#64748b",borderRadius:4,background:allSel?"#f1f5f9":"transparent",marginBottom:4}}>✓ All {label}</div>
+          <div onClick={()=>onChange([])} style={{padding:"6px 10px",cursor:"pointer",fontSize:12,fontWeight:allSel?700:400,color:allSel?"#0f172a":"#64748b",borderRadius:4,background:allSel?"#f1f5f9":"transparent",marginBottom:4}}> All {label}</div>
           {options.map(o => { const s=selected.includes(o.value); return (
             <div key={o.value} onClick={()=>toggle(o.value)} style={{padding:"6px 10px",cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",gap:8,borderRadius:4,background:s?"#eff6ff":"transparent",color:s?"#1e40af":"#374151",marginBottom:2}}>
-              <div style={{width:14,height:14,border:`2px solid ${s?"#1e40af":"#cbd5e1"}`,borderRadius:3,background:s?"#1e40af":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{s&&<span style={{color:"#fff",fontSize:9,fontWeight:900,lineHeight:1}}>✓</span>}</div>
+              <div style={{width:14,height:14,border:`2px solid ${s?"#1e40af":"#cbd5e1"}`,borderRadius:3,background:s?"#1e40af":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{s&&<span style={{color:"#fff",fontSize:9,fontWeight:900,lineHeight:1}}></span>}</div>
               <span>{o.label}</span>
             </div>
           );
@@ -317,7 +317,7 @@ const MultiSelect = ({label,options,selected,onChange,width=180}) => {
   );
 };
 
-// ── Activity log ───────────────────────────────────────────
+//  Activity log 
 const ActivityLog = ({logs,currentUser,onAdd,placeholder="Add a note…"}) => {
   const [note,sN] = useState("");
   return (
@@ -345,7 +345,7 @@ const ActivityLog = ({logs,currentUser,onAdd,placeholder="Add a note…"}) => {
   );
 };
 
-// ── Step progress ──────────────────────────────────────────
+//  Step progress 
 const StepProgress = ({steps,current,onStep}) => {
   const idx = steps.indexOf(current);
   return (
@@ -353,7 +353,7 @@ const StepProgress = ({steps,current,onStep}) => {
       <div style={{display:"flex",gap:3,flexWrap:"wrap",marginBottom:8}}>
         {steps.map((s,i) => { const past=i<idx,cur=i===idx; return (
           <button key={s} onClick={()=>onStep&&onStep(s)} style={{padding:"4px 9px",borderRadius:20,fontSize:10,cursor:onStep?"pointer":"default",fontWeight:cur?800:400,border:"1.5px solid",background:cur?"#0f172a":past?"#dcfce7":"#f8fafc",color:cur?"#fff":past?"#16a34a":"#94a3b8",borderColor:cur?"#0f172a":past?"#86efac":"#e2e8f0"}}>
-            {past?"✓ ":""}{s}
+            {past?" ":""}{s}
           </button>
         );})}
       </div>
@@ -365,7 +365,7 @@ const StepProgress = ({steps,current,onStep}) => {
   );
 };
 
-const ExportBar = ({onCSV,onGS}) => <div style={{display:"flex",gap:6}}><Btn variant="export" onClick={onCSV}>↓ CSV</Btn><Btn variant="export" onClick={onGS}>☁ GS</Btn></div>;
+const ExportBar = ({onCSV,onGS}) => <div style={{display:"flex",gap:6}}><Btn variant="export" onClick={onCSV}>↓ CSV</Btn><Btn variant="export" onClick={onGS}> GS</Btn></div>;
 const GSGuideModal = ({module,headers,onClose}) => (
   <Modal title={`Google Sheets Guide — ${module}`} width={600} onClose={onClose}>
     <FRow label="Tab Name"><div style={{fontFamily:"monospace",padding:"6px 10px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:5,fontWeight:700}}>{module}</div></FRow>
@@ -374,9 +374,9 @@ const GSGuideModal = ({module,headers,onClose}) => (
   </Modal>
 );
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // LOGIN (Req 17, 18, 19)
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 const LoginPage = ({onLogin}) => {
   const [email,sEmail] = useState("");
   const [pwd,sPwd]     = useState("");
@@ -407,9 +407,9 @@ const LoginPage = ({onLogin}) => {
   );
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // DASHBOARD (Req 12, 13, 14)
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toast}) => {
   const [tab,sTab]   = useState("dash");
   const [year,sYear] = useState(2026);
@@ -680,7 +680,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
               <Span s={13} w={700}>Monthly Split %</Span>
               <div style={{display:"flex",gap:10,alignItems:"center"}}>
                 <Span s={12} w={700} c={Math.abs(totalSplit-100)<0.1?"#16a34a":"#dc2626"}>Total: {totalSplit.toFixed(1)}%</Span>
-                <Btn onClick={saveKpi} style={{fontSize:11,padding:"4px 12px"}}>💾 Save KPI</Btn>
+                <Btn onClick={saveKpi} style={{fontSize:11,padding:"4px 12px"}}> Save KPI</Btn>
               </div>
             </div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -743,9 +743,9 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   );
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // CUSTOMERS
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 const INDUSTRY_SECTORS = {
   "Agro Food":           ["Agribusiness","Food & Beverage"],
   "Consumer Products":   ["Fashion","Home & Office Products","Personal Products & Pharmaceuticals"],
@@ -831,7 +831,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
   const [delConfirm,sDelConfirm]=useState(null);
   const [sort,setSort]=useState({col:"companyEN",dir:"asc"});
   const toggleSort=col=>setSort(p=>({col,dir:p.col===col&&p.dir==="asc"?"desc":"asc"}));
-  const SortIcon=({col})=>sort.col===col?<span style={{marginLeft:3,fontSize:9,color:"#0f172a"}}>{sort.dir==="asc"?"▲":"▼"}</span>:<span style={{marginLeft:3,fontSize:9,color:"#cbd5e1"}}>⇅</span>;
+  const SortIcon=({col})=>sort.col===col?<span style={{marginLeft:3,fontSize:9,color:"#0f172a"}}>{sort.dir==="asc"?"":""}</span>:<span style={{marginLeft:3,fontSize:9,color:"#cbd5e1"}}>⇅</span>;
   useEffect(()=>{if(initCustId){const c=customers.find(x=>x.id===initCustId);if(c){sE(c);sF(true);}if(onCustReady)onCustReady();}},[initCustId]);
   // Last contact: most recent of stored lastContact or delivery workLog timestamp
   // Auto-derive CRM status from latest OPP for this customer
@@ -926,7 +926,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
             if(i===5) return USERS.find(u=>u.id===c.assignedTo)?.name.split(" ")[0]||"";
             if(i===6) return getLastContact(c.id)||"";
             if(i===7) return c.remark||"";
-            if(i===8) return "💬 0";
+            if(i===8) return " 0";
             if(i===9) return "Edit  Delete";
             return "";
           };
@@ -960,7 +960,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
               <TD style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{USERS.find(u=>u.id===c.assignedTo)?.name.split(" ")[0]||"-"}</TD>
               <TD style={{color:getLastContact(c.id)?"#374151":"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{getLastContact(c.id)||"—"}</TD>
               <TD style={{color:"#64748b",fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.remark||"—"}</TD>
-              <TD><button onClick={e=>{e.stopPropagation();sLog(c);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11}}>💬 {(c.workLog||[]).length}</button></TD>
+              <TD><button onClick={e=>{e.stopPropagation();sLog(c);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11}}> {(c.workLog||[]).length}</button></TD>
               <TD>
                 <Btn variant="ghost" style={{fontSize:11,padding:"3px 8px"}} onClick={e=>{e.stopPropagation();sE(c);sF(true);}}>Edit</Btn>
               </TD>
@@ -1049,15 +1049,15 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
   );
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // OPPORTUNITIES
-// ═══════════════════════════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════════════════════════
+// 
+// 
 // QUOTATION PREVIEW & EXPORT — Wave Exponential Public Company Limited
-// ═══════════════════════════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════════════════════════
+// 
+// 
 // QUOTATION PREVIEW & EXPORT — Wave Exponential Public Company Limited
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 
 // Logo removed — using company name text only
 
@@ -1196,7 +1196,7 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingBottom:5,borderBottom:"2px solid #0c1a2e"}}>
       <div style={{width:20,height:20,background:"#00b3a4",color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:900,flexShrink:0}}>{n}</div>
       <span style={{fontSize:10,fontWeight:800,textTransform:"uppercase",letterSpacing:"0.08em",color:"#0c1a2e"}}>{label}</span>
-      {warn&&<span style={{marginLeft:"auto",fontSize:10,fontWeight:700,color:instOk?"#16a34a":"#dc2626"}}>{instSum}% {instOk?"✓":"⚠ must = 100%"}</span>}
+      {warn&&<span style={{marginLeft:"auto",fontSize:10,fontWeight:700,color:instOk?"#16a34a":"#dc2626"}}>{instSum}% {instOk?"":" must = 100%"}</span>}
     </div>
   );
 
@@ -1211,7 +1211,7 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
         <td style="text-align:right;width:44px">${ins.pct||0}%</td>
         <td style="text-align:right;font-weight:700;font-variant-numeric:tabular-nums;width:90px">THB&nbsp;${fmt(Math.round(subT*(ins.pct||0)/100))}</td>
       </tr>`).join("");
-    const dlvHtml=(f.deliverables||[]).map(d=>`<div style="display:flex;gap:5px;margin-bottom:3px"><span style="color:#00b3a4;font-weight:900;flex-shrink:0">✓</span><span>${d.item||""}</span></div>`).join("");
+    const dlvHtml=(f.deliverables||[]).map(d=>`<div style="display:flex;gap:5px;margin-bottom:3px"><span style="color:#00b3a4;font-weight:900;flex-shrink:0"></span><span>${d.item||""}</span></div>`).join("");
     const custName=customer?.companyEN||"—";
     const custTax=customer?.id||"—";
     const custAddr=[customer?.address,customer?.province].filter(Boolean).join(", ");
@@ -1496,7 +1496,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
           <SH n="2" label="Deliverables"/>
           {(f.deliverables||[]).map((d)=>(
             <div key={d.id} style={{display:"flex",gap:8,alignItems:"flex-start",marginBottom:5}}>
-              <span style={{color:"#00b3a4",fontWeight:900,fontSize:14,flexShrink:0,marginTop:1}}>✓</span>
+              <span style={{color:"#00b3a4",fontWeight:900,fontSize:14,flexShrink:0,marginTop:1}}></span>
               <span style={{fontSize:11,color:"#374151",lineHeight:1.5}}>{d.item}</span>
             </div>
           ))}
@@ -1563,7 +1563,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
 
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14,alignItems:"center"}}>
         <Btn variant="ghost" onClick={onClose}>Close</Btn>
-        <Btn variant="export" onClick={exportPDF}>🖨 Print / Export PDF</Btn>
+        <Btn variant="export" onClick={exportPDF}> Print / Export PDF</Btn>
       </div>
     </Modal>
   );
@@ -1618,7 +1618,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
             </FRow>
             <FRow label="Created Date"><Inp type="date" value={f.createdDate} onChange={e=>set("createdDate",e.target.value)}/></FRow>
             <div/>
-            {isLost&&<div style={{gridColumn:"1/-1"}}><FRow label="🔴 Lost Reason"><Sel value={f.lostReason} onChange={e=>set("lostReason",e.target.value)}><option value="">— Select Reason —</option>{LOST_REASONS.map(r=><option key={r}>{r}</option>)}</Sel></FRow></div>}
+            {isLost&&<div style={{gridColumn:"1/-1"}}><FRow label=" Lost Reason"><Sel value={f.lostReason} onChange={e=>set("lostReason",e.target.value)}><option value="">— Select Reason —</option>{LOST_REASONS.map(r=><option key={r}>{r}</option>)}</Sel></FRow></div>}
             <div style={{gridColumn:"1/-1"}}><FRow label="Remark"><Inp value={f.remark} onChange={e=>set("remark",e.target.value)}/></FRow></div>
           </G2>
           <div style={{padding:12,borderRadius:6,background:+mg>=30?"#f0fdf4":"#fef2f2",border:`1px solid ${+mg>=30?"#86efac":"#fca5a5"}`,marginTop:4,display:"flex",gap:24,flexWrap:"wrap"}}>
@@ -1626,7 +1626,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
               <div key={x.l}><Span s={10} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block"}}>{x.l}</Span><div style={{fontWeight:900,fontSize:16,color:x.c||"#0f172a"}}>{typeof x.v==="number"?`฿${fmt(x.v)}`:x.v}</div></div>
             ))}
           </div>
-          {isWon&&<div style={{marginTop:12,padding:14,background:"#f0fdf4",border:"1px solid #86efac",borderRadius:8,display:"flex",gap:12,alignItems:"center"}}><span style={{fontSize:22}}>🏆</span><div><Span s={13} w={700} c="#16a34a" style={{display:"block"}}>Deal Won! Job Code auto-assigned.</Span><div style={{fontFamily:"monospace",fontWeight:900,fontSize:17,color:"#0f172a",marginTop:2}}>{jobCode}</div></div></div>}
+          {isWon&&<div style={{marginTop:12,padding:14,background:"#f0fdf4",border:"1px solid #86efac",borderRadius:8,display:"flex",gap:12,alignItems:"center"}}><span style={{fontSize:22}}></span><div><Span s={13} w={700} c="#16a34a" style={{display:"block"}}>Deal Won! Job Code auto-assigned.</Span><div style={{fontFamily:"monospace",fontWeight:900,fontSize:17,color:"#0f172a",marginTop:2}}>{jobCode}</div></div></div>}
         </>
       )}
       {tab==="log"&&<ActivityLog logs={f.activityLog||[]} currentUser={user} onAdd={entry=>sF(p=>({...p,activityLog:[...(p.activityLog||[]),entry]}))} placeholder="Log a call, meeting, email…"/>}
@@ -1679,7 +1679,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
   const [dragId,setDragId]=useState(null); const [dragOver,setDragOver]=useState(null);
   const [sort,setSort]=useState({col:"oppCode",dir:"asc"});
   const toggleSort=col=>setSort(p=>({col,dir:p.col===col&&p.dir==="asc"?"desc":"asc"}));
-  const SortIcon=({col})=>sort.col===col?<span style={{marginLeft:3,fontSize:9,color:"#0f172a"}}>{sort.dir==="asc"?"▲":"▼"}</span>:<span style={{marginLeft:3,fontSize:9,color:"#cbd5e1"}}>⇅</span>;
+  const SortIcon=({col})=>sort.col===col?<span style={{marginLeft:3,fontSize:9,color:"#0f172a"}}>{sort.dir==="asc"?"":""}</span>:<span style={{marginLeft:3,fontSize:9,color:"#cbd5e1"}}>⇅</span>;
   useEffect(()=>{if(initOppCode){const o=opps.find(x=>x.oppCode===initOppCode);if(o){sE(o);sF(true);}if(onOppReady)onOppReady();}},[initOppCode]);
   const list=useMemo(()=>{
     const filtered=opps.filter(o=>{const c=customers.find(x=>x.id===o.custId);const q=search.toLowerCase();return(!search||o.oppCode.toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||o.quoteNo.toLowerCase().includes(q)||o.serviceCode.toLowerCase().includes(q))&&(fSt.length===0||fSt.includes(o.status))&&(fAg.length===0||fAg.includes(o.assignedTo))&&(fSvc.length===0||fSvc.includes(o.serviceCode));});
@@ -1725,7 +1725,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
     toast("Opportunity saved",`${o.oppCode} · ${o.status}`);
   };
 
-  // ── Drag and Drop state ─────────────────────────────────
+  //  Drag and Drop state 
 
   const kanbanView = (
     <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
@@ -1795,7 +1795,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
                   >
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:3}}>
                       <div style={{fontSize:11,fontWeight:700,color:"#1e40af",fontFamily:"monospace"}}>{o.oppCode}</div>
-                      <span style={{color:"#cbd5e1",fontSize:14,cursor:"grab",lineHeight:1}}>⠿</span>
+                      <span style={{color:"#cbd5e1",fontSize:14,cursor:"grab",lineHeight:1}}></span>
                     </div>
                     <div style={{fontSize:12,fontWeight:700,color:"#0f172a",marginBottom:4,lineHeight:1.3}}>{c?.companyEN||"-"}</div>
                     {o.csCode&&<div style={{marginBottom:5}}><span style={{fontFamily:"monospace",fontWeight:700,fontSize:10,background:"#fef3c7",color:"#92400e",padding:"2px 7px",borderRadius:4,border:"1px solid #fde68a"}}>{o.csCode}</span></div>}
@@ -1807,7 +1807,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
                     {o.status==="Lost"&&o.lostReason&&<div style={{marginTop:4,fontSize:10,color:"#dc2626",background:"#fee2e2",padding:"2px 6px",borderRadius:3}}>{o.lostReason}</div>}
                     {o.status==="Won"&&o.jobCode&&<div style={{marginTop:4,fontSize:10,color:"#16a34a",fontFamily:"monospace"}}>{o.jobCode}</div>}
                     <div style={{display:"flex",gap:4,marginTop:6,alignItems:"center",flexWrap:"wrap"}}>
-                      <button onClick={e=>{e.stopPropagation();sLog(o);}} style={{border:"1px solid #e2e8f0",borderRadius:4,background:"#f8fafc",cursor:"pointer",padding:"2px 6px",fontSize:10,color:"#64748b"}}>💬 {o.activityLog?.length||0}</button>
+                      <button onClick={e=>{e.stopPropagation();sLog(o);}} style={{border:"1px solid #e2e8f0",borderRadius:4,background:"#f8fafc",cursor:"pointer",padding:"2px 6px",fontSize:10,color:"#64748b"}}> {o.activityLog?.length||0}</button>
                       <Sel value={o.status} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();const updated={...o,status:e.target.value,lostReason:e.target.value==="Lost"?o.lostReason:"",jobCode:e.target.value==="Won"?genJobCode(o.oppCode):o.jobCode,activityLog:[...(o.activityLog||[]),{id:uid(),ts:nowTS(),author:user.id,note:`Status → ${e.target.value}`}]};handleSave(updated);}} style={{fontSize:10,padding:"2px 5px",flex:1,minWidth:85,background:STATUS_CLR[o.status]+"22",color:STATUS_CLR[o.status],fontWeight:700,border:`1px solid ${STATUS_CLR[o.status]}66`}}>
                         {OPP_STATUSES.map(s=><option key={s} value={s}>{s}</option>)}
                       </Sel>
@@ -1837,7 +1837,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
         <MultiSelect label="Agents"  options={SALES_USERS.map(u=>({value:u.id,label:u.name.split(" ")[0]}))} selected={fAg} onChange={setFAg} width={175}/>
         <div style={{flex:1}}/>
         <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-          {[["table","☰ Table"],["kanban","⊞ Kanban"]].map(([k,l])=>(
+          {[["table"," Table"],["kanban","⊞ Kanban"]].map(([k,l])=>(
             <button key={k} onClick={()=>sView(k)} style={{padding:"7px 14px",border:"none",background:view===k?"#0f172a":"#fff",color:view===k?"#fff":"#64748b",cursor:"pointer",fontSize:12,fontWeight:view===k?700:400}}>{l}</button>
           ))}
         </div>
@@ -1893,7 +1893,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
               </TD>
               <TD>{USERS.find(u=>u.id===o.assignedTo)?.name.split(" ")[0]||"-"}</TD>
               <TD>{oRank?<span style={{background:RANK_CLR[oRank]?.bg||"#f1f5f9",color:RANK_CLR[oRank]?.c||"#64748b",padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{oRank}</span>:"—"}</TD>
-              <TD><button onClick={e=>{e.stopPropagation();sLog(o);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11}}>💬 {o.activityLog?.length||0}</button></TD>
+              <TD><button onClick={e=>{e.stopPropagation();sLog(o);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11}}> {o.activityLog?.length||0}</button></TD>
             </TR>
           );})}
           </tbody>
@@ -1933,9 +1933,9 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
   );
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // DELIVERY
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // Req 10: Cost breakdown panel from cost sheet
 const CostBreakdown = ({quoteNo,costSheets}) => {
   const q = useMemo(()=>{
@@ -1958,7 +1958,7 @@ const CostBreakdown = ({quoteNo,costSheets}) => {
     <div style={{padding:16}}>
       {/* CS Code link header */}
       <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:14,padding:"10px 14px",background:"#fef3c7",border:"1px solid #fde68a",borderRadius:7,flexWrap:"wrap"}}>
-        <span style={{fontSize:15}}>🔗</span>
+        <span style={{fontSize:15}}></span>
         <div><Span s={10} c="#92400e" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block"}}>Cost Sheet & Pricing Code</Span><span style={{fontFamily:"monospace",fontWeight:900,fontSize:15,color:"#92400e"}}>{csCode}</span></div>
         <div style={{marginLeft:8}}><Span s={10} c="#64748b" style={{textTransform:"uppercase",display:"block"}}>Linked to</Span><span style={{fontFamily:"monospace",fontSize:12,fontWeight:700,color:"#1e40af"}}>{qo.quoteNo}</span></div>
         <div style={{marginLeft:8}}><Span s={10} c="#64748b" style={{textTransform:"uppercase",display:"block"}}>OPP Code</Span><span style={{fontFamily:"monospace",fontSize:12,fontWeight:700,color:"#1e40af"}}>{qo.oppCode||"—"}</span></div>
@@ -2112,10 +2112,10 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
                 const oSync=opps.find(x=>x.quoteNo===f.quoteNo);
                 const inst=resolveInstallments(oSync,f.totalContractValue||0);
                 if(inst.length>0) sF(p=>({...p,installments:inst}));
-              }} style={{fontSize:10,color:"#1e40af",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:4,padding:"2px 9px",cursor:"pointer",whiteSpace:"nowrap"}}>📋 Sync from Quotation</button>
+              }} style={{fontSize:10,color:"#1e40af",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:4,padding:"2px 9px",cursor:"pointer",whiteSpace:"nowrap"}}> Sync from Quotation</button>
             </div>
             <div style={{display:"flex",gap:10,alignItems:"center"}}>
-              <Span s={12} w={700} c={Math.abs(totalPct-100)<.1?"#16a34a":"#dc2626"}>Total: {totalPct}% {Math.abs(totalPct-100)>.1?"⚠":"✓"}</Span>
+              <Span s={12} w={700} c={Math.abs(totalPct-100)<.1?"#16a34a":"#dc2626"}>Total: {totalPct}% {Math.abs(totalPct-100)>.1?"":""}</Span>
               <Btn variant="ghost" style={{fontSize:12,padding:"4px 10px"}} onClick={addIns}>+ Add</Btn>
             </div>
           </div>
@@ -2163,7 +2163,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
   );
 };
 
-// ── DeliveryCard: proper component — collapsed summary + expandable edit mode ──
+//  DeliveryCard: proper component — collapsed summary + expandable edit mode 
 const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGoToCust, onGoToOpp, sQT, onGoToCS}) => {
   const [open, setOpen]       = useState(false);   // card expanded?
   const [dirty, setDirty]     = useState(false);   // unsaved changes?
@@ -2182,7 +2182,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
   const totalRec = (d.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);
   const lastLog = [...(d.saveLog||[])].sort((a,b)=>b.ts.localeCompare(a.ts))[0];
 
-  // ── Helpers ──
+  //  Helpers 
   const markDirty = (updD, updInst) => {
     if(updD) setLocalD(updD);
     if(updInst) setLocalInst(updInst);
@@ -2190,7 +2190,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
   };
   const set = (k,v) => markDirty({...localD,[k]:v});
 
-  // ── Save: commit all staged changes + log entry, collapse card ──
+  //  Save: commit all staged changes + log entry, collapse card 
   const handleSave = () => {
     const entry = {id:uid(), ts:nowTS(), author:user.id, note:`${localD.jobCode||d.id} updated`};
     const committed = {...localD, installments:localInst, saveLog:[...(localD.saveLog||[]), entry]};
@@ -2205,7 +2205,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
     setDirty(false); setOpen(false);
   };
 
-  // ── Installment sync ──
+  //  Installment sync 
   const syncInst = () => {
     const quoteNo = localD.quoteNo||d.quoteNo;
     if(!quoteNo) return;
@@ -2228,7 +2228,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
       invoiceNo:"",invoiceDate:"",receiptNo:"",receiptDate:"",status:"Pending",recvMonth:ins.recvMonth||i+1,
     }));
     markDirty(null, inst);
-    toast("Installments loaded", `${inst.length} rows — click 💾 Save to apply`);
+    toast("Installments loaded", `${inst.length} rows — click  Save to apply`);
   };
   useEffect(()=>{ if((d.installments||[]).length===0&&d.quoteNo) syncInst(); },[]);
 
@@ -2242,7 +2242,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
     markDirty(null, next);
   };
 
-  // ── Work log (saves immediately, no dirty flag needed) ──
+  //  Work log (saves immediately, no dirty flag needed) 
   const addLog = () => {
     if(!newNote.trim()) return;
     const entry={id:uid(),ts:nowTS(),author:user.id,note:newNote.trim()};
@@ -2256,7 +2256,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
 
   const totalPct = localInst.reduce((s,i)=>s+(i.pct||0),0);
 
-  // ── COLLAPSED VIEW ──
+  //  COLLAPSED VIEW 
   if(!open) return (
     <Card style={{overflow:"hidden"}}>
       <div style={{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,background:"#fff"}}>
@@ -2290,7 +2290,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
     </Card>
   );
 
-  // ── EXPANDED / EDIT VIEW ──
+  //  EXPANDED / EDIT VIEW 
   return (
     <Card style={{overflow:"hidden",border:dirty?"2px solid #f59e0b":"1px solid #e2e8f0"}}>
       {/* Card header bar */}
@@ -2299,12 +2299,12 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
           <span style={{fontSize:18,fontWeight:900,color:"#0f172a",fontFamily:"monospace"}}>{localD.jobCode||d.id}</span>
           <Badge value={localD.deliveryStatus} colorMap={Object.fromEntries(DLV_STATUSES.map(s=>[s,{c:STATUS_CLR[s]}]))}/>
           <SvcBadge code={d.serviceCode}/>
-          {dirty&&<span style={{fontSize:11,fontWeight:700,color:"#d97706",background:"#fef3c7",padding:"2px 8px",borderRadius:10}}>⚠ Unsaved changes</span>}
+          {dirty&&<span style={{fontSize:11,fontWeight:700,color:"#d97706",background:"#fef3c7",padding:"2px 8px",borderRadius:10}}> Unsaved changes</span>}
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           {dirty&&<button onClick={handleDiscard} style={{padding:"6px 14px",background:"#fff",color:"#64748b",border:"1px solid #e2e8f0",borderRadius:6,fontSize:12,cursor:"pointer"}}>Discard</button>}
-          <button onClick={handleSave} style={{padding:"6px 18px",background:"#16a34a",color:"#fff",border:"none",borderRadius:6,fontSize:12,fontWeight:700,cursor:"pointer"}}>💾 Save &amp; Close</button>
-          <button onClick={()=>setOpen(false)} style={{padding:"6px 12px",background:"#fff",color:"#374151",border:"1px solid #e2e8f0",borderRadius:6,fontSize:12,cursor:"pointer"}}>✕ Close</button>
+          <button onClick={handleSave} style={{padding:"6px 18px",background:"#16a34a",color:"#fff",border:"none",borderRadius:6,fontSize:12,fontWeight:700,cursor:"pointer"}}> Save &amp; Close</button>
+          <button onClick={()=>setOpen(false)} style={{padding:"6px 12px",background:"#fff",color:"#374151",border:"1px solid #e2e8f0",borderRadius:6,fontSize:12,cursor:"pointer"}}> Close</button>
         </div>
       </div>
 
@@ -2345,7 +2345,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
             <Span s={12} w={700}>Progress Steps</Span>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
               <Span s={11} c="#64748b">{localD.currentStep}</Span>
-              <span style={{fontSize:12,color:"#94a3b8"}}>{stepExp?"▲":"▼"}</span>
+              <span style={{fontSize:12,color:"#94a3b8"}}>{stepExp?"":""}</span>
             </div>
           </div>
           {stepExp&&(
@@ -2364,7 +2364,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
             <Span s={12} w={700}>Work Log ({(d.workLog||[]).length})</Span>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
               {(d.workLog||[]).length>0&&<Span s={11} c="#64748b">{[...(d.workLog||[])].slice(-1)[0]?.note?.slice(0,44)}</Span>}
-              <span style={{fontSize:12,color:"#94a3b8"}}>{logExp?"▲":"▼"}</span>
+              <span style={{fontSize:12,color:"#94a3b8"}}>{logExp?"":""}</span>
             </div>
           </div>
           {logExp&&(
@@ -2393,9 +2393,9 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
           <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
             <Span s={12} w={700}>Installment Schedule</Span>
             <Span s={11} c="#94a3b8">Synced from Per-Q Cost Sheet</Span>
-            {(localD.quoteNo||d.quoteNo)&&<button onClick={syncInst} style={{fontSize:10,color:"#1e40af",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:4,padding:"2px 9px",cursor:"pointer",whiteSpace:"nowrap"}}>📋 Sync from Quotation</button>}
+            {(localD.quoteNo||d.quoteNo)&&<button onClick={syncInst} style={{fontSize:10,color:"#1e40af",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:4,padding:"2px 9px",cursor:"pointer",whiteSpace:"nowrap"}}> Sync from Quotation</button>}
           </div>
-          <Span s={11} w={700} c={Math.abs(totalPct-100)<0.1?"#16a34a":"#dc2626"}>{totalPct}% {Math.abs(totalPct-100)<0.1?"✓":"⚠"}</Span>
+          <Span s={11} w={700} c={Math.abs(totalPct-100)<0.1?"#16a34a":"#dc2626"}>{totalPct}% {Math.abs(totalPct-100)<0.1?"":""}</Span>
         </div>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse"}}>
@@ -2414,7 +2414,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
                   <TD><select value={ins.status} onChange={e=>changeLocalIns(ins.id,"status",e.target.value)} style={{padding:"3px 5px",fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:ins.status==="Received"?"#dcfce7":ins.status==="Overdue"?"#fee2e2":ins.status==="Invoiced"?"#eff6ff":"#f8fafc",color:ins.status==="Received"?"#16a34a":ins.status==="Overdue"?"#dc2626":ins.status==="Invoiced"?"#1e40af":"#64748b",fontWeight:700,cursor:"pointer"}}>{INS_STATUSES.map(s=><option key={s}>{s}</option>)}</select></TD>
                 </TR>
               ))}
-              {localInst.length===0&&<tr><td colSpan={9} style={{padding:"16px",textAlign:"center",color:"#94a3b8",fontSize:12}}>No installments — click 📋 Sync from Quotation{(localD.quoteNo||d.quoteNo)?` (${localD.quoteNo||d.quoteNo})`:" (set Quote No. first)"}</td></tr>}
+              {localInst.length===0&&<tr><td colSpan={9} style={{padding:"16px",textAlign:"center",color:"#94a3b8",fontSize:12}}>No installments — click  Sync from Quotation{(localD.quoteNo||d.quoteNo)?` (${localD.quoteNo||d.quoteNo})`:" (set Quote No. first)"}</td></tr>}
             </tbody>
           </table>
         </div>
@@ -2435,9 +2435,9 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
         )}
         {/* Bottom Save bar */}
         <div style={{padding:"10px 16px",borderTop:"1px solid #e2e8f0",background:dirty?"#fffbeb":"#f8fafc",display:"flex",justifyContent:"flex-end",gap:8,alignItems:"center"}}>
-          {dirty&&<span style={{fontSize:11,color:"#d97706",marginRight:"auto",fontWeight:600}}>⚠ You have unsaved changes</span>}
+          {dirty&&<span style={{fontSize:11,color:"#d97706",marginRight:"auto",fontWeight:600}}> You have unsaved changes</span>}
           {dirty&&<button onClick={handleDiscard} style={{padding:"6px 14px",background:"#fff",color:"#64748b",border:"1px solid #e2e8f0",borderRadius:6,fontSize:12,cursor:"pointer"}}>Discard</button>}
-          <button onClick={handleSave} style={{padding:"7px 22px",background:"#16a34a",color:"#fff",border:"none",borderRadius:6,fontSize:12,fontWeight:700,cursor:"pointer"}}>💾 Save &amp; Close</button>
+          <button onClick={handleSave} style={{padding:"7px 22px",background:"#16a34a",color:"#fff",border:"none",borderRadius:6,fontSize:12,fontWeight:700,cursor:"pointer"}}> Save &amp; Close</button>
         </div>
       </div>
     </Card>
@@ -2490,7 +2490,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
   );
 };
 
-// ── TaskRow: isolated component so taskName input retains focus on keystroke ──
+//  TaskRow: isolated component so taskName input retains focus on keystroke 
 const TaskRow = React.memo(({t,onSet,onDel,months}) => {
   const [name,setName]         = useState(t.taskName);
   const [agentOpen,setAO]      = useState(false);
@@ -2532,7 +2532,7 @@ const TaskRow = React.memo(({t,onSet,onDel,months}) => {
           <div style={{display:"flex",gap:3,alignItems:"center"}}>
             <button onClick={()=>setAO(p=>!p)} title="Assign agents"
               style={{fontSize:9,padding:"1px 5px",border:`1px solid ${agents.length>0?"#86efac":"#e2e8f0"}`,borderRadius:3,background:agents.length>0?"#f0fdf4":"#f8fafc",color:agents.length>0?"#16a34a":"#64748b",cursor:"pointer",whiteSpace:"nowrap"}}>
-              👤{agents.length>0?` ${agents.length}`:""}
+              {agents.length>0?` ${agents.length}`:""}
             </button>
             <Btn variant="danger" style={{fontSize:10,padding:"1px 5px"}} onClick={()=>onDel(t.id)}>×</Btn>
           </div>
@@ -2570,7 +2570,7 @@ const TaskRow = React.memo(({t,onSet,onDel,months}) => {
   );
 });
 
-// ── TaskTableWidget: standalone table, uses TaskRow to prevent focus loss ──
+//  TaskTableWidget: standalone table, uses TaskRow to prevent focus loss 
 const TaskTableWidget = ({tasks,onSet,onAdd,onDel,months}) => (
     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
       <colgroup><col style={{width:"40%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"11%"}}/><col style={{width:"9%"}}/><col style={{width:"13%"}}/></colgroup>
@@ -2585,9 +2585,9 @@ const TaskTableWidget = ({tasks,onSet,onAdd,onDel,months}) => (
     </table>
 );
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // COST SHEET (COGS + OPEX + Cashflow)
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,initSvcCode,onSvcReady}) => {
   const [selCode,sCode] = useState(SERVICES[0].code);
   useEffect(()=>{if(initSvcCode){sCode(initSvcCode);sView("quote");if(onSvcReady)onSvcReady();}},[initSvcCode]);
@@ -2770,7 +2770,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
         ))}
       </div>
 
-      {/* ── STANDARD VIEW ── */}
+      {/*  STANDARD VIEW  */}
       {view==="standard"&&(
         <div style={{display:"grid",gridTemplateColumns:"1fr 300px",gap:16}}>
           <div>
@@ -2794,17 +2794,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                   </tr>
                 ))}
                 {/* +Internal button bottom-left under Description col */}
-                <tr>
-  <td style={{padding:"4px 3px"}}>
-    <button onClick={()=>addQIC(q.id)} style={{fontSize:10,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:4,padding:"1px 7px",cursor:"pointer"}}>+ Internal</button>
-  </td>
-  <td style={{padding:"4px 3px"}}>
-    <button onClick={()=>addQEC(q.id)} style={{fontSize:10,color:"#7c3aed",background:"none",border:"1px dashed #ddd6fe",borderRadius:4,padding:"1px 7px",cursor:"pointer"}}>+ External</button>
-  </td>
-  <td colSpan={5}/>
-  <td style={{padding:"5px 3px",fontWeight:900,fontSize:11}}>฿{fmt(qIC+qEC)}</td>
-  <td style={{padding:"5px 3px",fontSize:9,color:"#94a3b8",fontWeight:700}}>Total COGS</td>
-</tr>
+                <tr><td style={{padding:"5px 4px"}}><button onClick={addIC} style={{fontSize:11,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 9px",cursor:"pointer"}}>+ Internal</button></td><td colSpan={3}/><TD right style={{fontWeight:900,fontSize:13}}>฿{fmt(totalIC)}</TD><TD/></tr>
                 </tbody>
               </table>
             </Card>
@@ -2864,7 +2854,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                 <Span s={11} c="#64748b">Margin on Sales Price</Span>
                 <div style={{fontWeight:900,fontSize:26,color:+mg>=30?"#16a34a":"#dc2626"}}>{mg}%</div>
                 <div style={{fontWeight:700,fontSize:15,color:+mg>=30?"#16a34a":"#dc2626",marginTop:2}}>฿{fmt(marginAmt(editPrice,totalCost))}</div>
-                <Span s={10} c="#94a3b8">{+mg>=30?"✓ Policy OK":"✗ Below 30% min"}</Span>
+                <Span s={10} c="#94a3b8">{+mg>=30?" Policy OK":" Below 30% min"}</Span>
               </div>
             </Card>
             {/* Save Log */}
@@ -2883,7 +2873,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                         </div>
                         {isQCommit&&(
                           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                            <div style={{color:"#15803d",fontWeight:600,flex:1}}>{l.note.replace("Quotation saved → ","✓ ")}</div>
+                            <div style={{color:"#15803d",fontWeight:600,flex:1}}>{l.note.replace("Quotation saved → "," ")}</div>
                             {l.quoteSnapshot&&<button onClick={()=>{
                               sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid()}]}));
                               const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} · ${l.quoteSnapshot.quoteNo} for editing`};
@@ -2902,11 +2892,11 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
         </div>
       )}
 
-      {/* ── PER-QUOTATION VIEW ── */}
+      {/*  PER-QUOTATION VIEW  */}
       {view==="quote"&&(
         <div>
           <div style={{padding:"10px 16px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:7,marginBottom:14,display:"flex",gap:10,alignItems:"center"}}>
-            <span>💡</span>
+            <span></span>
             <Span s={12} c="#1e40af"><strong>1 CS Code per Quote No.</strong> — Auto-generated. Save → creates Opportunity with actual cost. Installments sync to Delivery.</Span>
           </div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
@@ -2915,7 +2905,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           </div>
           {(editCS.quoteOverrides||[]).length===0&&(
             <Card style={{padding:48,textAlign:"center"}}>
-              <div style={{fontSize:32,marginBottom:8}}>📋</div>
+              <div style={{fontSize:32,marginBottom:8}}></div>
               <Span s={14} w={700} c="#64748b">No per-quotation sheet yet</Span>
               {/* Show previously saved quotations from save log with re-edit option */}
               {(editCS.saveLog||[]).filter(l=>l.quoteSnapshot).length>0&&(
@@ -3006,7 +2996,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                     <div style={{fontWeight:700,fontSize:10,color:+qMg>=30?"#16a34a":"#dc2626"}}>{fmtK(marginAmt(q.salesPrice,qTC))}</div>
                   </div>
                   {/* Close button */}
-                  <button onClick={()=>delQO(q.id)} title="Close" style={{flexShrink:0,marginLeft:4,background:"none",color:"#94a3b8",border:"1px solid #e2e8f0",borderRadius:5,fontSize:16,fontWeight:700,width:26,height:26,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>✕</button>
+                  <button onClick={()=>delQO(q.id)} title="Close" style={{flexShrink:0,marginLeft:4,background:"none",color:"#94a3b8",border:"1px solid #e2e8f0",borderRadius:5,fontSize:16,fontWeight:700,width:26,height:26,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}></button>
                 </div>
 
                 {/* Cost grids */}
@@ -3076,13 +3066,13 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                   </div>
                 </div>
 
-                {/* ── INSTALLMENTS (left) + CASHFLOW (right) — 2-col layout ── */}
+                {/*  INSTALLMENTS (left) + CASHFLOW (right) — 2-col layout  */}
                 <div style={{padding:"0 16px 16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,borderTop:"1px solid #f1f5f9"}}>
                   {/* Installments */}
                   <div style={{paddingTop:14}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                       <Span s={12} w={700}>Installments</Span>
-                      <span style={{fontSize:10,fontWeight:700,color:Math.abs(instSum-100)<0.1?"#16a34a":"#dc2626"}}>({instSum}% {Math.abs(instSum-100)<0.1?"✓":"⚠"})</span>
+                      <span style={{fontSize:10,fontWeight:700,color:Math.abs(instSum-100)<0.1?"#16a34a":"#dc2626"}}>({instSum}% {Math.abs(instSum-100)<0.1?"":""})</span>
                     </div>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
                       <thead><tr style={{background:"#f8fafc"}}>
@@ -3133,7 +3123,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                           <Span s={12} w={700}>Cashflow</Span>
                           <span style={{fontSize:9,color:"#94a3b8"}}>{cfM} months</span>
                           <span style={{marginLeft:"auto",fontSize:10,fontWeight:700,color:hasNeg?"#dc2626":"#16a34a",background:hasNeg?"#fee2e2":"#dcfce7",padding:"1px 8px",borderRadius:10,whiteSpace:"nowrap"}}>
-                            {hasNeg?"⚠ Goes negative":"✅ Positive throughout"}
+                            {hasNeg?" Goes negative":" Positive throughout"}
                           </span>
                         </div>
                         <table style={{width:"100%",borderCollapse:"collapse",fontSize:10}}>
@@ -3162,7 +3152,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                   })()}
                 </div>
 
-                {/* ── PROJECT SCOPE (full width) ── */}
+                {/*  PROJECT SCOPE (full width)  */}
                 <div style={{padding:"0 20px 16px",borderTop:"1px solid #f1f5f9"}}>
                   <div style={{marginTop:14,marginBottom:12}}>
                     <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:3}}>Service Description</Span>
@@ -3176,13 +3166,13 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                   </div>
                 </div>
 
-                {/* ── DELIVERABLES (full width, editable list + preview) ── */}
+                {/*  DELIVERABLES (full width, editable list + preview)  */}
                 <div style={{padding:"0 20px 16px"}}>
                   <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>Deliverables</Span>
                   <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:6}}>
                     {(q.deliverables||[]).map(d=>(
                       <div key={d.id} style={{display:"flex",gap:6,alignItems:"center"}}>
-                        <span style={{color:"#06b6d4",fontWeight:900,fontSize:13,flexShrink:0}}>✓</span>
+                        <span style={{color:"#06b6d4",fontWeight:900,fontSize:13,flexShrink:0}}></span>
                         <Inp value={d.item} onChange={e=>setQDlv(q.id,d.id,e.target.value)} placeholder="Deliverable item…" style={{padding:"3px 8px",fontSize:12,flex:1}}/>
                         {(q.deliverables||[]).length>1&&<Btn variant="danger" style={{fontSize:10,padding:"1px 5px",flexShrink:0}} onClick={()=>delQDlv(q.id,d.id)}>×</Btn>}
                       </div>
@@ -3191,7 +3181,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                   </div>
                 </div>
 
-                {/* ── NOTES & CONDITIONS (full width) ── */}
+                {/*  NOTES & CONDITIONS (full width)  */}
                 <div style={{padding:"0 20px 16px"}}>
                   <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Notes & Conditions</Span>
                   <Txta value={q.notes||""} onChange={e=>setQF(q.id,"notes",e.target.value)} placeholder="• ค่าใช้จ่ายในการเดินทางเพื่อ Site Visit รวมอยู่ในราคาข้างต้น&#10;• ค่าธรรมเนียม TGO (ถ้ามี) ลูกค้ารับผิดชอบตามจริง&#10;• ราคานี้มีผลภายใน 30 วันนับจากวันที่ออกใบเสนอราคา&#10;• ราคาดังกล่าวยังไม่รวมภาษีมูลค่าเพิ่ม (VAT) 7%" style={{minHeight:80,fontSize:12}}/>
@@ -3221,9 +3211,9 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
 };
 
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // SETUP GUIDE
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 const SetupPage = () => (
   <div style={{maxWidth:760}}>
     <Span s={22} w={900} c="#0f172a" style={{display:"block",marginBottom:4,letterSpacing:"-0.03em"}}>Setup Guide</Span>
@@ -3242,9 +3232,9 @@ const SetupPage = () => (
   </div>
 );
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // ROOT APP
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 const NAV = [
   {key:"dashboard",label:"Dashboard / KPI"},
   {key:"customers",label:"Customers"},
@@ -3277,7 +3267,7 @@ function App() {
   const [gsStatus,sGSStatus] = useState("idle"); // "idle"|"loading"|"synced"|"error"
   const {toasts,show:toast}  = useToast();
 
-  // ── Load all data from Google Sheets on mount ──────────────────────────────
+  //  Load all data from Google Sheets on mount 
   useEffect(()=>{
     sGSStatus("loading");
     Promise.all([
@@ -3307,7 +3297,7 @@ function App() {
     }).catch(()=>sGSStatus("error"));
   },[]);
 
-  // ── saveItem: update local state + push to Google Sheets ──────────────────
+  //  saveItem: update local state + push to Google Sheets 
   const saveItem = (setter, collection) => item => {
     const norm = (item.custId!==undefined)
       ? {...item,id:String(item.id||""),custId:String(item.custId||"")}
@@ -3315,12 +3305,12 @@ function App() {
     setter(p => p.find(x=>x.id===norm.id) ? p.map(x=>x.id===norm.id?norm:x) : [...p,norm]);
     if(collection) gsSave(collection, norm);
   };
-  // ── deleteItem: remove from local state + delete from Google Sheets ───────
+  //  deleteItem: remove from local state + delete from Google Sheets 
   const deleteItem = (setter, collection) => id => {
     setter(p => p.filter(x=>x.id!==id));
     if(collection) gsDelete(collection, id);
   };
-  // ── saveOpp: save opp + auto-sync customers.status (Option 1) ─────────────
+  //  saveOpp: save opp + auto-sync customers.status (Option 1) 
   // Priority: Won > active OPP status > Lost
   const deriveOppStatus = (custId, allOpps) => {
     const custOpps = allOpps.filter(o=>o.custId===custId);
@@ -3358,7 +3348,7 @@ function App() {
     gsSave("opportunities", norm);
   };
 
-  // ── saveCS: update local + push entire costsheets collection ──────────────
+  //  saveCS: update local + push entire costsheets collection 
   const saveCS = cs => {
     sCS(p => {
       const next = p.find(x=>x.serviceCode===cs.serviceCode)
@@ -3369,11 +3359,11 @@ function App() {
     });
   };
 
-  // ── Sync status badge ──────────────────────────────────────────────────────
+  //  Sync status badge 
   const SyncBadge = () => {
     const map = {
       loading: {label:"Syncing…",  c:"#d97706", bg:"#fef3c7"},
-      synced:  {label:"● GS Live", c:"#16a34a", bg:"#dcfce7"},
+      synced:  {label:" GS Live", c:"#16a34a", bg:"#dcfce7"},
       error:   {label:"GS Offline",c:"#dc2626", bg:"#fee2e2"},
       idle:    {label:"GS Ready",  c:"#64748b", bg:"#f1f5f9"},
     };
