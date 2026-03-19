@@ -1742,11 +1742,21 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
               if(dragId&&dragId!==status){
                 const opp=opps.find(o=>o.id===dragId||o.oppCode===dragId);
                 if(opp&&opp.status!==status){
+                  const wasWon=opp.status==="Won";
+                  const nowWon=status==="Won";
                   const updated={...opp,status,
                     lostReason:status==="Lost"?opp.lostReason:"",
-                    jobCode:status==="Won"?genJobCode(opp.oppCode):opp.jobCode,
-                    activityLog:[...(opp.activityLog||[]),{id:uid(),ts:nowTS(),author:user.id,note:`Status changed to ${status} (drag & drop)`}]
+                    jobCode:nowWon?genJobCode(opp.oppCode):"",
+                    activityLog:[...(opp.activityLog||[]),{id:uid(),ts:nowTS(),author:user.id,note:`Status changed from ${opp.status} to ${status} (drag & drop)`}]
                   };
+                  // ถ้าเคย Won แล้วเปลี่ยนกลับ → set Delivery On Hold
+                  if(wasWon&&!nowWon){
+                    const dlv=deliveries.find(d=>d.oppCode===opp.oppCode);
+                    if(dlv){
+                      onSaveDelivery({...dlv,deliveryStatus:"On Hold",jobCode:"",workLog:[...(dlv.workLog||[]),{id:uid(),ts:nowTS(),author:user.id,note:`OPP ${opp.oppCode} moved back from Won to ${status} — Delivery set On Hold`}]});
+                      toast("Delivery set On Hold",`${dlv.jobCode} — OPP moved back from Won`,"error");
+                    }
+                  }
                   handleSave(updated);
                 }
               }
