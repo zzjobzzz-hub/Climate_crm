@@ -58,7 +58,7 @@ const SERVICES = [
   // CFO: 6M+14S+14J days + COGS ~15k
   {code:"CFO",    name:"Carbon Footprint for Organization",  stdCost:0,  stdPrice:0},
   // CFP: 5M+12S+10J + COGS ~12k
-  {code:"CFP",    name:"Carbon Footprint for Product",       stdCost:0,  stdPrice:0},
+  {code:"CFP",    name:"Carbon Footprint of Product",       stdCost:0,  stdPrice:0},
   // ISO14064: 7M+16S+16J + COGS ~25k
   {code:"ISO14064",name:"ISO 14064-1 Verification",          stdCost:0,  stdPrice:0},
   // ISO14067: 6M+14S+14J + COGS ~20k
@@ -72,17 +72,17 @@ const SERVICES = [
   // TRN: 2M+5S+4J + COGS ~5k
   {code:"TRN",    name:"Training / Workshop",                stdCost:0,  stdPrice:0},
   // GSTC: 10M+22S+20J + COGS ~30k
-  {code:"GSTC",   name:"GSTC Certification Support",         stdCost:0,  stdPrice:0},
+  {code:"GSTC",   name:"Global Sustainable Tourism Council",         stdCost:0,  stdPrice:0},
   // GHOTEL: 6M+14S+12J + COGS ~18k
-  {code:"GHOTEL", name:"Green Hotel",                        stdCost:0,  stdPrice:0},
+  {code:"GH", name:"Green Hotel",                        stdCost:0,  stdPrice:0},
   // GHOTELP: 8M+18S+16J + COGS ~22k
-  {code:"GHOTELP",name:"Green Hotel Plus",                   stdCost:0,  stdPrice:0},
+  {code:"GHP",name:"Green Hotel Plus",                   stdCost:0,  stdPrice:0},
   // CSRDIW: 7M+16S+14J + COGS ~20k
   {code:"CSRDIW", name:"CSR-DIW",                            stdCost:0,  stdPrice:0},
   // AWD: 8M+20S+20J + COGS ~25k
-  {code:"AWD",    name:"Alternate Wetting & Drying",         stdCost:0,  stdPrice:0},
+  {code:"CCAWD",    name:"Alternate Wetting & Drying",         stdCost:0,  stdPrice:0},
   // REF: 10M+24S+20J + COGS ~40k
-  {code:"REF",    name:"Reforestation Project",              stdCost:0,  stdPrice:0},
+  {code:"CCREF",    name:"Reforestation",              stdCost:0,  stdPrice:0},
   // CSRAWD: 7M+16S+14J + COGS ~20k
   {code:"CSRAWD", name:"CSR-AWD",                            stdCost:0,  stdPrice:0},
   // LCR: 6M+14S+12J + COGS ~18k
@@ -90,7 +90,7 @@ const SERVICES = [
   // FS: 5M+12S+8J + COGS ~10k
   {code:"FS",     name:"Feasibility Study",                  stdCost:0,  stdPrice:0},
   // CC: 10M+24S+20J + COGS ~50k
-  {code:"CC",     name:"Carbon Credit Development",          stdCost:0,  stdPrice:0},
+  {code:"CC",     name:"Carbon Credit",          stdCost:0,  stdPrice:0},
   // REC: 3M+6S+5J + COGS ~6k
   {code:"REC",    name:"Renewable Energy Certificate",       stdCost:0,  stdPrice:0},
 ];
