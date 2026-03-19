@@ -2741,7 +2741,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <Span s={20} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Cost Sheet & Pricing</Span>
-        <div style={{display:"flex",gap:8}}><ExportBar onCSV={()=>dlCSV("costsheets.csv",["Service","COGS (Internal)","COGS (External Co.)","OPEX","Total Cost","Std Price","Margin%","Margin ฿"],costSheets.map(cs=>{const ic=calcIC(cs.internalCosts||[]),ec=calcEC(cs.externalCosts||[],true),opex=calcTask(cs.tasks||[]),tc=ic+ec+opex;return[cs.serviceType,ic,ec,opex,tc,cs.stdPrice,margin(cs.stdPrice,tc),marginAmt(cs.stdPrice,tc)];}))} onGS={()=>sGS(true)}/><Btn onClick={handleSave}>Save</Btn></div>
+        <div style={{display:"flex",gap:8}}></div>
       </div>
 
       <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:14}}>
@@ -2757,11 +2757,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
         <SvcBadge code={selCode}/>
         <Span s={14} w={700} c="#0f172a">{curSvc?.name}</Span>
         <Span s={12} c="#94a3b8">Std Price: ฿{fmt(curSvc?.stdPrice)} · Policy margin >30%</Span>
-        <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
-          <Span s={11} c="#64748b">Project duration:</Span>
-          <Inp type="number" value={editCS.projectMonths||3} onChange={e=>sECS(p=>({...p,projectMonths:+e.target.value}))} style={{width:50,padding:"3px 6px",fontSize:11}}/>
-          <Span s={11} c="#64748b">months</Span>
-        </div>
+
       </div>
 
       <div style={{display:"flex",gap:2,borderBottom:"2px solid #e2e8f0",marginBottom:16}}>
@@ -2772,7 +2768,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
 
       {/*  STANDARD VIEW  */}
       {view==="standard"&&(
-        <div style={{display:"grid",gridTemplateColumns:"1fr 300px",gap:16}}>
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
           <div>
             {/* COGS — Internal */}
             <Card style={{padding:20,marginBottom:14}}>
@@ -2835,59 +2831,6 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
               </div>
               <TaskTableWidget tasks={editCS.tasks||[]} onSet={setTK} onAdd={addTK} onDel={delTK} months={editCS.projectMonths||3}/>
             </Card>
-          </div>
-          {/* Sidebar summary */}
-          <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            <Card style={{padding:18}}>
-              <Span s={13} w={700} style={{display:"block",marginBottom:12}}>Cost Summary</Span>
-              {[{l:"Internal COGS",v:totalIC,c:"#7c3aed"},{l:"External COGS (Co.)",v:totalEC,c:"#1e40af"},{l:"External (Client)",v:totalECClient,c:"#16a34a"},{l:"OPEX (Man-days)",v:totalOPEX,c:"#0f172a"},{l:"TOTAL COST",v:totalCost,bold:true}].map(x=>(
-                <div key={x.l} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #f1f5f9"}}>
-                  <Span s={12} c={x.c||"#64748b"} style={{fontWeight:x.bold?700:400}}>{x.l}</Span>
-                  <Span s={12} w={700} c={x.c||"#0f172a"}>฿{fmt(x.v)}</Span>
-                </div>
-              ))}
-            </Card>
-            <Card style={{padding:18}}>
-              <Span s={13} w={700} style={{display:"block",marginBottom:12}}>Standard Price</Span>
-              <FRow label="Price (THB)"><Inp type="number" value={editPrice} onChange={e=>sEP(+e.target.value)}/></FRow>
-              <div style={{padding:12,borderRadius:6,background:+mg>=30?"#f0fdf4":"#fef2f2",border:`1px solid ${+mg>=30?"#86efac":"#fca5a5"}`,textAlign:"center",marginTop:8}}>
-                <Span s={11} c="#64748b">Margin on Sales Price</Span>
-                <div style={{fontWeight:900,fontSize:26,color:+mg>=30?"#16a34a":"#dc2626"}}>{mg}%</div>
-                <div style={{fontWeight:700,fontSize:15,color:+mg>=30?"#16a34a":"#dc2626",marginTop:2}}>฿{fmt(marginAmt(editPrice,totalCost))}</div>
-                <Span s={10} c="#94a3b8">{+mg>=30?" Policy OK":" Below 30% min"}</Span>
-              </div>
-            </Card>
-            {/* Save Log */}
-            {(editCS.saveLog||[]).length>0&&(
-              <Card style={{padding:14}}>
-                <Span s={12} w={700} style={{display:"block",marginBottom:8}}>Save Log</Span>
-                <div style={{maxHeight:180,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
-                  {[...(editCS.saveLog||[])].reverse().map(l=>{
-                    const isQCommit=l.note&&l.note.startsWith("Quotation saved →");
-                    return(
-                      <div key={l.id} style={{fontSize:10,padding:"5px 8px",background:isQCommit?"#f0fdf4":"#f8fafc",borderRadius:4,border:`1px solid ${isQCommit?"#86efac":"#e2e8f0"}`}}>
-                        <div style={{display:"flex",gap:8,marginBottom:isQCommit?3:0}}>
-                          <span style={{color:"#64748b",whiteSpace:"nowrap"}}>{l.ts}</span>
-                          <span style={{color:"#1e40af",fontWeight:700}}>{USERS.find(u=>u.id===l.author)?.name.split(" ")[0]||l.author}</span>
-                          {!isQCommit&&<span style={{color:"#374151",flex:1}}>{l.note}</span>}
-                        </div>
-                        {isQCommit&&(
-                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                            <div style={{color:"#15803d",fontWeight:600,flex:1}}>{l.note.replace("Quotation saved → "," ")}</div>
-                            {l.quoteSnapshot&&<button onClick={()=>{
-                              sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid()}]}));
-                              const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} · ${l.quoteSnapshot.quoteNo} for editing`};
-                              sECS(p=>({...p,saveLog:[...(p.saveLog||[]),logEntry]}));
-                              sView("quote");
-                            }} style={{fontSize:9,color:"#1e40af",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:3,padding:"1px 7px",cursor:"pointer",whiteSpace:"nowrap",marginLeft:8}}>Re-open</button>}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
-            )}
           </div>
         </div>
       )}
@@ -3045,16 +2988,17 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                             <td><Btn variant="danger" style={{fontSize:10,padding:"1px 4px"}} onClick={()=>delQEC(q.id,r.id)}>×</Btn></td>
                           </tr>
                         ))}
-                        <tr>
-                          <td style={{padding:"4px 3px"}}>
-                            <button onClick={()=>addQIC(q.id)} style={{fontSize:10,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:4,padding:"1px 7px",cursor:"pointer"}}>+ Internal</button>
+                        <tr style={{borderTop:"1px solid #f1f5f9"}}>
+                          <td colSpan={8} style={{padding:"5px 4px"}}>
+                            <div style={{display:"flex",gap:6}}>
+                              <button onClick={()=>addQIC(q.id)} style={{fontSize:10,color:"#1e40af",background:"#eff6ff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 10px",cursor:"pointer",fontWeight:600}}>+ Internal</button>
+                              <button onClick={()=>addQEC(q.id)} style={{fontSize:10,color:"#7c3aed",background:"#f5f3ff",border:"1px dashed #ddd6fe",borderRadius:4,padding:"2px 10px",cursor:"pointer",fontWeight:600}}>+ External</button>
+                            </div>
                           </td>
-                          <td style={{padding:"4px 3px"}}>
-                            <button onClick={()=>addQEC(q.id)} style={{fontSize:10,color:"#7c3aed",background:"none",border:"1px dashed #ddd6fe",borderRadius:4,padding:"1px 7px",cursor:"pointer"}}>+ External</button>
+                          <td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap"}}>
+                            <span style={{fontSize:9,color:"#94a3b8",fontWeight:700,marginRight:6}}>Total COGS</span>
+                            <span style={{fontWeight:900,fontSize:12,color:"#0f172a"}}>฿{fmt(qIC+qEC)}</span>
                           </td>
-                          <td colSpan={6}/>
-                          <td style={{padding:"5px 3px",fontWeight:900,fontSize:11}}>฿{fmt(qIC+qEC)}</td>
-                          <td style={{padding:"5px 3px",fontSize:9,color:"#94a3b8",fontWeight:700}}>Total COGS</td>
                         </tr>
                       </tbody>
                     </table>
@@ -3205,7 +3149,12 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
         </div>
       )}
 
-      {gs&&<GSGuideModal module="CostSheets" headers={["Service","COGS Internal","COGS External","OPEX","Total Cost","Std Price","Margin%","Margin ฿"]} onClose={()=>sGS(false)}/>}
+      {/* Bottom Save / Cancel bar */}
+      <div style={{marginTop:24,padding:"14px 20px",background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,display:"flex",justifyContent:"flex-end",gap:10,alignItems:"center",position:"sticky",bottom:0,zIndex:50,boxShadow:"0 -2px 12px rgba(0,0,0,.06)"}}>
+        <Btn variant="ghost" onClick={()=>sCode(selCode)}>Cancel</Btn>
+        <Btn onClick={handleSave} style={{padding:"9px 28px",fontSize:14}}>💾 Save</Btn>
+      </div>
+
     </div>
   );
 };
