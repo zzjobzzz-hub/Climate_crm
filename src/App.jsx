@@ -212,7 +212,7 @@ const gsDelete = (collection, id) => {
 // 
 // UI PRIMITIVES
 // 
-const SI = {width:"100%",border:"1px solid #e2e8f0",borderRadius:5,padding:"7px 10px",fontSize:13,color:"#1e293b",background:"#fafafa",outline:"none",boxSizing:"border-box"};
+const SI = {width:"100%",border:"1px solid #e2e8f0",borderRadius:5,padding:"8px 11px",fontSize:14,color:"#1e293b",background:"#fafafa",outline:"none",boxSizing:"border-box"};
 const Inp  = ({style,...p}) => <input {...p} style={{...SI,...style}}/>;
 const Sel  = ({style,children,...p}) => <select {...p} style={{...SI,...style}}>{children}</select>;
 const Txta = ({style,...p}) => <textarea {...p} style={{...SI,resize:"vertical",...style}}/>;
@@ -225,27 +225,27 @@ const BV = {
   export:{background:"#eff6ff",color:"#1e40af",border:"1px solid #bfdbfe"},
 };
 const Btn = ({variant="primary",style,children,...p}) => (
-  <button {...p} style={{padding:"7px 14px",borderRadius:5,fontSize:13,cursor:"pointer",fontWeight:600,...BV[variant],...style}}>{children}</button>
+  <button {...p} style={{padding:"8px 16px",borderRadius:5,fontSize:14,cursor:"pointer",fontWeight:600,...BV[variant],...style}}>{children}</button>
 );
 
 const Card  = ({children,style}) => <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,...style}}>{children}</div>;
-const Span  = ({s=13,w=400,c="#374151",style,children}) => <span style={{fontSize:s,fontWeight:w,color:c,...style}}>{children}</span>;
+const Span  = ({s=14,w=400,c="#374151",style,children}) => <span style={{fontSize:s,fontWeight:w,color:c,...style}}>{children}</span>;
 const FRow  = ({label,children,tip}) => (
   <div style={{marginBottom:12}}>
-    <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4,display:"flex",gap:5,alignItems:"center"}}>
+    <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4,display:"flex",gap:5,alignItems:"center"}}>
       {label}{tip&&<span title={tip} style={{cursor:"help",fontSize:10,color:"#cbd5e1"}}></span>}
     </div>
     {children}
   </div>
 );
 const Divider = () => <div style={{height:1,background:"#f1f5f9",margin:"16px 0"}}/>;
-const Badge   = ({value,colorMap}) => { const cfg=colorMap[value]||{c:"#64748b"}; return <span style={{background:cfg.bg||cfg.c+"22",color:cfg.c,padding:"2px 9px",borderRadius:20,fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{value}</span>; };
+const Badge   = ({value,colorMap}) => { const cfg=colorMap[value]||{c:"#64748b"}; return <span style={{background:cfg.bg||cfg.c+"22",color:cfg.c,padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>{value}</span>; };
 const SvcBadge = ({code}) => <span style={{background:"#f1f5f9",color:"#1e40af",fontWeight:800,fontSize:11,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{code}</span>;
 const G2 = ({children,gap=12}) => <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap}}>{children}</div>;
 
-const TH = ({cols}) => <thead><tr style={{background:"#f8fafc"}}>{cols.map((c,i)=><th key={i} style={{padding:"9px 12px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{c}</th>)}</tr></thead>;
+const TH = ({cols}) => <thead><tr style={{background:"#f8fafc"}}>{cols.map((c,i)=><th key={i} style={{padding:"9px 12px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:12,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{c}</th>)}</tr></thead>;
 const TR = ({children,onClick,hi}) => { const[h,sH]=useState(false); return <tr onClick={onClick} onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)} style={{borderBottom:"1px solid #f1f5f9",background:hi?"#fffbeb":h?"#f8fafc":"#fff",cursor:onClick?"pointer":"default"}}>{children}</tr>; };
-const TD = ({children,right,w,style}) => <td style={{padding:"9px 12px",fontSize:13,color:"#374151",maxWidth:w,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textAlign:right?"right":"left",...style}}>{children}</td>;
+const TD = ({children,right,w,style}) => <td style={{padding:"10px 12px",fontSize:14,color:"#374151",maxWidth:w,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textAlign:right?"right":"left",...style}}>{children}</td>;
 
 const Modal = ({title,width=740,onClose,children}) => {
   useEffect(()=>{
@@ -257,7 +257,7 @@ const Modal = ({title,width=740,onClose,children}) => {
   <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
     <div style={{background:"#fff",borderRadius:10,width:"100%",maxWidth:width,maxHeight:"92vh",overflow:"auto",boxShadow:"0 24px 64px rgba(0,0,0,.22)"}}>
       <div style={{padding:"17px 24px",borderBottom:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff",zIndex:1}}>
-        <Span s={16} w={800} c="#0f172a">{title}</Span>
+        <Span s={17} w={800} c="#0f172a">{title}</Span>
         <button onClick={onClose} style={{border:"none",background:"none",fontSize:22,cursor:"pointer",color:"#94a3b8",lineHeight:1}}>×</button>
       </div>
       <div style={{padding:24}}>{children}</div>
@@ -877,7 +877,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
   return (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <div><Span s={20} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Customers</Span><Span s={13} c="#94a3b8" style={{marginLeft:8}}>{list.length} records</Span></div>
+        <div><Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Customers</Span><Span s={13} c="#94a3b8" style={{marginLeft:8}}>{list.length} records</Span></div>
         <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("customers.csv",CUST_HDR,list.map(c=>[c.id,c.companyEN,c.industry,c.province,(c.contacts||[]).map(ct=>ct.name).join("; "),USERS.find(u=>u.id===c.assignedTo)?.name||c.assignedTo,c.ranking,c.status,getLastContact(c.id),c.remark||""]))}>↓ CSV</Btn><Btn onClick={()=>{sE(null);sF(true);}}>+ Add Customer</Btn></div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
@@ -939,7 +939,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
           <thead><tr style={{background:"#f8fafc"}}>
             {COLS.map(({l,c},i)=>(
               <th key={i} onClick={c?()=>toggleSort(c):undefined}
-                style={{padding:"9px 12px",textAlign:"left",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",cursor:c?"pointer":"default",userSelect:"none",color:sort.col===c?"#0f172a":"#64748b",background:sort.col===c?"#f1f5f9":"#f8fafc",position:"relative",overflow:"hidden"}}>
+                style={{padding:"9px 12px",textAlign:"left",fontWeight:700,fontSize:12,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",cursor:c?"pointer":"default",userSelect:"none",color:sort.col===c?"#0f172a":"#64748b",background:sort.col===c?"#f1f5f9":"#f8fafc",position:"relative",overflow:"hidden"}}>
                 <span style={{overflow:"hidden",textOverflow:"ellipsis",display:"block"}}>{l}{c&&<SortIcon col={c}/>}</span>
                 <span onMouseDown={e=>startResize(i,e)} onDoubleClick={e=>autoFitCol(i,e)} onClick={e=>e.stopPropagation()} style={{position:"absolute",right:0,top:0,bottom:0,width:6,cursor:"col-resize",background:"transparent",zIndex:2}}/>
               </th>
@@ -1827,7 +1827,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
   return (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <div><Span s={20} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Opportunities</Span><Span s={13} c="#94a3b8" style={{marginLeft:8}}>{list.length} · Pipeline ฿{fmtM(totalPipeline)} · Won ฿{fmtM(totalWon)}</Span></div>
+        <div><Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Opportunities</Span><Span s={13} c="#94a3b8" style={{marginLeft:8}}>{list.length} · Pipeline ฿{fmtM(totalPipeline)} · Won ฿{fmtM(totalWon)}</Span></div>
         <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("opps.csv",OPP_HDR,list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);return[o.oppCode,o.quoteNo,o.csCode||"",o.jobCode||"",c?.companyEN||"",o.serviceCode,o.serviceType,o.salesPrice,o.totalCost||0,mg,marginAmt(o.salesPrice,o.totalCost||0),o.status,USERS.find(u=>u.id===o.assignedTo)?.name||"",o.createdDate,o.lostReason||""];}))}>↓ CSV</Btn></div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
@@ -1860,7 +1860,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
               {label:"Log",          col:"log"},
             ].map(({label,col})=>(
               <th key={col} onClick={()=>toggleSort(col)}
-                style={{padding:"9px 12px",textAlign:"left",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",cursor:"pointer",userSelect:"none",color:sort.col===col?"#0f172a":"#64748b",background:sort.col===col?"#f1f5f9":"#f8fafc"}}>
+                style={{padding:"9px 12px",textAlign:"left",fontWeight:700,fontSize:12,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",cursor:"pointer",userSelect:"none",color:sort.col===col?"#0f172a":"#64748b",background:sort.col===col?"#f1f5f9":"#f8fafc"}}>
                 {label}<SortIcon col={col}/>
               </th>
             ))}
@@ -2465,7 +2465,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
   return (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <div><Span s={20} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Delivery</Span><Span s={13} c="#94a3b8" style={{marginLeft:8}}>{list.length} contracts</Span></div>
+        <div><Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Delivery</Span><Span s={13} c="#94a3b8" style={{marginLeft:8}}>{list.length} contracts</Span></div>
         <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=(d.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}>↓ CSV</Btn><Btn onClick={()=>{sE(null);sInitTab("detail");sF(true);}}>+ Add Delivery</Btn></div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
@@ -2659,9 +2659,9 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
       externalCosts:(editCS.externalCosts||[]).map(r=>({...r,id:uid()})),
       tasks:(editCS.tasks||[]).map(t=>({...t,id:uid()})),
       installments:[
-        {id:uid(),seq:1,label:"งวดที่ 1: 40% เมื่อลงนามสัญญา",pct:40,detail:"",recvMonth:1},
-        {id:uid(),seq:2,label:"งวดที่ 2: 40% ก่อนการตรวจสอบ",pct:40,detail:"",recvMonth:2},
-        {id:uid(),seq:3,label:"งวดที่ 3: 20% เมื่อได้รับใบรับรอง",pct:20,detail:"",recvMonth:3},
+        {id:uid(),seq:1,label:"",pct:40,detail:"",recvMonth:1},
+        {id:uid(),seq:2,label:"",pct:40,detail:"",recvMonth:2},
+        {id:uid(),seq:3,label:"",pct:20,detail:"",recvMonth:3},
       ],
       lineItems:[{id:uid(),description:"",qty:1,unit:"Job",unitPrice:0}],
       deliverables:[
@@ -2740,7 +2740,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
   return (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <Span s={20} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Cost Sheet & Pricing</Span>
+        <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Cost Sheet & Pricing</Span>
         <div></div>
       </div>
 
@@ -3010,11 +3010,11 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                 <div style={{padding:"0 20px 16px",borderTop:"1px solid #f1f5f9"}}>
                   <div style={{marginTop:14,marginBottom:12}}>
                     <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:3}}>Service Description</Span>
-                    <Inp value={q.projectTitle||""} onChange={e=>setQF(q.id,"projectTitle",e.target.value)} placeholder="Verification of Carbon Footprint for Organization per TGO guideline" style={{fontSize:12}}/>
+                    <Inp value={q.projectTitle||""} onChange={e=>setQF(q.id,"projectTitle",e.target.value)} placeholder="" style={{fontSize:12}}/>
                   </div>
                   <div>
                     <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:3}}>Project Scope</Span>
-                    <Txta value={q.projectScope||""} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder="Project Address: …&#10;Scope of operations: …&#10;Reporting Boundaries: Scope 1, 2, 3…" style={{minHeight:80,fontSize:12}}/>
+                    <Txta value={q.projectScope||""} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder="" style={{minHeight:80,fontSize:12}}/>
                   </div>
                 </div>
 
@@ -3025,7 +3025,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                     {(q.deliverables||[]).map(d=>(
                       <div key={d.id} style={{display:"flex",gap:6,alignItems:"center"}}>
                         <span style={{color:"#06b6d4",fontWeight:900,fontSize:13,flexShrink:0}}></span>
-                        <Inp value={d.item} onChange={e=>setQDlv(q.id,d.id,e.target.value)} placeholder="Deliverable item…" style={{padding:"3px 8px",fontSize:12,flex:1}}/>
+                        <Inp value={d.item} onChange={e=>setQDlv(q.id,d.id,e.target.value)} placeholder="" style={{padding:"3px 8px",fontSize:12,flex:1}}/>
                         {(q.deliverables||[]).length>1&&<Btn variant="danger" style={{fontSize:10,padding:"1px 5px",flexShrink:0}} onClick={()=>delQDlv(q.id,d.id)}>×</Btn>}
                       </div>
                     ))}
@@ -3036,7 +3036,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                 {/*  NOTES & CONDITIONS (full width)  */}
                 <div style={{padding:"0 20px 16px"}}>
                   <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Notes & Conditions</Span>
-                  <Txta value={q.notes||""} onChange={e=>setQF(q.id,"notes",e.target.value)} placeholder="• ค่าใช้จ่ายในการเดินทางเพื่อ Site Visit รวมอยู่ในราคาข้างต้น&#10;• ค่าธรรมเนียม TGO (ถ้ามี) ลูกค้ารับผิดชอบตามจริง&#10;• ราคานี้มีผลภายใน 30 วันนับจากวันที่ออกใบเสนอราคา&#10;• ราคาดังกล่าวยังไม่รวมภาษีมูลค่าเพิ่ม (VAT) 7%" style={{minHeight:80,fontSize:12}}/>
+                  <Txta value={q.notes||""} onChange={e=>setQF(q.id,"notes",e.target.value)} placeholder="" style={{minHeight:80,fontSize:12}}/>
                 </div>
 
                 {/* Cost + margin + Save/Cancel footer */}
@@ -3240,7 +3240,7 @@ function App() {
   if(!user) return <LoginPage onLogin={u=>{localStorage.setItem("crm_user",JSON.stringify({id:u.id}));sUser(u);sPage("dashboard");}}/>;
 
   return (
-    <div style={{minHeight:"100vh",background:"#f8fafc",fontFamily:"'DM Sans','Noto Sans Thai',system-ui,sans-serif"}}>
+    <div style={{minHeight:"100vh",background:"#f8fafc",fontFamily:"'DM Sans','Noto Sans Thai',system-ui,sans-serif",fontSize:15}}>
       <style>{`@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}`}</style>
       <div style={{background:"#fff",borderBottom:"1px solid #e2e8f0",position:"sticky",top:0,zIndex:100}}>
         <div style={{maxWidth:1440,margin:"0 auto",padding:"0 24px",display:"flex",alignItems:"center",gap:0}}>
@@ -3248,15 +3248,15 @@ function App() {
             <div style={{fontSize:13,fontWeight:900,color:"#0f172a",letterSpacing:"-0.04em",lineHeight:1.2}}>Climate<br/>CRM</div>
           </div>
           <nav style={{display:"flex",flex:1,overflow:"auto"}}>
-            {NAV.map(n=><button key={n.key} onClick={()=>sPage(n.key)} style={{padding:"15px 13px",border:"none",background:"none",cursor:"pointer",fontSize:12,fontWeight:page===n.key?800:500,color:page===n.key?"#0f172a":"#94a3b8",borderBottom:page===n.key?"2.5px solid #0f172a":"2.5px solid transparent",whiteSpace:"nowrap"}}>{n.label}</button>)}
+            {NAV.map(n=><button key={n.key} onClick={()=>sPage(n.key)} style={{padding:"15px 13px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:page===n.key?800:500,color:page===n.key?"#0f172a":"#94a3b8",borderBottom:page===n.key?"2.5px solid #0f172a":"2.5px solid transparent",whiteSpace:"nowrap"}}>{n.label}</button>)}
           </nav>
           <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
             <SyncBadge/>
             <div style={{textAlign:"right"}}>
-              <div style={{fontSize:12,fontWeight:700,color:"#374151"}}>{user.name}</div>
+              <div style={{fontSize:13,fontWeight:700,color:"#374151"}}>{user.name}</div>
               <div style={{fontSize:10,color:user.role==="md"?"#0ea5e9":user.role==="admin"?"#16a34a":user.role==="operation"?"#7c3aed":"#1e40af",textTransform:"uppercase",letterSpacing:"0.06em"}}>{user.role}</div>
             </div>
-            <button onClick={()=>{localStorage.removeItem("crm_user");sUser(null);window.location.reload();}} style={{padding:"6px 12px",border:"1px solid #e2e8f0",borderRadius:5,background:"#fff",cursor:"pointer",fontSize:12,color:"#64748b"}}>Sign Out</button>
+            <button onClick={()=>{localStorage.removeItem("crm_user");sUser(null);window.location.reload();}} style={{padding:"6px 14px",border:"1px solid #e2e8f0",borderRadius:5,background:"#fff",cursor:"pointer",fontSize:13,color:"#64748b"}}>Sign Out</button>
           </div>
         </div>
       </div>
