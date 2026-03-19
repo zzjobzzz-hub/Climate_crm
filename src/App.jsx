@@ -768,7 +768,7 @@ const CustForm = ({initial,user,onSave,onClose,onDelete}) => {
   return (
     <Modal title={initial?"Edit Customer":"Add Customer"} width={860} onClose={onClose}>
       <G2>
-        <FRow label="Customer ID"><Inp value={f.id} onChange={e=>set("id",e.target.value)} placeholder="Company Registration No. (e.g. 0105536088510)"/></FRow>
+        <FRow label="Customer ID"><Inp value={f.id} onChange={e=>set("id",e.target.value)} placeholder="TAX ID (e.g. 0105536088510)"/></FRow>
         <FRow label="Company (EN)"><Inp value={f.companyEN} onChange={e=>set("companyEN",e.target.value.toUpperCase())}/></FRow>
         <FRow label="Industry">
           <Sel value={f.industry} onChange={e=>sF(p=>({...p,industry:e.target.value,sector:""}))}>
@@ -2123,7 +2123,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
               <tbody>{(f.installments||[]).map((ins,idx)=>(
                 <tr key={ins.id} style={{borderBottom:"1px solid #f1f5f9"}}>
                   <TD><Span s={12} w={700} c="#94a3b8">#{ins.seq}</Span></TD>
-                  <TD><Inp value={ins.label} onChange={e=>changeIns(idx,"label",e.target.value)} style={{padding:"4px 6px",fontSize:12}}/></TD>
+                  <TD><Inp value={ins.label} readOnly style={{padding:"4px 6px",fontSize:12,background:"#f8fafc",color:"#64748b",cursor:"default"}}/></TD>
                   <TD><Inp type="number" value={ins.pct} onChange={e=>changeIns(idx,"pct",e.target.value)} style={{padding:"4px 6px",fontSize:12,width:55}}/></TD>
                   <TD><Inp type="number" value={ins.amount} onChange={e=>changeIns(idx,"amount",+e.target.value)} style={{padding:"4px 6px",fontSize:12,width:90,fontWeight:700}}/></TD>
                   <TD><Inp value={ins.invoiceNo} onChange={e=>changeIns(idx,"invoiceNo",e.target.value)} style={{padding:"4px 6px",fontSize:12}}/></TD>
@@ -2299,11 +2299,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
           <SvcBadge code={d.serviceCode}/>
           {dirty&&<span style={{fontSize:11,fontWeight:700,color:"#d97706",background:"#fef3c7",padding:"2px 8px",borderRadius:10}}> Unsaved changes</span>}
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          {dirty&&<button onClick={handleDiscard} style={{padding:"6px 14px",background:"#fff",color:"#64748b",border:"1px solid #e2e8f0",borderRadius:6,fontSize:12,cursor:"pointer"}}>Discard</button>}
-          <button onClick={handleSave} style={{padding:"6px 18px",background:"#16a34a",color:"#fff",border:"none",borderRadius:6,fontSize:12,fontWeight:700,cursor:"pointer"}}> Save &amp; Close</button>
-          <button onClick={()=>setOpen(false)} style={{padding:"6px 12px",background:"#fff",color:"#374151",border:"1px solid #e2e8f0",borderRadius:6,fontSize:12,cursor:"pointer"}}> Close</button>
-        </div>
+
       </div>
 
       {/* Meta fields */}
@@ -2402,7 +2398,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
               {localInst.map(ins=>(
                 <TR key={ins.id}>
                   <TD><Span s={12} w={700} c="#94a3b8">#{ins.seq}</Span></TD>
-                  <TD><input value={ins.label||""} onChange={e=>changeLocalIns(ins.id,"label",e.target.value)} style={{width:"100%",padding:"3px 6px",fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa"}}/></TD>
+                  <TD><input value={ins.label||""} readOnly style={{width:"100%",padding:"3px 6px",fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:"#f8fafc",color:"#64748b",cursor:"default"}}/></TD>
                   <TD style={{whiteSpace:"nowrap"}}><input type="number" value={ins.pct} onChange={e=>changeLocalIns(ins.id,"pct",e.target.value)} style={{width:48,padding:"3px 5px",fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",textAlign:"right"}}/><span style={{fontSize:10,color:"#94a3b8",marginLeft:2}}>%</span></TD>
                   <TD right style={{fontWeight:700,whiteSpace:"nowrap"}}>฿{fmt(ins.amount)}</TD>
                   <TD><input value={ins.invoiceNo||""} onChange={e=>changeLocalIns(ins.id,"invoiceNo",e.target.value)} style={{width:"100%",padding:"3px 6px",fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",fontFamily:"monospace"}}/></TD>
@@ -2434,8 +2430,8 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
         {/* Bottom Save bar */}
         <div style={{padding:"10px 16px",borderTop:"1px solid #e2e8f0",background:dirty?"#fffbeb":"#f8fafc",display:"flex",justifyContent:"flex-end",gap:8,alignItems:"center"}}>
           {dirty&&<span style={{fontSize:11,color:"#d97706",marginRight:"auto",fontWeight:600}}> You have unsaved changes</span>}
-          {dirty&&<button onClick={handleDiscard} style={{padding:"6px 14px",background:"#fff",color:"#64748b",border:"1px solid #e2e8f0",borderRadius:6,fontSize:12,cursor:"pointer"}}>Discard</button>}
-          <button onClick={handleSave} style={{padding:"7px 22px",background:"#16a34a",color:"#fff",border:"none",borderRadius:6,fontSize:12,fontWeight:700,cursor:"pointer"}}> Save &amp; Close</button>
+          <Btn variant="ghost" onClick={handleDiscard}>Cancel</Btn>
+          <Btn onClick={handleSave}>Save</Btn>
         </div>
       </div>
     </Card>
@@ -3017,11 +3013,11 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                 {/*  PROJECT SCOPE (full width)  */}
                 <div style={{padding:"0 20px 16px",borderTop:"1px solid #f1f5f9"}}>
                   <div style={{marginTop:14,marginBottom:12}}>
-                    <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:3}}>Service Description</Span>
+                    <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Service Description</Span><Span s={11} c="#94a3b8">— ชื่อโครงการที่จะปรากฏใน Quotation</Span></div>
                     <Inp value={q.projectTitle||""} onChange={e=>setQF(q.id,"projectTitle",e.target.value)} placeholder="" style={{fontSize:12}}/>
                   </div>
                   <div>
-                    <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:3}}>Project Scope</Span>
+                    <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Project Scope</Span><Span s={11} c="#94a3b8">— รายละเอียดขอบเขต เช่น Project Address, Boundary, Base Year</Span></div>
                     <Txta value={q.projectScope||""} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder="" style={{minHeight:80,fontSize:12}}/>
                   </div>
                 </div>
@@ -3244,7 +3240,7 @@ function App() {
 
   return (
     <div style={{minHeight:"100vh",background:"#f8fafc",fontFamily:"'DM Sans','Noto Sans Thai',system-ui,sans-serif",fontSize:15}}>
-      <style>{`@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}`}</style>
+      <style>{`@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}} input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0} input[type=number]{-moz-appearance:textfield}`}</style>
       <div style={{background:"#fff",borderBottom:"1px solid #e2e8f0",position:"sticky",top:0,zIndex:100}}>
         <div style={{maxWidth:1440,margin:"0 auto",padding:"0 24px",display:"flex",alignItems:"center",gap:0}}>
           <div onClick={()=>sPage("dashboard")} style={{paddingRight:18,borderRight:"1px solid #f1f5f9",marginRight:4,flexShrink:0,cursor:"pointer"}}>
