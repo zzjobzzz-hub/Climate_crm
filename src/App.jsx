@@ -2327,22 +2327,22 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
           </div>
           <div style={{minWidth:110}}>
             <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:2}}>Contract Date</Span>
-            <input value={localD.contractDate||""} onChange={e=>markDirty({...localD,contractDate:e.target.value})} placeholder="YYYY-MM-DD" style={{fontSize:12,border:"1px solid #e2e8f0",borderRadius:4,padding:"3px 7px",background:"#fafafa",width:120}}/>
+            <input type="date" value={localD.contractDate||""} onChange={e=>markDirty({...localD,contractDate:e.target.value})} style={{fontSize:12,border:"1px solid #e2e8f0",borderRadius:4,padding:"3px 7px",background:"#fafafa",width:130}}/>
           </div>
           <div style={{minWidth:110}}>
             <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:1}}>Service Type</Span>
             <span style={{fontSize:12,color:"#1e293b"}}>{d.serviceType}</span>
           </div>
           <div style={{minWidth:110}}>
-            <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:1}}>Delivery Date</Span>
-            <span style={{fontSize:12,color:"#1e293b"}}>{d.deliveryDate||"–"}</span>
+            <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:2}}>Delivery Date</Span>
+            <input type="date" value={localD.deliveryDate||""} onChange={e=>markDirty({...localD,deliveryDate:e.target.value})} style={{fontSize:12,border:"1px solid #e2e8f0",borderRadius:4,padding:"3px 7px",background:"#fafafa",width:130}}/>
           </div>
         </div>
-        <div style={{display:"flex",gap:20,alignItems:"center",flexWrap:"wrap"}}>
-          {[{l:"Contract",v:d.totalContractValue,c:"#0f172a"},{l:"Received",v:totalRec,c:"#16a34a"},{l:"Balance",v:d.totalContractValue-totalRec,c:"#d97706"}].map(x=>(
-            <div key={x.l} style={{display:"flex",alignItems:"baseline",gap:6}}>
-              <Span s={11} c="#94a3b8">{x.l}</Span>
-              <span style={{fontWeight:900,fontSize:15,color:x.c}}>฿{fmt(x.v)}</span>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
+          {[{l:"Contract",v:d.totalContractValue,bg:"#fff",bc:"#e2e8f0",c:"#0f172a"},{l:"Received",v:totalRec,bg:"#f0fdf4",bc:"#86efac",c:"#16a34a"},{l:"Balance",v:d.totalContractValue-totalRec,bg:"#fffbeb",bc:"#fde68a",c:"#d97706"}].map(x=>(
+            <div key={x.l} style={{textAlign:"center",padding:"7px 14px",background:x.bg,border:`1px solid ${x.bc}`,borderRadius:7}}>
+              <Span s={10} c={x.c} style={{display:"block",marginBottom:2}}>{x.l}</Span>
+              <div style={{fontWeight:900,fontSize:14,color:x.c}}>฿{fmt(x.v)}</div>
             </div>
           ))}
         </div>
