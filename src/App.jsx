@@ -970,7 +970,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
         );
       })()}
       {list.length===0&&<div style={{padding:40,textAlign:"center",color:"#94a3b8"}}>No records.</div>}</div></Card>
-      {form&&<CustForm initial={edit} user={user} onSave={c=>{onSave(c);sF(false);toast("Customer saved",c.companyEN);}} onClose={()=>sF(false)} onDelete={edit?c=>{sF(false);sDelConfirm(c);}:null}/>}
+      {form&&<CustForm initial={edit} user={user} onSave={c=>{if(edit&&edit.id&&edit.id!==c.id)onDelete(edit.id);onSave(c);sF(false);toast("Customer saved",c.companyEN);}} onClose={()=>sF(false)} onDelete={edit?c=>{sF(false);sDelConfirm(c);}:null}/>}
       {delConfirm&&(
         <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,.5)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
           <div style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:420,boxShadow:"0 32px 80px rgba(0,0,0,.2)",overflow:"hidden"}}>
@@ -2631,7 +2631,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
   const addQEC=qid=>updQO(qid,q=>({...q,externalCosts:[...(q.externalCosts||[]),{id:uid(),label:"",unit:"Job",qty:0,rate:0,vendorName:"",clientBorne:false,payMonth:1}]}));
   const delQEC=(qid,rid)=>updQO(qid,q=>({...q,externalCosts:(q.externalCosts||[]).filter(r=>r.id!==rid)}));
   const setQInst=(qid,iid,k,v)=>updQO(qid,q=>({...q,installments:(q.installments||[]).map(i=>i.id===iid?{...i,[k]:v}:i)}));
-  const addQInst=qid=>updQO(qid,q=>({...q,installments:[...(q.installments||[]),{id:uid(),seq:(q.installments||[]).length+1,label:`งวดที่ ${(q.installments||[]).length+1}`,pct:0,detail:"",recvMonth:1}]}));
+  const addQInst=qid=>updQO(qid,q=>({...q,installments:[...(q.installments||[]),{id:uid(),seq:(q.installments||[]).length+1,label:"",pct:0,detail:"",recvMonth:1}]}));
   const delQInst=(qid,iid)=>updQO(qid,q=>({...q,installments:(q.installments||[]).filter(i=>i.id!==iid)}));
 
   // lineItems helpers
@@ -2768,7 +2768,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
             <div>
               <Span s={16} w={800} c="#0f172a" style={{display:"block",marginBottom:2}}>
-                Per-Quotation Cost Sheet{(editCS.quoteOverrides||[]).length>0?` · CS: ${editCS.quoteOverrides[0].csCode}`:""}
+                Per-Quotation Cost Sheet{(editCS.quoteOverrides||[]).length>0?`: ${editCS.quoteOverrides[0].csCode}`:""}
               </Span>
               <Span s={12} c="#94a3b8">สร้าง CS Code อัตโนมัติ 1 ใบต่อ 1 ใบเสนอราคา — เมื่อบันทึก ระบบจะสร้าง Opportunity พร้อมต้นทุนจริงให้อัตโนมัติ</Span>
             </div>
@@ -2874,8 +2874,8 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                       <Span s={11} w={700}>COGS</Span>
                     </div>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
-                      <colgroup><col style={{width:"32%"}}/><col style={{width:"16%"}}/><col style={{width:"10%"}}/><col style={{width:"8%"}}/><col style={{width:"16%"}}/><col style={{width:"14%"}}/><col style={{width:"4%"}}/></colgroup>
-                      <TH cols={["Label","Vendor","Unit","Qty","Rate","Total",""]}/>
+                      <colgroup><col style={{width:"27%"}}/><col style={{width:"13%"}}/><col style={{width:"8%"}}/><col style={{width:"7%"}}/><col style={{width:"13%"}}/><col style={{width:"12%"}}/><col style={{width:"8%"}}/><col style={{width:"4%"}}/></colgroup>
+                      <TH cols={["Label","Vendor","Unit","Qty","Rate","Total","Pay M.",""]}/>
                       <tbody>
                         {(q.internalCosts||[]).map(r=>(
                           <tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
@@ -2885,6 +2885,11 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                             <td style={{padding:"3px 3px"}}><Inp type="number" value={r.qty} onChange={e=>setQIC(q.id,r.id,"qty",+e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp type="number" value={r.rate} onChange={e=>setQIC(q.id,r.id,"rate",+e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px",fontWeight:700,fontSize:10}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
+                            <td style={{padding:"3px 3px"}}>
+                              <Sel value={r.payMonth||1} onChange={e=>setQIC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:9,width:"100%"}}>
+                                {Array.from({length:months||3},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
+                              </Sel>
+                            </td>
                             <td><Btn variant="danger" style={{fontSize:10,padding:"1px 4px"}} onClick={()=>delQIC(q.id,r.id)}>×</Btn></td>
                           </tr>
                         ))}
@@ -2896,11 +2901,16 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                             <td style={{padding:"3px 3px"}}><Inp type="number" value={r.qty} onChange={e=>setQEC(q.id,r.id,"qty",+e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp type="number" value={r.rate} onChange={e=>setQEC(q.id,r.id,"rate",+e.target.value)} style={{padding:"2px 4px",fontSize:10,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px",fontWeight:700,fontSize:10}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
+                            <td style={{padding:"3px 3px"}}>
+                              <Sel value={r.payMonth||1} onChange={e=>setQEC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:9,width:"100%"}}>
+                                {Array.from({length:months||3},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
+                              </Sel>
+                            </td>
                             <td><Btn variant="danger" style={{fontSize:10,padding:"1px 4px"}} onClick={()=>delQEC(q.id,r.id)}>×</Btn></td>
                           </tr>
                         ))}
                         <tr style={{borderTop:"1px solid #f1f5f9"}}>
-                          <td colSpan={5} style={{padding:"5px 4px"}}>
+                          <td colSpan={6} style={{padding:"5px 4px"}}>
                             <button onClick={()=>addQEC(q.id)} style={{fontSize:10,color:"#1e40af",background:"#eff6ff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 12px",cursor:"pointer",fontWeight:600}}>+ Add</button>
                           </td>
                           <td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap"}}>
@@ -2939,7 +2949,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                         {(q.installments||[]).map((ins,idx)=>(
                           <tr key={ins.id} style={{borderBottom:"1px solid #f8fafc"}}>
                             <td style={{padding:"4px 4px",textAlign:"center",color:"#94a3b8",fontWeight:700,fontSize:11,width:22}}>{idx+1}</td>
-                            <td style={{padding:"4px 4px"}}><Inp value={ins.label} onChange={e=>setQInst(q.id,ins.id,"label",e.target.value)} placeholder={`งวดที่ ${idx+1}`} style={{padding:"2px 5px",fontSize:10,width:"100%",color:ins.label?"#1e293b":"#94a3b8",background:"#f8fafc"}}/></td>
+                            <td style={{padding:"4px 4px"}}><Inp value={ins.label} onChange={e=>setQInst(q.id,ins.id,"label",e.target.value)} placeholder="" style={{padding:"2px 5px",fontSize:10,width:"100%",background:"#f8fafc"}}/></td>
                             <td style={{padding:"4px 4px",width:46}}><Inp type="number" value={ins.pct} onChange={e=>setQInst(q.id,ins.id,"pct",+e.target.value)} style={{padding:"2px 4px",fontSize:10,width:38,textAlign:"right"}}/></td>
                             <td style={{padding:"4px 4px",fontWeight:700,fontSize:10,textAlign:"right",whiteSpace:"nowrap",width:76}}>฿{fmt(Math.round(q.salesPrice*(ins.pct||0)/100))}</td>
                             <td style={{padding:"4px 4px",width:54}}>
@@ -3040,25 +3050,20 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                 </div>
 
                 {/* Cost + margin + Save/Cancel footer */}
-                <div style={{borderTop:"1px solid #e2e8f0"}}>
-                  {/* Summary row */}
-                  <div style={{padding:"10px 20px",background:"#f8fafc",display:"flex",gap:16,flexWrap:"wrap",alignItems:"center"}}>
-                    {[{l:"COGS",v:qIC+qEC},{l:"OPEX",v:qOPEX},{l:"TOTAL COST",v:qTC,bold:true}].map(x=>(
-                      <div key={x.l} style={{textAlign:"center"}}>
-                        <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>{x.l}</Span>
-                        <Span s={13} w={x.bold?900:700}>฿{fmt(x.v)}</Span>
-                      </div>
-                    ))}
-                    <div style={{padding:"5px 12px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center"}}>
-                      <Span s={9} c={+qMg>=30?"#16a34a":"#dc2626"} style={{display:"block"}}>Margin</Span>
-                      <Span s={15} w={900} c={+qMg>=30?"#16a34a":"#dc2626"}>{qMg}%</Span>
+                <div style={{borderTop:"1px solid #e2e8f0",padding:"12px 20px",background:"#f8fafc",display:"flex",justifyContent:"flex-end",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+                  {[{l:"COGS",v:qIC+qEC},{l:"OPEX",v:qOPEX},{l:"Total Cost",v:qTC,bold:true}].map(x=>(
+                    <div key={x.l} style={{textAlign:"center"}}>
+                      <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>{x.l}</Span>
+                      <Span s={13} w={x.bold?900:700}>฿{fmt(x.v)}</Span>
                     </div>
+                  ))}
+                  <div style={{padding:"5px 12px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center"}}>
+                    <Span s={9} c={+qMg>=30?"#16a34a":"#dc2626"} style={{display:"block"}}>Margin</Span>
+                    <Span s={15} w={900} c={+qMg>=30?"#16a34a":"#dc2626"}>{qMg}%</Span>
                   </div>
-                  {/* Save/Cancel row */}
-                  <div style={{padding:"12px 20px",background:"#fff",borderTop:"1px solid #f1f5f9",display:"flex",justifyContent:"flex-end",gap:8,alignItems:"center"}}>
-                    <Btn variant="ghost" onClick={()=>delQO(q.id)}>ยกเลิก</Btn>
-                    <Btn onClick={handleSave} style={{padding:"8px 24px"}}>บันทึก</Btn>
-                  </div>
+                  <div style={{width:1,height:32,background:"#e2e8f0",flexShrink:0}}/>
+                  <Btn variant="ghost" onClick={()=>delQO(q.id)}>Cancel</Btn>
+                  <Btn onClick={handleSave} style={{padding:"8px 24px"}}>Save</Btn>
                 </div>
               </Card>
             );
