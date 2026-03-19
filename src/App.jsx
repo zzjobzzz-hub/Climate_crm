@@ -2591,7 +2591,7 @@ const TaskTableWidget = ({tasks,onSet,onAdd,onDel,months}) => (
 const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,initSvcCode,onSvcReady}) => {
   const [selCode,sCode] = useState(SERVICES[0].code);
   useEffect(()=>{if(initSvcCode){sCode(initSvcCode);sView("quote");if(onSvcReady)onSvcReady();}},[initSvcCode]);
-  const [view,sView]    = useState("standard");
+  const [view,sView]    = useState("quote");
   const [gs,sGS]        = useState(false);
   const cs = useMemo(()=>costSheets.find(c=>c.serviceCode===selCode)||buildDefaultCS(SERVICES.find(s=>s.code===selCode)||SERVICES[0]),[costSheets,selCode]);
   const [editCS,sECS] = useState(cs);
@@ -2741,7 +2741,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <Span s={20} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Cost Sheet & Pricing</Span>
-        <div style={{display:"flex",gap:8}}></div>
+        <div></div>
       </div>
 
       <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:14}}>
@@ -2760,84 +2760,11 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
 
       </div>
 
-      <div style={{display:"flex",gap:2,borderBottom:"2px solid #e2e8f0",marginBottom:16}}>
-        {[["standard","Standard Cost & Pricing"],["quote","Per-Quotation (CS Code)"]].map(([k,l])=>(
-          <button key={k} onClick={()=>sView(k)} style={{padding:"9px 18px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:view===k?800:500,color:view===k?"#0f172a":"#94a3b8",borderBottom:view===k?"2.5px solid #0f172a":"2.5px solid transparent",marginBottom:-2}}>{l}</button>
-        ))}
-      </div>
 
-      {/*  STANDARD VIEW  */}
-      {view==="standard"&&(
-        <div style={{display:"flex",flexDirection:"column",gap:16}}>
-          <div>
-            {/* COGS — Internal */}
-            <Card style={{padding:20,marginBottom:14}}>
-              <div style={{marginBottom:8}}>
-                <Span s={13} w={800}>COGS — Internal Cost</Span>
-                <Span s={11} c="#94a3b8" style={{marginLeft:8}}>Materials, tools, licenses (company cost)</Span>
-              </div>
-              <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
-                <colgroup><col style={{width:"44%"}}/><col style={{width:"12%"}}/><col style={{width:"10%"}}/><col style={{width:"16%"}}/><col style={{width:"12%"}}/><col style={{width:"6%"}}/></colgroup>
-                <TH cols={["Description","Unit","Qty","Rate/Unit","Total",""]}/>
-                <tbody>{(editCS.internalCosts||[]).map(r=>(
-                  <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9"}}>
-                    <TD><Inp value={r.label} onChange={e=>setIC(r.id,"label",e.target.value)} style={{padding:"4px 6px",fontSize:12,width:"100%",boxSizing:"border-box"}}/></TD>
-                    <TD><Inp value={r.unit} onChange={e=>setIC(r.id,"unit",e.target.value)} style={{padding:"4px 6px",fontSize:12,width:70}}/></TD>
-                    <TD><Inp type="number" value={r.qty} onChange={e=>setIC(r.id,"qty",+e.target.value)} style={{padding:"4px 6px",fontSize:12,width:55}}/></TD>
-                    <TD><Inp type="number" value={r.rate} onChange={e=>setIC(r.id,"rate",+e.target.value)} style={{padding:"4px 6px",fontSize:12,width:80}}/></TD>
-                    <TD right style={{fontWeight:700}}>฿{fmt((r.qty||0)*(r.rate||0))}</TD>
-                    <TD><Btn variant="danger" style={{fontSize:11,padding:"2px 7px"}} onClick={()=>delIC(r.id)}>×</Btn></TD>
-                  </tr>
-                ))}
-                {/* +Internal button bottom-left under Description col */}
-                <tr><td style={{padding:"5px 4px"}}><button onClick={addIC} style={{fontSize:11,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 9px",cursor:"pointer"}}>+ Internal</button></td><td colSpan={3}/><TD right style={{fontWeight:900,fontSize:13}}>฿{fmt(totalIC)}</TD><TD/></tr>
-                </tbody>
-              </table>
-            </Card>
-            {/* COGS — External */}
-            <Card style={{padding:20,marginBottom:14}}>
-              <div style={{marginBottom:8}}>
-                <Span s={13} w={800}>COGS — External Cost</Span>
-                <Span s={11} c="#94a3b8" style={{marginLeft:8}}>Outsource, verification, travel — toggle Client Borne</Span>
-              </div>
-              <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
-                <colgroup><col style={{width:"36%"}}/><col style={{width:"14%"}}/><col style={{width:"9%"}}/><col style={{width:"8%"}}/><col style={{width:"13%"}}/><col style={{width:"10%"}}/><col style={{width:"6%"}}/><col style={{width:"4%"}}/></colgroup>
-                <TH cols={["Description","Vendor","Unit","Qty","Rate/Unit","Total","Client?",""]}/>
-                <tbody>{(editCS.externalCosts||[]).map(r=>(
-                  <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9",background:r.clientBorne?"#f0fdf4":"#fff"}}>
-                    <TD><Inp value={r.label} onChange={e=>setEC(r.id,"label",e.target.value)} style={{padding:"4px 6px",fontSize:12,width:"100%",boxSizing:"border-box"}}/></TD>
-                    <TD><Inp value={r.vendorName||""} onChange={e=>setEC(r.id,"vendorName",e.target.value)} placeholder="Vendor" style={{padding:"4px 6px",fontSize:11,width:90}}/></TD>
-                    <TD><Inp value={r.unit} onChange={e=>setEC(r.id,"unit",e.target.value)} style={{padding:"4px 6px",fontSize:12,width:55}}/></TD>
-                    <TD><Inp type="number" value={r.qty} onChange={e=>setEC(r.id,"qty",+e.target.value)} style={{padding:"4px 6px",fontSize:12,width:45}}/></TD>
-                    <TD><Inp type="number" value={r.rate} onChange={e=>setEC(r.id,"rate",+e.target.value)} style={{padding:"4px 6px",fontSize:12,width:75}}/></TD>
-                    <TD right style={{fontWeight:700,color:r.clientBorne?"#16a34a":"#374151"}}>฿{fmt((r.qty||0)*(r.rate||0))}</TD>
-                    <TD style={{textAlign:"center"}}>
-                      <button onClick={()=>setEC(r.id,"clientBorne",!r.clientBorne)} style={{padding:"2px 8px",borderRadius:20,fontSize:10,fontWeight:700,border:"1px solid",borderColor:r.clientBorne?"#86efac":"#fca5a5",background:r.clientBorne?"#dcfce7":"#fee2e2",color:r.clientBorne?"#16a34a":"#dc2626",cursor:"pointer",whiteSpace:"nowrap"}}>
-                        {r.clientBorne?"Client":"Co."}
-                      </button>
-                    </TD>
-                    <TD><Btn variant="danger" style={{fontSize:11,padding:"2px 7px"}} onClick={()=>delEC(r.id)}>×</Btn></TD>
-                  </tr>
-                ))}
-                <tr><td style={{padding:"5px 4px"}}><button onClick={addEC} style={{fontSize:11,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 9px",cursor:"pointer"}}>+ External</button></td><td colSpan={4}/><TD right style={{fontWeight:900,fontSize:13}}>฿{fmt(totalEC)}</TD><td style={{padding:"8px 6px",fontSize:11,color:"#16a34a"}}>Client: ฿{fmt(totalECClient)}</td><TD/></tr>
-                </tbody>
-              </table>
-            </Card>
-            {/* OPEX — Tasks */}
-            <Card style={{padding:20}}>
-              <div style={{marginBottom:8}}>
-                <Span s={13} w={800}>OPEX — Man-day Tasks</Span>
-                <Span s={11} c="#94a3b8" style={{marginLeft:8}}>Enter man-days per level per task</Span>
-              </div>
-              <TaskTableWidget tasks={editCS.tasks||[]} onSet={setTK} onAdd={addTK} onDel={delTK} months={editCS.projectMonths||3}/>
-            </Card>
-          </div>
-        </div>
-      )}
+
 
       {/*  PER-QUOTATION VIEW  */}
-      {view==="quote"&&(
-        <div>
+      <div>
           <div style={{padding:"10px 16px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:7,marginBottom:14,display:"flex",gap:10,alignItems:"center"}}>
             <span></span>
             <Span s={12} c="#1e40af"><strong>1 CS Code per Quote No.</strong> — Auto-generated. Save → creates Opportunity with actual cost. Installments sync to Delivery.</Span>
@@ -3147,14 +3074,12 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
             );
           })}
         </div>
-      )}
 
       {/* Bottom Save / Cancel bar */}
       <div style={{marginTop:24,padding:"14px 20px",background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,display:"flex",justifyContent:"flex-end",gap:10,alignItems:"center",position:"sticky",bottom:0,zIndex:50,boxShadow:"0 -2px 12px rgba(0,0,0,.06)"}}>
         <Btn variant="ghost" onClick={()=>sCode(selCode)}>Cancel</Btn>
-        <Btn onClick={handleSave} style={{padding:"9px 28px",fontSize:14}}>💾 Save</Btn>
+        <Btn onClick={handleSave} style={{padding:"9px 28px",fontSize:14}}>Save</Btn>
       </div>
-
     </div>
   );
 };
