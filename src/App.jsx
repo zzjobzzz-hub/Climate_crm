@@ -2317,18 +2317,32 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
             <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:1}}>Quote No.</Span>
             <button onClick={()=>{if(d.quoteNo){const o=opps.find(x=>x.quoteNo===d.quoteNo);if(o)sQT(o);}}} style={{fontSize:12,fontFamily:"monospace",color:d.quoteNo?"#1e40af":"#94a3b8",background:"none",border:"none",padding:0,cursor:d.quoteNo?"pointer":"default",textDecoration:d.quoteNo?"underline":"none"}}>{d.quoteNo||"–"}</button>
           </div>
-          {[{l:"Agent",v:agent?.name?.split(" ")[0]||d.assignedTo},{l:"Contract No.",v:d.contractNo||"–",mono:true},{l:"Contract Date",v:d.contractDate||"–"},{l:"Service Type",v:d.serviceType},{l:"Delivery Date",v:d.deliveryDate||"–"}].map(x=>(
-            <div key={x.l} style={{minWidth:110}}>
-              <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:1}}>{x.l}</Span>
-              <span style={{fontSize:12,color:"#1e293b",fontFamily:x.mono?"monospace":"inherit"}}>{x.v}</span>
-            </div>
-          ))}
+          <div style={{minWidth:110}}>
+            <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:1}}>Agent</Span>
+            <span style={{fontSize:12,color:"#1e293b"}}>{agent?.name?.split(" ")[0]||d.assignedTo}</span>
+          </div>
+          <div style={{minWidth:110}}>
+            <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:2}}>Contract No.</Span>
+            <input value={localD.contractNo||""} onChange={e=>markDirty({...localD,contractNo:e.target.value})} placeholder="–" style={{fontSize:12,fontFamily:"monospace",border:"1px solid #e2e8f0",borderRadius:4,padding:"3px 7px",background:"#fafafa",width:110}}/>
+          </div>
+          <div style={{minWidth:110}}>
+            <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:2}}>Contract Date</Span>
+            <input value={localD.contractDate||""} onChange={e=>markDirty({...localD,contractDate:e.target.value})} placeholder="YYYY-MM-DD" style={{fontSize:12,border:"1px solid #e2e8f0",borderRadius:4,padding:"3px 7px",background:"#fafafa",width:120}}/>
+          </div>
+          <div style={{minWidth:110}}>
+            <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:1}}>Service Type</Span>
+            <span style={{fontSize:12,color:"#1e293b"}}>{d.serviceType}</span>
+          </div>
+          <div style={{minWidth:110}}>
+            <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:1}}>Delivery Date</Span>
+            <span style={{fontSize:12,color:"#1e293b"}}>{d.deliveryDate||"–"}</span>
+          </div>
         </div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          {[{l:"Contract",v:d.totalContractValue,bg:"#fff",bc:"#e2e8f0",c:"#0f172a"},{l:"Received",v:totalRec,bg:"#f0fdf4",bc:"#86efac",c:"#16a34a"},{l:"Balance",v:d.totalContractValue-totalRec,bg:"#fffbeb",bc:"#fde68a",c:"#d97706"}].map(x=>(
-            <div key={x.l} style={{textAlign:"center",padding:"8px 12px",background:x.bg,border:`1px solid ${x.bc}`,borderRadius:7}}>
-              <Span s={10} c={x.c} style={{display:"block",marginBottom:2}}>{x.l}</Span>
-              <div style={{fontWeight:900,fontSize:14,color:x.c}}>฿{fmt(x.v)}</div>
+        <div style={{display:"flex",gap:20,alignItems:"center",flexWrap:"wrap"}}>
+          {[{l:"Contract",v:d.totalContractValue,c:"#0f172a"},{l:"Received",v:totalRec,c:"#16a34a"},{l:"Balance",v:d.totalContractValue-totalRec,c:"#d97706"}].map(x=>(
+            <div key={x.l} style={{display:"flex",alignItems:"baseline",gap:6}}>
+              <Span s={11} c="#94a3b8">{x.l}</Span>
+              <span style={{fontWeight:900,fontSize:15,color:x.c}}>฿{fmt(x.v)}</span>
             </div>
           ))}
         </div>
@@ -2339,7 +2353,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
             <Span s={12} w={700}>Progress Steps</Span>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
               <Span s={11} c="#64748b">{localD.currentStep}</Span>
-              <span style={{fontSize:12,color:"#94a3b8"}}>{stepExp?"":""}</span>
+              <span style={{fontSize:11,color:"#94a3b8"}}>{stepExp?"▲":"▼"}</span>
             </div>
           </div>
           {stepExp&&(
@@ -2460,7 +2474,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div><Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Delivery</Span><Span s={13} c="#94a3b8" style={{marginLeft:8}}>{list.length} contracts</Span></div>
-        <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=(d.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}>↓ CSV</Btn><Btn onClick={()=>{sE(null);sInitTab("detail");sF(true);}}>+ Add Delivery</Btn></div>
+        <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=(d.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}>↓ CSV</Btn></div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
         <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search Job Code / Company…" style={{maxWidth:240}}/>
