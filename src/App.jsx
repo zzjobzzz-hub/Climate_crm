@@ -63,8 +63,8 @@ const SERVICES = [
   {code:"ISO14064",name:"ISO 14064-1 Verification",          stdCost:0,  stdPrice:0},
   // ISO14067: 6M+14S+14J + COGS
   {code:"ISO14067",name:"ISO 14067 Verification",            stdCost:0,  stdPrice:0},
-  // CFOISO bundle: CFO+ISO14064 bundled,
-  {code:"CFOISO", name:"CFO + ISO 14064-1 Bundle",           stdCost:0,  stdPrice:0},
+  // CFO&ISO bundle: CFO+ISO14064 bundled,
+  {code:"CFO&ISO", name:"CFO + ISO 14064-1 Bundle",           stdCost:0,  stdPrice:0},
   // CNE: 3M+8S+6J + COGS
   {code:"CNE",    name:"Carbon Neutral Event",               stdCost:0,  stdPrice:0},
   // DR: 8M+18S+12J + COGS
