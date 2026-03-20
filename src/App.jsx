@@ -2554,28 +2554,28 @@ const TaskRow = React.memo(({t,onSet,onDel,months}) => {
           <input value={name}
             onChange={e=>setName(e.target.value)}
             onBlur={e=>onSet(t.id,"taskName",e.target.value)}
-            style={{padding:"2px 5px",fontSize:10,width:"100%",boxSizing:"border-box",border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",outline:"none"}}/>
+            style={{padding:"2px 5px",fontSize:13,width:"100%",boxSizing:"border-box",border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",outline:"none"}}/>
         </td>
         {["manager","senior","junior"].map(lvl=>(
           <td key={lvl} style={{padding:"3px 4px"}}>
             <input type="number" value={t[lvl]||0}
               onChange={e=>onSet(t.id,lvl,+e.target.value)}
-              style={{padding:"2px 4px",fontSize:10,width:48,textAlign:"center",border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",outline:"none"}}/>
+              style={{padding:"2px 4px",fontSize:13,width:48,textAlign:"center",border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",outline:"none"}}/>
           </td>
         ))}
-        <td style={{padding:"3px 4px",fontWeight:700,whiteSpace:"nowrap",fontSize:10}}>฿{fmt(tc)}</td>
+        <td style={{padding:"3px 4px",fontWeight:700,whiteSpace:"nowrap",fontSize:13}}>฿{fmt(tc)}</td>
         <td style={{padding:"3px 4px"}}>
-          <Sel value={t.payMonth||1} onChange={e=>onSet(t.id,"payMonth",+e.target.value)} style={{padding:"2px 3px",fontSize:10,width:52}}>
+          <Sel value={t.payMonth||1} onChange={e=>onSet(t.id,"payMonth",+e.target.value)} style={{padding:"2px 3px",fontSize:13,width:52}}>
             {Array.from({length:months||3},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
           </Sel>
         </td>
         <td style={{padding:"3px 4px"}}>
           <div style={{display:"flex",gap:3,alignItems:"center"}}>
             <button onClick={()=>setAO(p=>!p)} title="Assign agents"
-              style={{fontSize:9,padding:"1px 5px",border:`1px solid ${agents.length>0?"#86efac":"#e2e8f0"}`,borderRadius:3,background:agents.length>0?"#f0fdf4":"#f8fafc",color:agents.length>0?"#16a34a":"#64748b",cursor:"pointer",whiteSpace:"nowrap"}}>
+              style={{fontSize:12,padding:"1px 5px",border:`1px solid ${agents.length>0?"#86efac":"#e2e8f0"}`,borderRadius:3,background:agents.length>0?"#f0fdf4":"#f8fafc",color:agents.length>0?"#16a34a":"#64748b",cursor:"pointer",whiteSpace:"nowrap"}}>
               {agents.length>0?` ${agents.length}`:""}
             </button>
-            <Btn variant="danger" style={{fontSize:10,padding:"1px 5px"}} onClick={()=>onDel(t.id)}>×</Btn>
+            <Btn variant="danger" style={{fontSize:13,padding:"1px 5px"}} onClick={()=>onDel(t.id)}>×</Btn>
           </div>
         </td>
       </tr>
@@ -2583,12 +2583,12 @@ const TaskRow = React.memo(({t,onSet,onDel,months}) => {
         <tr style={{borderBottom:"1px solid #f8fafc",background:"#f8fffe"}}>
           <td colSpan={7} style={{padding:"5px 8px"}}>
             <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-              <span style={{fontSize:9,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",marginRight:2}}>Assigned:</span>
+              <span style={{fontSize:12,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",marginRight:2}}>Assigned:</span>
               {/* Agent chips */}
               {agents.map(uid=>{
                 const u=USERS.find(x=>x.id===uid);
                 return u?(
-                  <span key={uid} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 7px",background:"#0f172a",color:"#fff",borderRadius:10,fontSize:10,fontWeight:600}}>
+                  <span key={uid} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 7px",background:"#0f172a",color:"#fff",borderRadius:10,fontSize:13,fontWeight:600}}>
                     {u.name.split(" ")[0]}
                     <button onClick={()=>toggleAgent(uid)} style={{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:11,padding:0,lineHeight:1}}>×</button>
                   </span>
@@ -2596,13 +2596,13 @@ const TaskRow = React.memo(({t,onSet,onDel,months}) => {
               })}
               {/* Add agent dropdown */}
               <select onChange={e=>{if(e.target.value)toggleAgent(e.target.value);e.target.value="";}}
-                style={{fontSize:10,padding:"2px 5px",border:"1px dashed #bfdbfe",borderRadius:4,background:"#eff6ff",color:"#1e40af",cursor:"pointer"}}>
+                style={{fontSize:13,padding:"2px 5px",border:"1px dashed #bfdbfe",borderRadius:4,background:"#eff6ff",color:"#1e40af",cursor:"pointer"}}>
                 <option value="">+ Add Agent</option>
                 {eligibleUsers.filter(u=>!agents.includes(u.id)).map(u=>(
                   <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
                 ))}
               </select>
-              {agents.length===0&&<span style={{fontSize:9,color:"#94a3b8",fontStyle:"italic"}}>No agents assigned yet</span>}
+              {agents.length===0&&<span style={{fontSize:12,color:"#94a3b8",fontStyle:"italic"}}>No agents assigned yet</span>}
             </div>
           </td>
         </tr>
@@ -2621,7 +2621,7 @@ const TaskTableWidget = ({tasks,onSet,onAdd,onDel,months}) => (
       <tbody>
         {(tasks||[]).map(t=><TaskRow key={t.id} t={t} onSet={onSet} onDel={onDel} months={months}/>)}
         {/* +Task button on left under Task/Activity column */}
-        <tr><td style={{padding:"4px 4px"}}><button onClick={onAdd} style={{fontSize:10,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 8px",cursor:"pointer"}}>+ Task</button></td><td colSpan={5} style={{padding:"4px 6px",fontWeight:700,fontSize:11,textAlign:"right"}}>Total OPEX: <span style={{fontWeight:900,fontSize:12}}>฿{fmt((tasks||[]).reduce((s,t)=>(s+(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior),0))}</span></td><td/></tr>
+        <tr><td style={{padding:"4px 4px"}}><button onClick={onAdd} style={{fontSize:13,color:"#1e40af",background:"transparent",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 14px",cursor:"pointer",fontWeight:600}}>+ Task</button></td><td colSpan={5} style={{padding:"4px 6px",fontWeight:700,fontSize:11,textAlign:"right"}}>Total OPEX: <span style={{fontWeight:900,fontSize:12}}>฿{fmt((tasks||[]).reduce((s,t)=>(s+(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior),0))}</span></td><td/></tr>
       </tbody>
     </table>
 );
@@ -2901,7 +2901,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                   {/* Margin badge */}
                   <div style={{flex:"0 0 72px",padding:"5px 8px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center",flexShrink:0}}>
                     <div style={{fontWeight:900,fontSize:15,color:+qMg>=30?"#16a34a":"#dc2626",lineHeight:1.2}}>{qMg}%</div>
-                    <div style={{fontWeight:700,fontSize:12,color:+qMg>=30?"#16a34a":"#dc2626"}}>{fmtK(marginAmt(q.salesPrice,qTC))}</div>
+                    <div style={{fontWeight:700,fontSize:13,color:+qMg>=30?"#16a34a":"#dc2626"}}>{fmtK(marginAmt(q.salesPrice,qTC))}</div>
                   </div>
                   {/* Close button */}
 
@@ -2920,43 +2920,43 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                       <tbody>
                         {(q.internalCosts||[]).map(r=>(
                           <tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
-                            <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQIC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:12,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQIC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px",fontSize:13,color:"#94a3b8",textAlign:"center"}}>—</td>
-                            <td style={{padding:"3px 3px"}}><Inp value={r.unit} onChange={e=>setQIC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:12,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><Inp type="number" value={r.qty} onChange={e=>setQIC(q.id,r.id,"qty",+e.target.value)} style={{padding:"2px 4px",fontSize:12,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><Inp type="number" value={r.rate} onChange={e=>setQIC(q.id,r.id,"rate",+e.target.value)} style={{padding:"2px 4px",fontSize:12,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px",fontWeight:700,fontSize:12}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.unit} onChange={e=>setQIC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><Inp type="number" value={r.qty} onChange={e=>setQIC(q.id,r.id,"qty",+e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><Inp type="number" value={r.rate} onChange={e=>setQIC(q.id,r.id,"rate",+e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px",fontWeight:700,fontSize:13}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
                             <td style={{padding:"3px 3px"}}>
                               <Sel value={r.payMonth||1} onChange={e=>setQIC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:13,width:"100%"}}>
                                 {Array.from({length:months||3},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
                               </Sel>
                             </td>
-                            <td><Btn variant="danger" style={{fontSize:12,padding:"1px 4px"}} onClick={()=>delQIC(q.id,r.id)}>×</Btn></td>
+                            <td><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQIC(q.id,r.id)}>×</Btn></td>
                           </tr>
                         ))}
                         {(q.externalCosts||[]).map(r=>(
                           <tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
-                            <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQEC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:12,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><Inp value={r.vendorName||""} onChange={e=>setQEC(q.id,r.id,"vendorName",e.target.value)} placeholder="Vendor" style={{padding:"2px 4px",fontSize:12,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><Inp value={r.unit||""} onChange={e=>setQEC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:12,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><Inp type="number" value={r.qty} onChange={e=>setQEC(q.id,r.id,"qty",+e.target.value)} style={{padding:"2px 4px",fontSize:12,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><Inp type="number" value={r.rate} onChange={e=>setQEC(q.id,r.id,"rate",+e.target.value)} style={{padding:"2px 4px",fontSize:12,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px",fontWeight:700,fontSize:12}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQEC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.vendorName||""} onChange={e=>setQEC(q.id,r.id,"vendorName",e.target.value)} placeholder="Vendor" style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.unit||""} onChange={e=>setQEC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><Inp type="number" value={r.qty} onChange={e=>setQEC(q.id,r.id,"qty",+e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><Inp type="number" value={r.rate} onChange={e=>setQEC(q.id,r.id,"rate",+e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px",fontWeight:700,fontSize:13}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
                             <td style={{padding:"3px 3px"}}>
                               <Sel value={r.payMonth||1} onChange={e=>setQEC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:13,width:"100%"}}>
                                 {Array.from({length:months||3},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
                               </Sel>
                             </td>
-                            <td><Btn variant="danger" style={{fontSize:12,padding:"1px 4px"}} onClick={()=>delQEC(q.id,r.id)}>×</Btn></td>
+                            <td><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQEC(q.id,r.id)}>×</Btn></td>
                           </tr>
                         ))}
                         <tr style={{borderTop:"1px solid #f1f5f9"}}>
                           <td colSpan={6} style={{padding:"5px 4px"}}>
-                            <button onClick={()=>addQEC(q.id)} style={{fontSize:12,color:"#1e40af",background:"#eff6ff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 12px",cursor:"pointer",fontWeight:600}}>+ Add</button>
+                            <button onClick={()=>addQEC(q.id)} style={{fontSize:13,color:"#1e40af",background:"transparent",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 12px",cursor:"pointer",fontWeight:600}}>+ Add</button>
                           </td>
                           <td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap"}}>
                             <span style={{fontSize:13,color:"#94a3b8",fontWeight:700,marginRight:6}}>Total COGS</span>
-                            <span style={{fontWeight:900,fontSize:12,color:"#0f172a"}}>฿{fmt(qIC+qEC)}</span>
+                            <span style={{fontWeight:900,fontSize:13,color:"#0f172a"}}>฿{fmt(qIC+qEC)}</span>
                           </td>
                         </tr>
                       </tbody>
@@ -2975,7 +2975,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                   <div style={{paddingTop:14}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                       <Span s={12} w={700}>Installments</Span>
-                      <span style={{fontSize:12,fontWeight:700,color:Math.abs(instSum-100)<0.1?"#16a34a":"#dc2626"}}>({instSum}% {Math.abs(instSum-100)<0.1?"":""})</span>
+                      <span style={{fontSize:13,fontWeight:700,color:Math.abs(instSum-100)<0.1?"#16a34a":"#dc2626"}}>({instSum}% {Math.abs(instSum-100)<0.1?"":""})</span>
                     </div>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                       <thead><tr style={{background:"#f8fafc"}}>
@@ -2990,19 +2990,19 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                         {(q.installments||[]).map((ins,idx)=>(
                           <tr key={ins.id} style={{borderBottom:"1px solid #f8fafc"}}>
                             <td style={{padding:"4px 4px",textAlign:"center",color:"#94a3b8",fontWeight:700,fontSize:13,width:22}}>{idx+1}</td>
-                            <td style={{padding:"4px 4px"}}><Inp value={ins.label} onChange={e=>setQInst(q.id,ins.id,"label",e.target.value)} placeholder="" style={{padding:"2px 5px",fontSize:12,width:"100%",background:"#f8fafc"}}/></td>
-                            <td style={{padding:"4px 4px",width:46}}><Inp type="number" value={ins.pct} onChange={e=>setQInst(q.id,ins.id,"pct",+e.target.value)} style={{padding:"2px 4px",fontSize:12,width:38,textAlign:"right"}}/></td>
-                            <td style={{padding:"4px 4px",fontWeight:700,fontSize:12,textAlign:"right",whiteSpace:"nowrap",width:76}}>฿{fmt(Math.round(q.salesPrice*(ins.pct||0)/100))}</td>
+                            <td style={{padding:"4px 4px"}}><Inp value={ins.label} onChange={e=>setQInst(q.id,ins.id,"label",e.target.value)} placeholder="" style={{padding:"2px 5px",fontSize:13,width:"100%",background:"#f8fafc"}}/></td>
+                            <td style={{padding:"4px 4px",width:46}}><Inp type="number" value={ins.pct} onChange={e=>setQInst(q.id,ins.id,"pct",+e.target.value)} style={{padding:"2px 4px",fontSize:13,width:38,textAlign:"right"}}/></td>
+                            <td style={{padding:"4px 4px",fontWeight:700,fontSize:13,textAlign:"right",whiteSpace:"nowrap",width:76}}>฿{fmt(Math.round(q.salesPrice*(ins.pct||0)/100))}</td>
                             <td style={{padding:"4px 4px",width:54}}>
                               <Sel value={ins.recvMonth||1} onChange={e=>setQInst(q.id,ins.id,"recvMonth",+e.target.value)} style={{padding:"2px 3px",fontSize:13,width:48}}>
                                 {Array.from({length:months+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
                               </Sel>
                             </td>
-                            <td style={{padding:"4px 4px",width:20}}><Btn variant="danger" style={{fontSize:12,padding:"1px 4px"}} onClick={()=>delQInst(q.id,ins.id)}>×</Btn></td>
+                            <td style={{padding:"4px 4px",width:20}}><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQInst(q.id,ins.id)}>×</Btn></td>
                           </tr>
                         ))}
                         <tr><td colSpan={6} style={{padding:"6px 4px"}}>
-                          <button onClick={()=>addQInst(q.id)} style={{fontSize:12,color:"#1e40af",background:"#eff6ff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 14px",cursor:"pointer",fontWeight:600}}>+ Installment</button>
+                          <button onClick={()=>addQInst(q.id)} style={{fontSize:13,color:"#1e40af",background:"transparent",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 14px",cursor:"pointer",fontWeight:600}}>+ Installment</button>
                         </td></tr>
                       </tbody>
                     </table>
@@ -3027,14 +3027,14 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                           <Span s={12} w={700}>Cashflow</Span>
                           <span style={{fontSize:13,color:"#94a3b8"}}>{cfM} months</span>
-                          <span style={{marginLeft:"auto",fontSize:12,fontWeight:700,color:hasNeg?"#dc2626":"#16a34a",background:hasNeg?"#fee2e2":"#dcfce7",padding:"1px 8px",borderRadius:10,whiteSpace:"nowrap"}}>
+                          <span style={{marginLeft:"auto",fontSize:13,fontWeight:700,color:hasNeg?"#dc2626":"#16a34a",background:hasNeg?"#fee2e2":"#dcfce7",padding:"1px 8px",borderRadius:10,whiteSpace:"nowrap"}}>
                             {hasNeg?" Goes negative":" Positive throughout"}
                           </span>
                         </div>
-                        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                           <thead><tr>
                             {["M","Cost Out","Revenue In","Net","Cumulative",""].map((h,i)=>(
-                              <th key={i} style={{padding:"2px 5px",textAlign:i>=1&&i<=4?"right":"left",fontWeight:700,color:"#94a3b8",fontSize:8,borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",letterSpacing:"0.04em"}}>{h}</th>
+                              <th key={i} style={{padding:"2px 5px",textAlign:i>=1&&i<=4?"right":"left",fontWeight:700,color:"#94a3b8",fontSize:13,borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",letterSpacing:"0.04em"}}>{h}</th>
                             ))}
                           </tr></thead>
                           <tbody>{cfRows.map(r=>(
@@ -3061,11 +3061,11 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                 <div style={{padding:"0 20px 16px",borderTop:"1px solid #f1f5f9"}}>
                   <div style={{marginTop:14,marginBottom:12}}>
                     <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Service Description</Span><Span s={11} c="#94a3b8">— Project title as it will appear in the Quotation</Span></div>
-                    <Inp value={q.projectTitle||""} onChange={e=>setQF(q.id,"projectTitle",e.target.value)} placeholder="" style={{fontSize:12}}/>
+                    <Inp value={q.projectTitle||""} onChange={e=>setQF(q.id,"projectTitle",e.target.value)} placeholder="" style={{fontSize:13}}/>
                   </div>
                   <div>
                     <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Project Scope</Span><Span s={11} c="#94a3b8">— Scope details e.g. Project Address, Boundary, Base Year</Span></div>
-                    <Txta value={q.projectScope||""} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder="" style={{minHeight:80,fontSize:12}}/>
+                    <Txta value={q.projectScope||""} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder="" style={{minHeight:80,fontSize:13}}/>
                   </div>
                 </div>
 
@@ -3076,18 +3076,18 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                     {(q.deliverables||[]).map(d=>(
                       <div key={d.id} style={{display:"flex",gap:6,alignItems:"center"}}>
                         <span style={{color:"#06b6d4",fontWeight:900,fontSize:13,flexShrink:0}}></span>
-                        <Inp value={d.item} onChange={e=>setQDlv(q.id,d.id,e.target.value)} placeholder="" style={{padding:"3px 8px",fontSize:12,flex:1}}/>
-                        {(q.deliverables||[]).length>1&&<Btn variant="danger" style={{fontSize:12,padding:"1px 5px",flexShrink:0}} onClick={()=>delQDlv(q.id,d.id)}>×</Btn>}
+                        <Inp value={d.item} onChange={e=>setQDlv(q.id,d.id,e.target.value)} placeholder="" style={{padding:"3px 8px",fontSize:13,flex:1}}/>
+                        {(q.deliverables||[]).length>1&&<Btn variant="danger" style={{fontSize:13,padding:"1px 5px",flexShrink:0}} onClick={()=>delQDlv(q.id,d.id)}>×</Btn>}
                       </div>
                     ))}
-                    <button onClick={()=>addQDlv(q.id)} style={{alignSelf:"flex-start",marginTop:4,fontSize:12,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 10px",cursor:"pointer"}}>+ Add Deliverable</button>
+                    <button onClick={()=>addQDlv(q.id)} style={{alignSelf:"flex-start",marginTop:4,fontSize:13,color:"#1e40af",background:"transparent",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 10px",cursor:"pointer",fontWeight:600}}>+ Deliverable</button>
                   </div>
                 </div>
 
                 {/*  NOTES & CONDITIONS (full width)  */}
                 <div style={{padding:"0 20px 16px"}}>
                   <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Notes & Conditions</Span>
-                  <Txta value={q.notes||""} onChange={e=>setQF(q.id,"notes",e.target.value)} placeholder="" style={{minHeight:80,fontSize:12}}/>
+                  <Txta value={q.notes||""} onChange={e=>setQF(q.id,"notes",e.target.value)} placeholder="" style={{minHeight:80,fontSize:13}}/>
                 </div>
 
                 {/* Cost + margin + Save/Cancel footer */}
@@ -3132,7 +3132,7 @@ const SetupPage = () => (
     ].map(s=>(
       <Card key={s.n} style={{padding:20,marginBottom:12,display:"flex",gap:14}}>
         <div style={{width:32,height:32,background:"#0f172a",color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:14,flexShrink:0}}>{s.n}</div>
-        <div style={{flex:1}}><Span s={14} w={700} c="#0f172a" style={{display:"block",marginBottom:8}}>{s.t}</Span><pre style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:6,padding:12,fontSize:12,color:"#374151",whiteSpace:"pre-wrap",lineHeight:1.6,margin:0}}>{s.b}</pre></div>
+        <div style={{flex:1}}><Span s={14} w={700} c="#0f172a" style={{display:"block",marginBottom:8}}>{s.t}</Span><pre style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:6,padding:12,fontSize:13,color:"#374151",whiteSpace:"pre-wrap",lineHeight:1.6,margin:0}}>{s.b}</pre></div>
       </Card>
     ))}
   </div>
