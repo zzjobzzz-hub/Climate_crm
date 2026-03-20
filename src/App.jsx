@@ -337,10 +337,7 @@ const ActivityLog = ({logs,currentUser,onAdd,placeholder="Add a note…"}) => {
           </div>
         );})}
       </div>
-      <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
-        <div style={{flex:1}}><Txta value={note} onChange={e=>sN(e.target.value)} placeholder={placeholder} style={{minHeight:52,fontSize:13}}/></div>
-        <Btn onClick={()=>{if(note.trim()){onAdd({id:uid(),ts:nowTS(),author:currentUser.id,note:note.trim()});sN("");}}} style={{flexShrink:0,alignSelf:"flex-end"}}>Log</Btn>
-      </div>
+
     </div>
   );
 };
@@ -2391,14 +2388,12 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
               <StepProgress steps={DLV_STEPS} current={localD.currentStep||DLV_STEPS[0]} onStep={s=>set("currentStep",s)}/>
             </div>
           </div>
-          <button onClick={e=>{e.stopPropagation();setLogExp(p=>!p);}} style={{padding:"7px 14px",border:"1px solid #e2e8f0",borderRadius:7,background:"#fff",cursor:"pointer",fontSize:12,fontWeight:600,color:"#374151",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6}}>
-            💬 Work Log <span style={{background:"#f1f5f9",color:"#64748b",fontSize:11,padding:"1px 7px",borderRadius:10,fontWeight:700}}>{(d.workLog||[]).length}</span>
-          </button>
+
         </div>
 
         {/* Work Log modal-style dropdown */}
-        {logExp&&(
-          <div style={{marginTop:8,background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,overflow:"hidden"}}>
+        <div style={{marginTop:8,background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,overflow:"hidden"}}>
+          <div style={{padding:"9px 14px",borderBottom:"1px solid #f1f5f9"}}><Span s={12} w={700}>Work Log</Span></div>
             <div style={{padding:"12px 14px"}}>
               <div style={{maxHeight:180,overflow:"auto",display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
                 {[...(d.workLog||[])].reverse().map(l=>{const u=USERS.find(x=>x.id===l.author);return(
@@ -2415,7 +2410,6 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
               </div>
             </div>
           </div>
-        )}
       </div>
 
       {/* Installment Schedule */}
