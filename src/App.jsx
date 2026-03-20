@@ -2901,7 +2901,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                   {/* Margin badge */}
                   <div style={{flex:"0 0 72px",padding:"5px 8px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center",flexShrink:0}}>
                     <div style={{fontWeight:900,fontSize:15,color:+qMg>=30?"#16a34a":"#dc2626",lineHeight:1.2}}>{qMg}%</div>
-                    <div style={{fontWeight:700,fontSize:13,color:+qMg>=30?"#16a34a":"#dc2626"}}>{fmtK(marginAmt(q.salesPrice,qTC))}</div>
+                    <div style={{fontWeight:700,fontSize:13,color:+qMg>=30?"#16a34a":"#dc2626"}}>฿{fmt(marginAmt(q.salesPrice,qTC))}</div>
                   </div>
                   {/* Close button */}
 
@@ -2912,7 +2912,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                   <div>
                     {/* Unified COGS table */}
                     <div style={{marginBottom:4,display:"flex",alignItems:"center",gap:8}}>
-                      <Span s={11} w={700}>COGS</Span>
+                      <Span s={13} w={700} c="#374151" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>COGS</Span>
                     </div>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,tableLayout:"fixed"}}>
                       <colgroup><col style={{width:"27%"}}/><col style={{width:"13%"}}/><col style={{width:"8%"}}/><col style={{width:"7%"}}/><col style={{width:"13%"}}/><col style={{width:"12%"}}/><col style={{width:"8%"}}/><col style={{width:"4%"}}/></colgroup>
@@ -2951,19 +2951,17 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                           </tr>
                         ))}
                         <tr style={{borderTop:"1px solid #f1f5f9"}}>
-                          <td colSpan={6} style={{padding:"5px 4px"}}>
+                          <td colSpan={4} style={{padding:"5px 4px"}}>
                             <button onClick={()=>addQEC(q.id)} style={{fontSize:13,color:"#1e40af",background:"transparent",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 12px",cursor:"pointer",fontWeight:600}}>+ Add</button>
                           </td>
-                          <td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap"}}>
-                            <span style={{fontSize:13,color:"#94a3b8",fontWeight:700,marginRight:6}}>Total COGS</span>
-                            <span style={{fontWeight:900,fontSize:13,color:"#0f172a"}}>฿{fmt(qIC+qEC)}</span>
-                          </td>
+                          <td colSpan={3} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap",color:"#94a3b8",fontSize:12,fontWeight:600}}>Total COGS</td>
+                          <td style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a"}}>฿{fmt(qIC+qEC)}</td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
                   <div>
-                    <Span s={12} w={700} style={{display:"block",marginBottom:6}}>OPEX — Man-day Tasks</Span>
+                    <Span s={13} w={700} c="#374151" style={{textTransform:"uppercase",letterSpacing:"0.07em"}} style={display:"block",marginBottom:6}>OPEX — Man-day Tasks</Span>
                     <TaskTableWidget tasks={q.tasks||[]} onSet={(tid,k,v)=>setQTK(q.id,tid,k,v)} onAdd={()=>addQTK(q.id)} onDel={tid=>delQTK(q.id,tid)} months={months}/>
                     <div style={{display:"flex",justifyContent:"space-between",marginTop:6,padding:"5px 2px",borderTop:"1px solid #e2e8f0"}}><Span s={11} w={700}>Total OPEX</Span><Span s={12} w={900}>฿{fmt(qOPEX)}</Span></div>
                   </div>
@@ -2974,7 +2972,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                   {/* Installments */}
                   <div style={{paddingTop:14}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                      <Span s={12} w={700}>Installments</Span>
+                      <Span s={13} w={700} c="#374151" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Installments</Span>
                       <span style={{fontSize:13,fontWeight:700,color:Math.abs(instSum-100)<0.1?"#16a34a":"#dc2626"}}>({instSum}% {Math.abs(instSum-100)<0.1?"":""})</span>
                     </div>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
@@ -3025,7 +3023,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                     return(
                       <div style={{paddingTop:14}}>
                         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                          <Span s={12} w={700}>Cashflow</Span>
+                          <Span s={13} w={700} c="#374151" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Cashflow</Span>
                           <span style={{fontSize:13,color:"#94a3b8"}}>{cfM} months</span>
                           <span style={{marginLeft:"auto",fontSize:13,fontWeight:700,color:hasNeg?"#dc2626":"#16a34a",background:hasNeg?"#fee2e2":"#dcfce7",padding:"1px 8px",borderRadius:10,whiteSpace:"nowrap"}}>
                             {hasNeg?" Goes negative":" Positive throughout"}
@@ -3060,18 +3058,18 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                 {/*  PROJECT SCOPE (full width)  */}
                 <div style={{padding:"0 20px 16px",borderTop:"1px solid #f1f5f9"}}>
                   <div style={{marginTop:14,marginBottom:12}}>
-                    <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Service Description</Span><Span s={11} c="#94a3b8">— Project title as it will appear in the Quotation</Span></div>
+                    <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={13} w={700} c="#374151" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Service Description</Span><Span s={11} c="#94a3b8">— Project title as it will appear in the Quotation</Span></div>
                     <Inp value={q.projectTitle||""} onChange={e=>setQF(q.id,"projectTitle",e.target.value)} placeholder="" style={{fontSize:13}}/>
                   </div>
                   <div>
-                    <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Project Scope</Span><Span s={11} c="#94a3b8">— Scope details e.g. Project Address, Boundary, Base Year</Span></div>
+                    <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={13} w={700} c="#374151" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Project Scope</Span><Span s={11} c="#94a3b8">— Scope details e.g. Project Address, Boundary, Base Year</Span></div>
                     <Txta value={q.projectScope||""} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder="" style={{minHeight:80,fontSize:13}}/>
                   </div>
                 </div>
 
                 {/*  DELIVERABLES (full width, editable list + preview)  */}
                 <div style={{padding:"0 20px 16px"}}>
-                  <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>Deliverables</Span>
+                  <Span s={13} w={700} c="#374151" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>Deliverables</Span>
                   <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:6}}>
                     {(q.deliverables||[]).map(d=>(
                       <div key={d.id} style={{display:"flex",gap:6,alignItems:"center"}}>
@@ -3086,7 +3084,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
 
                 {/*  NOTES & CONDITIONS (full width)  */}
                 <div style={{padding:"0 20px 16px"}}>
-                  <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Notes & Conditions</Span>
+                  <Span s={13} w={700} c="#374151" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Notes & Conditions</Span>
                   <Txta value={q.notes||""} onChange={e=>setQF(q.id,"notes",e.target.value)} placeholder="" style={{minHeight:80,fontSize:13}}/>
                 </div>
 
