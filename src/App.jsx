@@ -231,9 +231,9 @@ const Btn = ({variant="primary",style,children,...p}) => (
 const Card  = ({children,style}) => <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,...style}}>{children}</div>;
 const Span  = ({s=14,w=400,c="#374151",style,children}) => <span style={{fontSize:s,fontWeight:w,color:c,...style}}>{children}</span>;
 const FRow  = ({label,children,tip}) => (
-  <div style={{marginBottom:12}}>
-    <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4,display:"flex",gap:5,alignItems:"center"}}>
-      {label}{tip&&<span title={tip} style={{cursor:"help",fontSize:10,color:"#cbd5e1"}}></span>}
+  <div style={{marginBottom:16}}>
+    <div style={{fontSize:12,fontWeight:600,color:"#64748b",marginBottom:5,display:"flex",gap:5,alignItems:"center"}}>
+      {label}{tip&&<span title={tip} style={{cursor:"help",fontSize:10,color:"#cbd5e1"}}>ⓘ</span>}
     </div>
     {children}
   </div>
@@ -241,7 +241,7 @@ const FRow  = ({label,children,tip}) => (
 const Divider = () => <div style={{height:1,background:"#f1f5f9",margin:"16px 0"}}/>;
 const Badge   = ({value,colorMap}) => { const cfg=colorMap[value]||{c:"#64748b"}; return <span style={{background:cfg.bg||cfg.c+"22",color:cfg.c,padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>{value}</span>; };
 const SvcBadge = ({code}) => <span style={{background:"#f1f5f9",color:"#1e40af",fontWeight:800,fontSize:11,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{code}</span>;
-const G2 = ({children,gap=12}) => <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap}}>{children}</div>;
+const G2 = ({children,gap=16}) => <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap}}>{children}</div>;
 
 const TH = ({cols}) => <thead><tr style={{background:"#f8fafc"}}>{cols.map((c,i)=><th key={i} style={{padding:"9px 12px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:12,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{c}</th>)}</tr></thead>;
 const TR = ({children,onClick,hi}) => { const[h,sH]=useState(false); return <tr onClick={onClick} onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)} style={{borderBottom:"1px solid #f1f5f9",background:hi?"#fffbeb":h?"#f8fafc":"#fff",cursor:onClick?"pointer":"default"}}>{children}</tr>; };
@@ -806,7 +806,7 @@ const CustForm = ({initial,user,onSave,onClose,onDelete}) => {
                   <div style={{display:"flex",gap:0}}>
                     <Inp value={""} placeholder={`Add note… (${today()})`}
                       onKeyDown={e=>{if(e.key==="Enter"&&e.target.value.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()}] ${e.target.value.trim()}`);e.target.value="";}}}
-                      style={{border:"none",borderRadius:0,background:"#fff",flex:1}}/>
+                      style={{borderRadius:0,background:"#fff",flex:1,border:"none",borderTop:"1px solid #f1f5f9"}}/>
                   </div>
                 </div>
               </FRow>
@@ -1638,13 +1638,13 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                   <div style={{display:"flex",gap:0}}>
                     <Inp value={""} placeholder={`Add note… (${today()})`}
                       onKeyDown={e=>{if(e.key==="Enter"&&e.target.value.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()}] ${e.target.value.trim()}`);e.target.value="";}}}
-                      style={{border:"none",borderRadius:0,background:"#fff",flex:1}}/>
+                      style={{borderRadius:0,background:"#fff",flex:1,border:"none",borderTop:"1px solid #f1f5f9"}}/>
                   </div>
                 </div>
               </FRow>
             </div>
           </G2>
-          <div style={{padding:12,borderRadius:6,background:+mg>=30?"#f0fdf4":"#fef2f2",border:`1px solid ${+mg>=30?"#86efac":"#fca5a5"}`,marginTop:4,display:"flex",gap:24,flexWrap:"wrap"}}>
+          <div style={{padding:12,borderRadius:6,background:+mg>=30?"#f0fdf4":"#fef2f2",border:`1px solid ${+mg>=30?"#86efac":"#fca5a5"}`,marginTop:4,display:"flex",gap:24,flexWrap:"wrap",justifyContent:"flex-end"}}>
             {[{l:"Total Cost",v:f.totalCost||0},{l:"Sales Price",v:f.salesPrice},{l:"Margin %",v:`${mg}%`,c:+mg>=30?"#16a34a":"#dc2626"},{l:"Margin ฿",v:marginAmt(f.salesPrice,f.totalCost||0),c:+mg>=30?"#16a34a":"#dc2626"}].map(x=>(
               <div key={x.l}><Span s={10} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block"}}>{x.l}</Span><div style={{fontWeight:900,fontSize:16,color:x.c||"#0f172a"}}>{typeof x.v==="number"?`฿${fmt(x.v)}`:x.v}</div></div>
             ))}
@@ -1657,7 +1657,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
         {initial&&onDelete&&<Btn variant="danger" style={{marginRight:"auto"}} onClick={()=>setDelConfirm(true)}>Delete</Btn>}
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn onClick={()=>onSave({...f,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""})}>{isWon?"Save & Auto-Create Delivery":"Save Opportunity"}</Btn>
+        <Btn onClick={()=>onSave({...f,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""})}>Save</Btn>
       </div>
 
       {delConfirm&&(
@@ -1887,7 +1887,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
             ))}
           </tr></thead>
           <tbody>{list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);const mAmt=marginAmt(o.salesPrice,o.totalCost||0);const oRank=o.ranking||"Medium";return(
-            <TR key={o.id} onClick={()=>{sE(o);sF(true);}}>
+            <TR key={o.id}>
               <TD style={{fontWeight:700,color:"#1e40af",fontFamily:"monospace",fontSize:12}}>{o.oppCode}</TD>
               <TD>
                 {o.quoteNo
@@ -1915,6 +1915,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
               <TD>{USERS.find(u=>u.id===o.assignedTo)?.name.split(" ")[0]||"-"}</TD>
               <TD>{oRank?<span style={{background:RANK_CLR[oRank]?.bg||"#f1f5f9",color:RANK_CLR[oRank]?.c||"#64748b",padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{oRank}</span>:"—"}</TD>
               <TD><button onClick={e=>{e.stopPropagation();sLog(o);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11}}> {o.activityLog?.length||0}</button></TD>
+              <TD><Btn variant="ghost" style={{fontSize:11,padding:"3px 10px"}} onClick={e=>{e.stopPropagation();sE(o);sF(true);}}>Edit</Btn></TD>
             </TR>
           );})}
           </tbody>
@@ -2131,7 +2132,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
                   <div style={{display:"flex",gap:0}}>
                     <Inp value={""} placeholder={`Add note… (${today()})`}
                       onKeyDown={e=>{if(e.key==="Enter"&&e.target.value.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()}] ${e.target.value.trim()}`);e.target.value="";}}}
-                      style={{border:"none",borderRadius:0,background:"#fff",flex:1}}/>
+                      style={{borderRadius:0,background:"#fff",flex:1,border:"none",borderTop:"1px solid #f1f5f9"}}/>
                   </div>
                 </div>
               </FRow>
