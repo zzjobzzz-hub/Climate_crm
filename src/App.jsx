@@ -981,7 +981,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
               <TD style={{color:getLastContact(c.id)?"#374151":"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{getLastContact(c.id)||"—"}</TD>
               <TD style={{color:"#64748b",fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.remark||"—"}</TD>
               <TD><button onClick={e=>{e.stopPropagation();sLog(c);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11}}> {(c.workLog||[]).length}</button></TD>
-              <TD>
+              <TD style={{overflow:"visible",whiteSpace:"nowrap"}}>
                 <Btn variant="ghost" style={{fontSize:11,padding:"3px 8px"}} onClick={e=>{e.stopPropagation();sE(c);sF(true);}}>Edit</Btn>
               </TD>
             </TR>
@@ -1609,12 +1609,12 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
       {tab==="detail"&&(
         <>
           <G2>
-<FRow label="OPP Code"><Inp value={f.oppCode} readOnly style={{border:"none",background:"transparent",fontFamily:"monospace",fontWeight:700,color:"#1e40af",cursor:"default"}}/></FRow>
+<FRow label="OPP Code"><Inp value={f.oppCode} readOnly style={{border:"none",background:"transparent",fontFamily:"monospace",fontWeight:400,color:"#1e40af",cursor:"default"}}/></FRow>
 <FRow label="Quote No."><Inp value={f.quoteNo} readOnly style={{border:"none",background:"transparent",fontFamily:"monospace",cursor:"default"}}/></FRow>
             {f.csCode&&<div style={{gridColumn:"1/-1"}}><FRow label="Cost Sheet & Pricing Code (CS Code)"><div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>{onSave({...f,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""});if(onGoToCS)onGoToCS(f.serviceCode);}} style={{fontFamily:"monospace",fontWeight:700,fontSize:13,background:"none",color:"#1e40af",padding:"4px 0",border:"none",cursor:"pointer",textDecoration:"underline"}}>{f.csCode}</button><Span s={11} c="#64748b">Click to open Cost Sheet (saves first)</Span></div></FRow></div>}
-            <div style={{gridColumn:"1/-1"}}><FRow label="Customer"><Inp value={customers.find(c=>c.id===f.custId)?.companyEN||f.custId} readOnly style={{border:"none",background:"transparent",fontWeight:600,cursor:"default"}}/></FRow></div>
+            <div style={{gridColumn:"1/-1"}}><FRow label="Customer"><Inp value={customers.find(c=>c.id===f.custId)?.companyEN||f.custId} readOnly style={{border:"none",background:"transparent",fontWeight:400,cursor:"default"}}/></FRow></div>
             <div style={{gridColumn:"1/-1"}}><FRow label="Service"><Inp value={`[${f.serviceCode}] ${f.serviceType}`} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow></div>
-            <FRow label="Sales Price (THB)"><Inp value={`฿${fmt(f.salesPrice)}`} readOnly style={{border:"none",background:"transparent",fontWeight:700,cursor:"default"}}/></FRow>
+            <FRow label="Sales Price (THB)"><Inp value={`฿${fmt(f.salesPrice)}`} readOnly style={{border:"none",background:"transparent",fontWeight:400,cursor:"default"}}/></FRow>
             <FRow label="Total Cost (THB)"><Inp value={`฿${fmt(f.totalCost||0)}`} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow>
             <FRow label="Status"><Sel value={f.status} onChange={e=>set("status",e.target.value)}>{OPP_STATUSES.map(s=><option key={s}>{s}</option>)}</Sel></FRow>
             <FRow label="Sales Agent"><Inp value={SALES_USERS.find(u=>u.id===f.assignedTo)?.name||f.assignedTo} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow>
@@ -1646,10 +1646,10 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
           </G2>
           <div style={{padding:12,borderRadius:6,background:+mg>=30?"#f0fdf4":"#fef2f2",border:`1px solid ${+mg>=30?"#86efac":"#fca5a5"}`,marginTop:4,display:"flex",gap:24,flexWrap:"wrap",justifyContent:"flex-end"}}>
             {[{l:"Total Cost",v:f.totalCost||0},{l:"Sales Price",v:f.salesPrice},{l:"Margin %",v:`${mg}%`,c:+mg>=30?"#16a34a":"#dc2626"},{l:"Margin ฿",v:marginAmt(f.salesPrice,f.totalCost||0),c:+mg>=30?"#16a34a":"#dc2626"}].map(x=>(
-              <div key={x.l}><Span s={10} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block"}}>{x.l}</Span><div style={{fontWeight:900,fontSize:16,color:x.c||"#0f172a"}}>{typeof x.v==="number"?`฿${fmt(x.v)}`:x.v}</div></div>
+              <div key={x.l}><Span s={10} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block"}}>{x.l}</Span><div style={{fontWeight:400,fontSize:14,color:x.c||"#0f172a"}}>{typeof x.v==="number"?`฿${fmt(x.v)}`:x.v}</div></div>
             ))}
           </div>
-          {isWon&&<div style={{marginTop:12,padding:14,background:"#f0fdf4",border:"1px solid #86efac",borderRadius:8,display:"flex",gap:12,alignItems:"center"}}><span style={{fontSize:22}}></span><div><Span s={13} w={700} c="#16a34a" style={{display:"block"}}>Deal Won! Job Code auto-assigned.</Span><div style={{fontFamily:"monospace",fontWeight:900,fontSize:17,color:"#0f172a",marginTop:2}}>{jobCode}</div></div></div>}
+          
         </>
       )}
       {tab==="log"&&<ActivityLog logs={f.activityLog||[]} currentUser={user} onAdd={entry=>sF(p=>({...p,activityLog:[...(p.activityLog||[]),entry]}))} placeholder="Log a call, meeting, email…"/>}
@@ -2175,7 +2175,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
           </div>
           <div style={{display:"flex",gap:16,marginTop:10,padding:"10px 14px",background:"#f8fafc",borderRadius:6,border:"1px solid #e2e8f0"}}>
             {[{l:"Contract Value",v:f.totalContractValue},{l:"Total Received",v:totalRec,c:"#16a34a"},{l:"Balance",v:f.totalContractValue-totalRec,c:"#d97706"}].map(x=>(
-              <div key={x.l}><Span s={11} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block"}}>{x.l}</Span><div style={{fontWeight:900,fontSize:16,color:x.c||"#0f172a"}}>฿{fmt(x.v)}</div></div>
+              <div key={x.l}><Span s={11} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block"}}>{x.l}</Span><div style={{fontWeight:400,fontSize:14,color:x.c||"#0f172a"}}>฿{fmt(x.v)}</div></div>
             ))}
           </div>
         </>
