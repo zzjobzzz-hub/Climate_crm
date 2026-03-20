@@ -2961,7 +2961,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                     </table>
                   </div>
                   <div>
-                    <Span s={13} w={700} c="#374151" style={{textTransform:"uppercase",letterSpacing:"0.07em"}} style={display:"block",marginBottom:6}>OPEX — Man-day Tasks</Span>
+                    <Span s={13} w={700} c="#374151" style={{textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:6}}>OPEX — Man-day Tasks</Span>
                     <TaskTableWidget tasks={q.tasks||[]} onSet={(tid,k,v)=>setQTK(q.id,tid,k,v)} onAdd={()=>addQTK(q.id)} onDel={tid=>delQTK(q.id,tid)} months={months}/>
                     <div style={{display:"flex",justifyContent:"space-between",marginTop:6,padding:"5px 2px",borderTop:"1px solid #e2e8f0"}}><Span s={11} w={700}>Total OPEX</Span><Span s={12} w={900}>฿{fmt(qOPEX)}</Span></div>
                   </div>
