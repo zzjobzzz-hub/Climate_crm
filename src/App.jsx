@@ -338,7 +338,7 @@ const ActivityLog = ({logs,currentUser,onAdd,placeholder="Add a note…"}) => {
         );})}
       </div>
 
-    </div>
+      <Txta value={note} onChange={e=>sN(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&note.trim()){onAdd({id:uid(),ts:nowTS(),author:currentUser.id,note:note.trim()});sN("");e.preventDefault();}}} placeholder={placeholder} style={{minHeight:44,fontSize:13,marginBottom:4}}/>
   );
 };
 
