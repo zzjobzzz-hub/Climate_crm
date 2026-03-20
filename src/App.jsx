@@ -350,17 +350,24 @@ const StepProgress = ({steps,current,onStep}) => {
   const idx = steps.indexOf(current);
   return (
     <div>
-      <div style={{display:"flex",gap:3,flexWrap:"wrap",marginBottom:8}}>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
         {steps.map((s,i) => { const past=i<idx,cur=i===idx; return (
-          <button key={s} onClick={()=>onStep&&onStep(s)} style={{padding:"4px 9px",borderRadius:20,fontSize:10,cursor:onStep?"pointer":"default",fontWeight:cur?800:400,border:"1.5px solid",background:cur?"#0f172a":past?"#dcfce7":"#f8fafc",color:cur?"#fff":past?"#16a34a":"#94a3b8",borderColor:cur?"#0f172a":past?"#86efac":"#e2e8f0"}}>
-            {past?" ":""}{s}
+          <button key={s} onClick={()=>onStep&&onStep(s)} style={{
+            padding:"7px 14px",borderRadius:6,fontSize:12,cursor:onStep?"pointer":"default",
+            fontWeight:cur?700:400,border:"1.5px solid",
+            background:cur?"#0f172a":past?"#f0fdf4":"#f8fafc",
+            color:cur?"#fff":past?"#16a34a":"#94a3b8",
+            borderColor:cur?"#0f172a":past?"#86efac":"#e2e8f0",
+            transition:"all .15s",
+          }}>
+            {past?"✓ ":cur?"▶ ":""}{s}
           </button>
         );})}
       </div>
-      <div style={{background:"#f1f5f9",borderRadius:4,height:5}}>
+      <div style={{background:"#f1f5f9",borderRadius:4,height:6}}>
         <div style={{background:"#16a34a",height:"100%",width:`${((idx+1)/steps.length)*100}%`,borderRadius:4,transition:"width .3s"}}/>
       </div>
-      <Span s={11} c="#94a3b8" style={{marginTop:3,display:"block"}}>Step {idx+1}/{steps.length}: {current}</Span>
+      <Span s={12} c="#64748b" style={{marginTop:4,display:"block"}}>Step {idx+1}/{steps.length} — {current}</Span>
     </div>
   );
 };
@@ -790,7 +797,20 @@ const CustForm = ({initial,user,onSave,onClose,onDelete}) => {
           <option value="">— Any —</option>
           {SALES_USERS.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
         </Sel></FRow>
-        <div style={{gridColumn:"1/-1"}}><FRow label="Remark"><Inp value={f.remark} onChange={e=>set("remark",e.target.value)}/></FRow></div>
+        <div style={{gridColumn:"1/-1"}}>
+              <FRow label="Note Log">
+                <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
+                  {f.remark&&[...f.remark.split("\n").filter(Boolean)].reverse().map((line,i)=>(
+                    <div key={i} style={{padding:"6px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa"}}>{line}</div>
+                  ))}
+                  <div style={{display:"flex",gap:0}}>
+                    <Inp value={""} placeholder={`Add note… (${today()})`}
+                      onKeyDown={e=>{if(e.key==="Enter"&&e.target.value.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()}] ${e.target.value.trim()}`);e.target.value="";}}}
+                      style={{border:"none",borderRadius:0,background:"#fff",flex:1}}/>
+                  </div>
+                </div>
+              </FRow>
+            </div>
       </G2>
       <Divider/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -1589,25 +1609,15 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
       {tab==="detail"&&(
         <>
           <G2>
-            <FRow label="OPP Code">
-              <div style={{display:"flex",gap:6}}>
-                <Inp value={f.oppCode} onChange={e=>set("oppCode",e.target.value)} style={{fontFamily:"monospace",fontWeight:700,color:"#1e40af"}}/>
-                <span style={{padding:"7px 8px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:5,fontSize:10,color:"#1e40af",whiteSpace:"nowrap",alignSelf:"center"}}>AUTO</span>
-              </div>
-            </FRow>
-            <FRow label="Quote No.">
-              <div style={{display:"flex",gap:6}}>
-                <Inp value={f.quoteNo} onChange={e=>set("quoteNo",e.target.value)} style={{fontFamily:"monospace"}}/>
-                <span style={{padding:"7px 8px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:5,fontSize:10,color:"#1e40af",whiteSpace:"nowrap",alignSelf:"center"}}>AUTO</span>
-              </div>
-            </FRow>
+<FRow label="OPP Code"><Inp value={f.oppCode} readOnly style={{border:"none",background:"transparent",fontFamily:"monospace",fontWeight:700,color:"#1e40af",cursor:"default"}}/></FRow>
+<FRow label="Quote No."><Inp value={f.quoteNo} readOnly style={{border:"none",background:"transparent",fontFamily:"monospace",cursor:"default"}}/></FRow>
             {f.csCode&&<div style={{gridColumn:"1/-1"}}><FRow label="Cost Sheet & Pricing Code (CS Code)"><div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>{onSave({...f,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""});if(onGoToCS)onGoToCS(f.serviceCode);}} style={{fontFamily:"monospace",fontWeight:700,fontSize:13,background:"none",color:"#1e40af",padding:"4px 0",border:"none",cursor:"pointer",textDecoration:"underline"}}>{f.csCode}</button><Span s={11} c="#64748b">Click to open Cost Sheet (saves first)</Span></div></FRow></div>}
-            <div style={{gridColumn:"1/-1"}}><FRow label="Customer"><Sel value={f.custId} onChange={e=>set("custId",e.target.value)}>{customers.map(c=><option key={c.id} value={c.id}>{c.companyEN}</option>)}</Sel></FRow></div>
-            <div style={{gridColumn:"1/-1"}}><FRow label="Service"><Sel value={f.serviceCode} onChange={e=>{const s=SERVICES.find(x=>x.code===e.target.value);set("serviceCode",e.target.value);set("serviceType",s?.name||"");set("salesPrice",s?.stdPrice||0);set("totalCost",s?.stdCost||0);}}>{SERVICES.map(s=><option key={s.code} value={s.code}>[{s.code}] {s.name}</option>)}</Sel></FRow></div>
-            <FRow label="Sales Price (THB)"><Inp type="number" value={f.salesPrice} onChange={e=>set("salesPrice",+e.target.value)}/></FRow>
-            <FRow label="Total Cost (THB)" tip="Auto-filled from Per-Quotation Cost Sheet"><Inp type="number" value={f.totalCost||0} onChange={e=>set("totalCost",+e.target.value)}/></FRow>
+            <div style={{gridColumn:"1/-1"}}><FRow label="Customer"><Inp value={customers.find(c=>c.id===f.custId)?.companyEN||f.custId} readOnly style={{border:"none",background:"transparent",fontWeight:600,cursor:"default"}}/></FRow></div>
+            <div style={{gridColumn:"1/-1"}}><FRow label="Service"><Inp value={`[${f.serviceCode}] ${f.serviceType}`} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow></div>
+            <FRow label="Sales Price (THB)"><Inp value={`฿${fmt(f.salesPrice)}`} readOnly style={{border:"none",background:"transparent",fontWeight:700,cursor:"default"}}/></FRow>
+            <FRow label="Total Cost (THB)"><Inp value={`฿${fmt(f.totalCost||0)}`} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow>
             <FRow label="Status"><Sel value={f.status} onChange={e=>set("status",e.target.value)}>{OPP_STATUSES.map(s=><option key={s}>{s}</option>)}</Sel></FRow>
-            <FRow label="Sales Agent"><Sel value={f.assignedTo} onChange={e=>set("assignedTo",e.target.value)}>{SALES_USERS.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</Sel></FRow>
+            <FRow label="Sales Agent"><Inp value={SALES_USERS.find(u=>u.id===f.assignedTo)?.name||f.assignedTo} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow>
             <FRow label="Ranking" tip="ระดับความสำคัญของ Opportunity นี้">
               <div style={{display:"flex",gap:6}}>
                 {["High","Medium","Low"].map(r=>{
@@ -1616,10 +1626,23 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                 })}
               </div>
             </FRow>
-            <FRow label="Created Date"><Inp type="date" value={f.createdDate} onChange={e=>set("createdDate",e.target.value)}/></FRow>
+            <FRow label="Created Date"><Inp value={fmtDate(f.createdDate)} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow>
             <div/>
             {isLost&&<div style={{gridColumn:"1/-1"}}><FRow label=" Lost Reason"><Sel value={f.lostReason} onChange={e=>set("lostReason",e.target.value)}><option value="">— Select Reason —</option>{LOST_REASONS.map(r=><option key={r}>{r}</option>)}</Sel></FRow></div>}
-            <div style={{gridColumn:"1/-1"}}><FRow label="Remark"><Inp value={f.remark} onChange={e=>set("remark",e.target.value)}/></FRow></div>
+            <div style={{gridColumn:"1/-1"}}>
+              <FRow label="Note Log">
+                <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
+                  {f.remark&&[...f.remark.split("\n").filter(Boolean)].reverse().map((line,i)=>(
+                    <div key={i} style={{padding:"6px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa"}}>{line}</div>
+                  ))}
+                  <div style={{display:"flex",gap:0}}>
+                    <Inp value={""} placeholder={`Add note… (${today()})`}
+                      onKeyDown={e=>{if(e.key==="Enter"&&e.target.value.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()}] ${e.target.value.trim()}`);e.target.value="";}}}
+                      style={{border:"none",borderRadius:0,background:"#fff",flex:1}}/>
+                  </div>
+                </div>
+              </FRow>
+            </div>
           </G2>
           <div style={{padding:12,borderRadius:6,background:+mg>=30?"#f0fdf4":"#fef2f2",border:`1px solid ${+mg>=30?"#86efac":"#fca5a5"}`,marginTop:4,display:"flex",gap:24,flexWrap:"wrap"}}>
             {[{l:"Total Cost",v:f.totalCost||0},{l:"Sales Price",v:f.salesPrice},{l:"Margin %",v:`${mg}%`,c:+mg>=30?"#16a34a":"#dc2626"},{l:"Margin ฿",v:marginAmt(f.salesPrice,f.totalCost||0),c:+mg>=30?"#16a34a":"#dc2626"}].map(x=>(
@@ -2099,7 +2122,20 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
             <FRow label="Delivery Date"><Inp type="date" value={f.deliveryDate} onChange={e=>set("deliveryDate",e.target.value)}/></FRow>
             <FRow label="Payment Term"><Sel value={f.paymentTerm} onChange={e=>set("paymentTerm",e.target.value)}>{["Cash","7 days","15 days","30 days","45 days","60 days"].map(v=><option key={v}>{v}</option>)}</Sel></FRow>
             <FRow label="Assigned Agent"><Sel value={f.assignedTo} onChange={e=>set("assignedTo",e.target.value)}>{USERS.filter(u=>u.role!=="operation").map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</Sel></FRow>
-            <div style={{gridColumn:"1/-1"}}><FRow label="Remark"><Inp value={f.remark} onChange={e=>set("remark",e.target.value)}/></FRow></div>
+            <div style={{gridColumn:"1/-1"}}>
+              <FRow label="Note Log">
+                <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
+                  {f.remark&&[...f.remark.split("\n").filter(Boolean)].reverse().map((line,i)=>(
+                    <div key={i} style={{padding:"6px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa"}}>{line}</div>
+                  ))}
+                  <div style={{display:"flex",gap:0}}>
+                    <Inp value={""} placeholder={`Add note… (${today()})`}
+                      onKeyDown={e=>{if(e.key==="Enter"&&e.target.value.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()}] ${e.target.value.trim()}`);e.target.value="";}}}
+                      style={{border:"none",borderRadius:0,background:"#fff",flex:1}}/>
+                  </div>
+                </div>
+              </FRow>
+            </div>
           </G2>
           <Divider/>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -2110,7 +2146,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
                 const oSync=opps.find(x=>x.quoteNo===f.quoteNo);
                 const inst=resolveInstallments(oSync,f.totalContractValue||0);
                 if(inst.length>0) sF(p=>({...p,installments:inst}));
-              }} style={{fontSize:10,color:"#1e40af",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:4,padding:"2px 9px",cursor:"pointer",whiteSpace:"nowrap"}}> Sync from Quotation</button>
+              }} style={{fontSize:10,color:"#94a3b8",background:"transparent",border:"none",padding:"2px 4px",cursor:"pointer",whiteSpace:"nowrap",textDecoration:"underline",textDecorationStyle:"dotted"}} title="Re-load installment schedule from the linked Quotation payment plan">Sync from Quotation</button>
             </div>
             <div style={{display:"flex",gap:10,alignItems:"center"}}>
               <Span s={12} w={700} c={Math.abs(totalPct-100)<.1?"#16a34a":"#dc2626"}>Total: {totalPct}% {Math.abs(totalPct-100)>.1?"":""}</Span>
@@ -2123,7 +2159,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
               <tbody>{(f.installments||[]).map((ins,idx)=>(
                 <tr key={ins.id} style={{borderBottom:"1px solid #f1f5f9"}}>
                   <TD><Span s={12} w={700} c="#94a3b8">#{ins.seq}</Span></TD>
-                  <TD><Inp value={ins.label} readOnly style={{padding:"4px 6px",fontSize:12,background:"#f8fafc",color:"#64748b",cursor:"default"}}/></TD>
+                  <TD><Inp value={ins.label} readOnly style={{padding:"4px 6px",fontSize:12,background:"transparent",border:"none",color:"#374151",cursor:"default"}}/></TD>
                   <TD><Inp type="number" value={ins.pct} onChange={e=>changeIns(idx,"pct",e.target.value)} style={{padding:"4px 6px",fontSize:12,width:55}}/></TD>
                   <TD><Inp type="number" value={ins.amount} onChange={e=>changeIns(idx,"amount",+e.target.value)} style={{padding:"4px 6px",fontSize:12,width:90,fontWeight:700}}/></TD>
                   <TD><Inp value={ins.invoiceNo} onChange={e=>changeIns(idx,"invoiceNo",e.target.value)} style={{padding:"4px 6px",fontSize:12}}/></TD>
@@ -2337,12 +2373,11 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
             <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:2}}>Delivery Date</Span>
             <input type="date" value={localD.deliveryDate||""} onChange={e=>markDirty({...localD,deliveryDate:e.target.value})} style={{fontSize:12,border:"1px solid #e2e8f0",borderRadius:4,padding:"3px 7px",background:"#fafafa",width:130}}/>
           </div>
-        </div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
+          <div style={{width:1,height:32,background:"#e2e8f0",flexShrink:0,alignSelf:"center"}}/>
           {[{l:"Contract",v:d.totalContractValue,bg:"#fff",bc:"#e2e8f0",c:"#0f172a"},{l:"Received",v:totalRec,bg:"#f0fdf4",bc:"#86efac",c:"#16a34a"},{l:"Balance",v:d.totalContractValue-totalRec,bg:"#fffbeb",bc:"#fde68a",c:"#d97706"}].map(x=>(
-            <div key={x.l} style={{textAlign:"center",padding:"7px 14px",background:x.bg,border:`1px solid ${x.bc}`,borderRadius:7}}>
-              <Span s={10} c={x.c} style={{display:"block",marginBottom:2}}>{x.l}</Span>
-              <div style={{fontWeight:900,fontSize:14,color:x.c}}>฿{fmt(x.v)}</div>
+            <div key={x.l} style={{textAlign:"center",padding:"5px 12px",background:x.bg,border:`1px solid ${x.bc}`,borderRadius:7,flexShrink:0}}>
+              <Span s={9} c={x.c} style={{display:"block",marginBottom:1}}>{x.l}</Span>
+              <div style={{fontWeight:900,fontSize:13,color:x.c}}>฿{fmt(x.v)}</div>
             </div>
           ))}
         </div>
@@ -2359,9 +2394,6 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
           {stepExp&&(
             <div style={{padding:"12px 14px",borderTop:"1px solid #e2e8f0"}}>
               <StepProgress steps={DLV_STEPS} current={localD.currentStep||DLV_STEPS[0]} onStep={s=>set("currentStep",s)}/>
-              <select value={localD.currentStep} onChange={e=>set("currentStep",e.target.value)} style={{marginTop:8,fontSize:12,padding:"5px 8px",border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer"}}>
-                {DLV_STEPS.map(s=><option key={s}>{s}</option>)}
-              </select>
             </div>
           )}
         </div>
@@ -2400,8 +2432,8 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
         <div style={{padding:"8px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#f8fafc",borderBottom:"1px solid #e2e8f0"}}>
           <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
             <Span s={12} w={700}>Installment Schedule</Span>
-            <Span s={11} c="#94a3b8">Synced from Per-Q Cost Sheet</Span>
-            {(localD.quoteNo||d.quoteNo)&&<button onClick={syncInst} style={{fontSize:10,color:"#1e40af",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:4,padding:"2px 9px",cursor:"pointer",whiteSpace:"nowrap"}}> Sync from Quotation</button>}
+            
+            
           </div>
           <Span s={11} w={700} c={Math.abs(totalPct-100)<0.1?"#16a34a":"#dc2626"}>{totalPct}% {Math.abs(totalPct-100)<0.1?"":""}</Span>
         </div>
@@ -2412,7 +2444,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
               {localInst.map(ins=>(
                 <TR key={ins.id}>
                   <TD><Span s={12} w={700} c="#94a3b8">#{ins.seq}</Span></TD>
-                  <TD><input value={ins.label||""} readOnly style={{width:"100%",padding:"3px 6px",fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:"#f8fafc",color:"#64748b",cursor:"default"}}/></TD>
+                  <TD><input value={ins.label||""} readOnly style={{width:"100%",padding:"3px 6px",fontSize:11,border:"none",background:"transparent",color:"#374151",cursor:"default",outline:"none"}}/></TD>
                   <TD style={{whiteSpace:"nowrap"}}><input type="number" value={ins.pct} onChange={e=>changeLocalIns(ins.id,"pct",e.target.value)} style={{width:48,padding:"3px 5px",fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",textAlign:"right"}}/><span style={{fontSize:10,color:"#94a3b8",marginLeft:2}}>%</span></TD>
                   <TD right style={{fontWeight:700,whiteSpace:"nowrap"}}>฿{fmt(ins.amount)}</TD>
                   <TD><input value={ins.invoiceNo||""} onChange={e=>changeLocalIns(ins.id,"invoiceNo",e.target.value)} style={{width:"100%",padding:"3px 6px",fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",fontFamily:"monospace"}}/></TD>
@@ -2778,7 +2810,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
               <Span s={16} w={800} c="#0f172a" style={{display:"block",marginBottom:2}}>
                 Per-Quotation Cost Sheet{(editCS.quoteOverrides||[]).length>0?`: ${editCS.quoteOverrides[0].csCode}`:""}
               </Span>
-              <Span s={12} c="#94a3b8">สร้าง CS Code อัตโนมัติ 1 ใบต่อ 1 ใบเสนอราคา — เมื่อบันทึก ระบบจะสร้าง Opportunity พร้อมต้นทุนจริงให้อัตโนมัติ</Span>
+              <Span s={12} c="#94a3b8">One CS Code per quotation — auto-generated. Save to create an Opportunity with actual cost automatically.</Span>
             </div>
             {(editCS.quoteOverrides||[]).length===0&&<Btn onClick={addQO}>+ New Quotation</Btn>}
           </div>
@@ -3027,11 +3059,11 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                 {/*  PROJECT SCOPE (full width)  */}
                 <div style={{padding:"0 20px 16px",borderTop:"1px solid #f1f5f9"}}>
                   <div style={{marginTop:14,marginBottom:12}}>
-                    <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Service Description</Span><Span s={11} c="#94a3b8">— ชื่อโครงการที่จะปรากฏใน Quotation</Span></div>
+                    <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Service Description</Span><Span s={11} c="#94a3b8">— Project title as it will appear in the Quotation</Span></div>
                     <Inp value={q.projectTitle||""} onChange={e=>setQF(q.id,"projectTitle",e.target.value)} placeholder="" style={{fontSize:12}}/>
                   </div>
                   <div>
-                    <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Project Scope</Span><Span s={11} c="#94a3b8">— รายละเอียดขอบเขต เช่น Project Address, Boundary, Base Year</Span></div>
+                    <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Project Scope</Span><Span s={11} c="#94a3b8">— Scope details e.g. Project Address, Boundary, Base Year</Span></div>
                     <Txta value={q.projectScope||""} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder="" style={{minHeight:80,fontSize:12}}/>
                   </div>
                 </div>
