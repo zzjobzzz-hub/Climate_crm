@@ -1609,12 +1609,12 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
       {tab==="detail"&&(
         <>
           <G2>
-<FRow label="OPP Code"><Inp value={f.oppCode} readOnly style={{border:"none",background:"transparent",fontFamily:"monospace",fontWeight:400,color:"#1e40af",cursor:"default"}}/></FRow>
+<FRow label="OPP Code"><Inp value={f.oppCode} readOnly style={{border:"none",background:"transparent",fontFamily:"monospace",fontWeight:600,color:"#1e40af",cursor:"default"}}/></FRow>
 <FRow label="Quote No."><Inp value={f.quoteNo} readOnly style={{border:"none",background:"transparent",fontFamily:"monospace",cursor:"default"}}/></FRow>
             {f.csCode&&<div style={{gridColumn:"1/-1"}}><FRow label="Cost Sheet & Pricing Code (CS Code)"><div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>{onSave({...f,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""});if(onGoToCS)onGoToCS(f.serviceCode);}} style={{fontFamily:"monospace",fontWeight:700,fontSize:13,background:"none",color:"#1e40af",padding:"4px 0",border:"none",cursor:"pointer",textDecoration:"underline"}}>{f.csCode}</button><Span s={11} c="#64748b">Click to open Cost Sheet (saves first)</Span></div></FRow></div>}
-            <div style={{gridColumn:"1/-1"}}><FRow label="Customer"><Inp value={customers.find(c=>c.id===f.custId)?.companyEN||f.custId} readOnly style={{border:"none",background:"transparent",fontWeight:400,cursor:"default"}}/></FRow></div>
+            <div style={{gridColumn:"1/-1"}}><FRow label="Customer"><Inp value={customers.find(c=>c.id===f.custId)?.companyEN||f.custId} readOnly style={{border:"none",background:"transparent",fontWeight:600,cursor:"default"}}/></FRow></div>
             <div style={{gridColumn:"1/-1"}}><FRow label="Service"><Inp value={`[${f.serviceCode}] ${f.serviceType}`} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow></div>
-            <FRow label="Sales Price (THB)"><Inp value={`฿${fmt(f.salesPrice)}`} readOnly style={{border:"none",background:"transparent",fontWeight:400,cursor:"default"}}/></FRow>
+            <FRow label="Sales Price (THB)"><Inp value={`฿${fmt(f.salesPrice)}`} readOnly style={{border:"none",background:"transparent",fontWeight:600,cursor:"default"}}/></FRow>
             <FRow label="Total Cost (THB)"><Inp value={`฿${fmt(f.totalCost||0)}`} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow>
             <FRow label="Status"><Sel value={f.status} onChange={e=>set("status",e.target.value)}>{OPP_STATUSES.map(s=><option key={s}>{s}</option>)}</Sel></FRow>
             <FRow label="Sales Agent"><Inp value={SALES_USERS.find(u=>u.id===f.assignedTo)?.name||f.assignedTo} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow>
