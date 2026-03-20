@@ -364,10 +364,7 @@ const StepProgress = ({steps,current,onStep}) => {
           </button>
         );})}
       </div>
-      <div style={{background:"#f1f5f9",borderRadius:4,height:6}}>
-        <div style={{background:"#16a34a",height:"100%",width:`${((idx+1)/steps.length)*100}%`,borderRadius:4,transition:"width .3s"}}/>
-      </div>
-      <Span s={12} c="#64748b" style={{marginTop:4,display:"block"}}>Step {idx+1}/{steps.length} — {current}</Span>
+
     </div>
   );
 };
@@ -2383,33 +2380,26 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
           ))}
         </div>
 
-        {/* Progress Steps */}
-        <div style={{marginTop:12,background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,overflow:"hidden"}}>
-          <div style={{padding:"9px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",background:stepExp?"#f1f5f9":"#fff"}} onClick={()=>setStepExp(p=>!p)}>
-            <Span s={12} w={700}>Progress Steps</Span>
-            <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              <Span s={11} c="#64748b">{localD.currentStep}</Span>
-              <span style={{fontSize:11,color:"#94a3b8"}}>{stepExp?"▲":"▼"}</span>
+        {/* Progress Steps + Work Log side by side */}
+        <div style={{marginTop:12,display:"grid",gridTemplateColumns:"1fr auto",gap:12,alignItems:"start"}}>
+          <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,overflow:"hidden"}}>
+            <div style={{padding:"9px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <Span s={12} w={700}>Progress Steps</Span>
+              <Span s={11} c="#64748b">Step {DLV_STEPS.indexOf(localD.currentStep||DLV_STEPS[0])+1}/{DLV_STEPS.length} — {localD.currentStep||DLV_STEPS[0]}</Span>
             </div>
-          </div>
-          {stepExp&&(
-            <div style={{padding:"12px 14px",borderTop:"1px solid #e2e8f0"}}>
+            <div style={{padding:"8px 14px 12px",borderTop:"1px solid #f1f5f9"}}>
               <StepProgress steps={DLV_STEPS} current={localD.currentStep||DLV_STEPS[0]} onStep={s=>set("currentStep",s)}/>
             </div>
-          )}
+          </div>
+          <button onClick={e=>{e.stopPropagation();setLogExp(p=>!p);}} style={{padding:"7px 14px",border:"1px solid #e2e8f0",borderRadius:7,background:"#fff",cursor:"pointer",fontSize:12,fontWeight:600,color:"#374151",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6}}>
+            💬 Work Log <span style={{background:"#f1f5f9",color:"#64748b",fontSize:11,padding:"1px 7px",borderRadius:10,fontWeight:700}}>{(d.workLog||[]).length}</span>
+          </button>
         </div>
 
-        {/* Work Log — saves immediately */}
-        <div style={{marginTop:8,background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,overflow:"hidden"}}>
-          <div style={{padding:"9px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",background:logExp?"#f1f5f9":"#fff"}} onClick={()=>setLogExp(p=>!p)}>
-            <Span s={12} w={700}>Work Log ({(d.workLog||[]).length})</Span>
-            <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              {(d.workLog||[]).length>0&&<Span s={11} c="#64748b">{[...(d.workLog||[])].slice(-1)[0]?.note?.slice(0,44)}</Span>}
-              <span style={{fontSize:12,color:"#94a3b8"}}>{logExp?"":""}</span>
-            </div>
-          </div>
-          {logExp&&(
-            <div style={{padding:"12px 14px",borderTop:"1px solid #e2e8f0"}}>
+        {/* Work Log modal-style dropdown */}
+        {logExp&&(
+          <div style={{marginTop:8,background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,overflow:"hidden"}}>
+            <div style={{padding:"12px 14px"}}>
               <div style={{maxHeight:180,overflow:"auto",display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
                 {[...(d.workLog||[])].reverse().map(l=>{const u=USERS.find(x=>x.id===l.author);return(
                   <div key={l.id} style={{padding:"7px 10px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:5,display:"flex",gap:8}}>
@@ -2424,8 +2414,8 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
                 <button onClick={addLog} style={{padding:"6px 14px",background:"#0f172a",color:"#fff",border:"none",borderRadius:5,fontSize:12,cursor:"pointer"}}>+ Add</button>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Installment Schedule */}
