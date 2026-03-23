@@ -1555,7 +1555,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
         {/* SECTION 4: NOTES */}
         <div style={{marginBottom:12}}>
           <SH n="4" label="Notes &amp; Conditions"/>
-          <div style={{fontSize:10.5,color:"#374151",background:"#fafafa",border:"1px solid #e2e8f0",borderRadius:5,padding:"8px 12px",whiteSpace:"pre-wrap",lineHeight:1.7}}>{f.notes||"—"}</div>
+          <div style={{fontSize:10.5,color:"#374151",background:"#fafafa",border:"1px solid #e2e8f0",borderRadius:5,padding:"8px 12px",whiteSpace:"pre-wrap",lineHeight:1.7}}>{f.notes||""}</div>
         </div>
 
         {/* SIGNATURE BLOCK */}
