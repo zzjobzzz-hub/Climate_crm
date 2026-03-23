@@ -2520,7 +2520,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
 };
 
 //  TaskRow: isolated component so taskName input retains focus on keystroke 
-const TaskRow = React.memo(({t,onSet,onDel,months,dragStyle,onDragStart,onDragEnter,onDragEnd}) => {
+const TaskRow = React.memo(({t,onSet,onDel,months}) => {
   const [name,setName]         = useState(t.taskName);
   const [agentOpen,setAO]      = useState(false);
   useEffect(()=>{ setName(t.taskName); },[t.taskName]);
@@ -2537,8 +2537,7 @@ const TaskRow = React.memo(({t,onSet,onDel,months,dragStyle,onDragStart,onDragEn
 
   return (
     <>
-      <tr draggable onDragStart={onDragStart||undefined} onDragEnter={onDragEnter||undefined} onDragEnd={onDragEnd||undefined} onDragOver={e=>e.preventDefault()} style={{borderBottom:agentOpen?"none":"1px solid #f8fafc",cursor:"default",...(dragStyle||{})}}>
-        <td style={{padding:"3px 4px",cursor:"grab",color:"#94a3b8",userSelect:"none",textAlign:"center",fontSize:12}}>⠿</td>
+      <tr style={{borderBottom:agentOpen?"none":"1px solid #f8fafc"}}>
         <td style={{padding:"3px 4px"}}>
           <input value={name}
             onChange={e=>setName(e.target.value)}
@@ -2601,17 +2600,16 @@ const TaskRow = React.memo(({t,onSet,onDel,months,dragStyle,onDragStart,onDragEn
 });
 
 //  TaskTableWidget: standalone table, uses TaskRow to prevent focus loss 
-const TaskTableWidget = ({tasks,onSet,onAdd,onDel,onReorder,dragProps,months}) => (
+const TaskTableWidget = ({tasks,onSet,onAdd,onDel,months}) => (
     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
-      <colgroup><col style={{width:"20px"}}/><col style={{width:"36%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"10%"}}/><col style={{width:"9%"}}/><col style={{width:"13%"}}/></colgroup>
+      <colgroup><col style={{width:"40%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"11%"}}/><col style={{width:"9%"}}/><col style={{width:"13%"}}/></colgroup>
       <thead><tr style={{background:"#f8fafc"}}>
-        <th style={{padding:"5px 4px",borderBottom:"1px solid #e2e8f0"}}/>
         {["Task / Activity","Mgr (days)","Sr (days)","Jr (days)","Total Cost","Pay Month","Agents / Actions"].map(h=><th key={h} style={{padding:"5px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:9,borderBottom:"1px solid #e2e8f0"}}>{h}</th>)}
       </tr></thead>
       <tbody>
-        {(tasks||[]).map(t=><TaskRow key={t.id} t={t} onSet={onSet} onDel={onDel} onReorder={onReorder} months={months} dragStyle={dragProps?dragProps.getRowStyle(t.id):{}} onDragStart={dragProps?()=>dragProps.handleDragStart(t.id):null} onDragEnter={dragProps?()=>dragProps.handleDragEnter(t.id):null} onDragEnd={dragProps?dragProps.handleDragEnd:null}/>)}
+        {(tasks||[]).map(t=><TaskRow key={t.id} t={t} onSet={onSet} onDel={onDel} months={months}/>)}
         {/* +Task button on left under Task/Activity column */}
-        <tr><td/><td style={{padding:"4px 4px"}}><button onClick={onAdd} style={{fontSize:13,color:"#1e40af",background:"transparent",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 14px",cursor:"pointer",fontWeight:600}}>+ Task</button></td><td colSpan={5} style={{padding:"4px 6px",fontWeight:700,fontSize:11,textAlign:"right"}}>Total OPEX: <span style={{fontWeight:900,fontSize:12}}>฿{fmt((tasks||[]).reduce((s,t)=>(s+(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior),0))}</span></td><td/></tr>
+        <tr><td style={{padding:"4px 4px"}}><button onClick={onAdd} style={{fontSize:13,color:"#1e40af",background:"transparent",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 14px",cursor:"pointer",fontWeight:600}}>+ Task</button></td><td colSpan={5} style={{padding:"4px 6px",fontWeight:700,fontSize:11,textAlign:"right"}}>Total OPEX: <span style={{fontWeight:900,fontSize:12}}>฿{fmt((tasks||[]).reduce((s,t)=>(s+(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior),0))}</span></td><td/></tr>
       </tbody>
     </table>
 );
@@ -2619,41 +2617,17 @@ const TaskTableWidget = ({tasks,onSet,onAdd,onDel,onReorder,dragProps,months}) =
 // 
 // Smooth drag-to-sort hook
 // 
-const useDragSort = (items, onReorder) => {
-  const [dragging, setDragging] = React.useState(null); // id being dragged
-  const [over, setOver] = React.useState(null); // id being hovered over
 
-  const handleDragStart = (id) => setDragging(id);
-  const handleDragEnter = (id) => { if(id !== dragging) setOver(id); };
-  const handleDragEnd = () => {
-    if(dragging && over && dragging !== over) onReorder(dragging, over);
-    setDragging(null); setOver(null);
-  };
-
-  const getRowStyle = (id) => ({
-    opacity: id === dragging ? 0.4 : 1,
-    background: id === over ? "#eff6ff" : "",
-    transition: "background .1s, opacity .1s",
-    transform: id === over ? "scaleY(1.03)" : "scaleY(1)",
-    transformOrigin: "top",
-  });
-
-  return { dragging, over, handleDragStart, handleDragEnter, handleDragEnd, getRowStyle };
-};
 
 // 
 // COST SHEET (COGS + OPEX + Cashflow)
 // 
-const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQInst,setQDlv,addQEC,addQTK,addQInst,addQDlv,delQIC,delQEC,delQTK,delQO,reorderCOGS,reorderQTK,updQO,handleSave}) => {
+const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQInst,setQDlv,addQEC,addQTK,addQInst,addQDlv,delQIC,delQEC,delQTK,delQO,updQO,handleSave}) => {
   const qIC=calcIC(q.internalCosts||[]),qEC=calcEC(q.externalCosts||[],true),qOPEX=calcTask(q.tasks||[]);
   const qTC=qIC+qEC+qOPEX,qMg=margin(q.salesPrice,qTC);
   const months=q.projectMonths||editCS.projectMonths||3;
   const instSum=(q.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
-  const cogsDrag = useDragSort(
-    [...(q.internalCosts||[]),...(q.externalCosts||[])],
-    (fid,tid)=>reorderCOGS(q.id,fid,tid)
-  );
-  const taskDrag = useDragSort(q.tasks||[],(fid,tid)=>reorderQTK(q.id,fid,tid));
+
   return (
               <Card key={q.id} style={{marginBottom:14,overflow:"hidden",position:"relative"}}>
                 {/* Header row — single line, no wrap */}
@@ -2723,12 +2697,11 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                       <Span s={11} w={700}>COGS</Span>
                     </div>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
-                      <colgroup><col style={{width:"24px"}}/><col style={{width:"25%"}}/><col style={{width:"12%"}}/><col style={{width:"8%"}}/><col style={{width:"7%"}}/><col style={{width:"12%"}}/><col style={{width:"11%"}}/><col style={{width:"8%"}}/><col style={{width:"4%"}}/></colgroup>
-                      <TH cols={["","Label","Vendor","Unit","Qty","Rate","Total","Pay M.",""]}/>
+                      <colgroup><col style={{width:"27%"}}/><col style={{width:"13%"}}/><col style={{width:"8%"}}/><col style={{width:"7%"}}/><col style={{width:"13%"}}/><col style={{width:"12%"}}/><col style={{width:"8%"}}/><col style={{width:"4%"}}/></colgroup>
+                      <TH cols={["Label","Vendor","Unit","Qty","Rate","Total","Pay M.",""]}/>
                       <tbody>
                         {(q.internalCosts||[]).map(r=>(
-                          <tr key={r.id} draggable onDragStart={()=>cogsDrag.handleDragStart(r.id)} onDragEnter={()=>cogsDrag.handleDragEnter(r.id)} onDragEnd={cogsDrag.handleDragEnd} onDragOver={e=>e.preventDefault()} style={{borderBottom:"1px solid #f8fafc",cursor:"default",...cogsDrag.getRowStyle(r.id)}}>
-                            <td style={{padding:"3px 4px",cursor:"grab",color:"#94a3b8",userSelect:"none",textAlign:"center",fontSize:12}}>⠿</td>
+                          <tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
                             <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQIC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px",fontSize:11,color:"#94a3b8",textAlign:"center"}}>—</td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.unit} onChange={e=>setQIC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
@@ -2744,8 +2717,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                           </tr>
                         ))}
                         {(q.externalCosts||[]).map(r=>(
-                          <tr key={r.id} draggable onDragStart={()=>cogsDrag.handleDragStart(r.id)} onDragEnter={()=>cogsDrag.handleDragEnter(r.id)} onDragEnd={cogsDrag.handleDragEnd} onDragOver={e=>e.preventDefault()} style={{borderBottom:"1px solid #f8fafc",cursor:"default",...cogsDrag.getRowStyle(r.id)}}>
-                            <td style={{padding:"3px 4px",cursor:"grab",color:"#94a3b8",userSelect:"none",textAlign:"center",fontSize:12}}>⠿</td>
+                          <tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
                             <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQEC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.vendorName||""} onChange={e=>setQEC(q.id,r.id,"vendorName",e.target.value)} placeholder="Vendor" style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.unit||""} onChange={e=>setQEC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
@@ -2956,26 +2928,14 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
   const setQTK=(qid,tid,k,v)=>updQO(qid,q=>({...q,tasks:(q.tasks||[]).map(t=>t.id===tid?{...t,[k]:v}:t)}));
   const addQTK=qid=>updQO(qid,q=>({...q,tasks:[...(q.tasks||[]),{id:uid(),taskName:"",manager:0,senior:0,junior:0,payMonth:1,agents:[]}]}));
   const delQTK=(qid,tid)=>updQO(qid,q=>({...q,tasks:(q.tasks||[]).filter(t=>t.id!==tid)}));
-  const reorderQTK=(qid,fromId,toId)=>updQO(qid,q=>{
-    const arr=[...(q.tasks||[])];
-    const fi=arr.findIndex(t=>t.id===fromId); const ti=arr.findIndex(t=>t.id===toId);
-    if(fi<0||ti<0||fi===ti) return q;
-    arr.splice(ti,0,arr.splice(fi,1)[0]);
-    return {...q,tasks:arr};
-  });
+
   const setQIC=(qid,rid,k,v)=>updQO(qid,q=>({...q,internalCosts:(q.internalCosts||[]).map(r=>r.id===rid?{...r,[k]:v}:r)}));
   const addQIC=qid=>updQO(qid,q=>({...q,internalCosts:[...(q.internalCosts||[]),{id:uid(),label:"",unit:"Unit",qty:0,rate:0,payMonth:1}]}));
   const delQIC=(qid,rid)=>updQO(qid,q=>({...q,internalCosts:(q.internalCosts||[]).filter(r=>r.id!==rid)}));
   const setQEC=(qid,rid,k,v)=>updQO(qid,q=>({...q,externalCosts:(q.externalCosts||[]).map(r=>r.id===rid?{...r,[k]:v}:r)}));
   const addQEC=qid=>updQO(qid,q=>({...q,externalCosts:[...(q.externalCosts||[]),{id:uid(),label:"",unit:"Job",qty:0,rate:0,vendorName:"",clientBorne:false,payMonth:1}]}));
   const delQEC=(qid,rid)=>updQO(qid,q=>({...q,externalCosts:(q.externalCosts||[]).filter(r=>r.id!==rid)}));
-  const reorderCOGS=(qid,fromId,toId)=>updQO(qid,q=>{
-    const all=[...(q.internalCosts||[]).map(r=>({...r,_t:"i"})),...(q.externalCosts||[]).map(r=>({...r,_t:"e"}))];
-    const fi=all.findIndex(r=>r.id===fromId); const ti=all.findIndex(r=>r.id===toId);
-    if(fi<0||ti<0||fi===ti) return q;
-    const reordered=[...all]; reordered.splice(ti,0,reordered.splice(fi,1)[0]);
-    return {...q,internalCosts:reordered.filter(r=>r._t==="i").map(({_t,...r})=>r),externalCosts:reordered.filter(r=>r._t==="e").map(({_t,...r})=>r)};
-  });
+
   const setQInst=(qid,iid,k,v)=>updQO(qid,q=>({...q,installments:(q.installments||[]).map(i=>i.id===iid?{...i,[k]:v}:i)}));
   const addQInst=qid=>updQO(qid,q=>({...q,installments:[...(q.installments||[]),{id:uid(),seq:(q.installments||[]).length+1,label:"",pct:0,detail:"",recvMonth:1}]}));
   const delQInst=(qid,iid)=>updQO(qid,q=>({...q,installments:(q.installments||[]).filter(i=>i.id!==iid)}));
@@ -3151,7 +3111,6 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
               setQF={setQF} setQIC={setQIC} setQEC={setQEC} setQTK={setQTK} setQInst={setQInst} setQDlv={setQDlv}
               addQEC={addQEC} addQTK={addQTK} addQInst={addQInst} addQDlv={addQDlv}
               delQIC={delQIC} delQEC={delQEC} delQTK={delQTK} delQO={delQO}
-              reorderCOGS={reorderCOGS} reorderQTK={reorderQTK}
               updQO={updQO} handleSave={handleSave}
             />
           ))}
