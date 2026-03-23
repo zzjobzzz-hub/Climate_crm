@@ -2538,7 +2538,7 @@ const TaskRow = React.memo(({t,onSet,onDel,months,dragStyle,onDragStart,onDragEn
   return (
     <>
       <tr draggable onDragStart={onDragStart||undefined} onDragEnter={onDragEnter||undefined} onDragEnd={onDragEnd||undefined} onDragOver={e=>e.preventDefault()} style={{borderBottom:agentOpen?"none":"1px solid #f8fafc",cursor:"default",...(dragStyle||{})}}>
-        <td style={{padding:"3px 4px",cursor:"grab",color:"#94a3b8",userSelect:"none",textAlign:"center",fontSize:16,transition:"color .15s"}} onMouseEnter={e=>e.currentTarget.style.color="#475569"} onMouseLeave={e=>e.currentTarget.style.color="#94a3b8"}>⠿</td>
+        <td style={{padding:"3px 4px",cursor:"grab",color:"#94a3b8",userSelect:"none",textAlign:"center",fontSize:12}}>⠿</td>
         <td style={{padding:"3px 4px"}}>
           <input value={name}
             onChange={e=>setName(e.target.value)}
@@ -2954,7 +2954,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                       <tbody>
                         {(q.internalCosts||[]).map(r=>(
                           <tr key={r.id} draggable onDragStart={()=>cogsDrag.handleDragStart(r.id)} onDragEnter={()=>cogsDrag.handleDragEnter(r.id)} onDragEnd={cogsDrag.handleDragEnd} onDragOver={e=>e.preventDefault()} style={{borderBottom:"1px solid #f8fafc",cursor:"default",...cogsDrag.getRowStyle(r.id)}}>
-                            <td style={{padding:"3px 4px",cursor:"grab",color:"#94a3b8",userSelect:"none",textAlign:"center",fontSize:16}}>⠿</td>
+                            <td style={{padding:"3px 4px",cursor:"grab",color:"#94a3b8",userSelect:"none",textAlign:"center",fontSize:12}}>⠿</td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQIC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px",fontSize:13,color:"#94a3b8",textAlign:"center"}}>—</td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.unit} onChange={e=>setQIC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
@@ -2971,7 +2971,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                         ))}
                         {(q.externalCosts||[]).map(r=>(
                           <tr key={r.id} draggable onDragStart={()=>cogsDrag.handleDragStart(r.id)} onDragEnter={()=>cogsDrag.handleDragEnter(r.id)} onDragEnd={cogsDrag.handleDragEnd} onDragOver={e=>e.preventDefault()} style={{borderBottom:"1px solid #f8fafc",cursor:"default",...cogsDrag.getRowStyle(r.id)}}>
-                            <td style={{padding:"3px 4px",cursor:"grab",color:"#94a3b8",userSelect:"none",textAlign:"center",fontSize:16}}>⠿</td>
+                            <td style={{padding:"3px 4px",cursor:"grab",color:"#94a3b8",userSelect:"none",textAlign:"center",fontSize:12}}>⠿</td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQEC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.vendorName||""} onChange={e=>setQEC(q.id,r.id,"vendorName",e.target.value)} placeholder="Vendor" style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.unit||""} onChange={e=>setQEC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
