@@ -2655,10 +2655,6 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
   );
   const taskDrag = useDragSort(q.tasks||[],(fid,tid)=>reorderQTK(q.id,fid,tid));
   return (
-            const qTC=qIC+qEC+qOPEX,qMg=margin(q.salesPrice,qTC);
-            const months=q.projectMonths||editCS.projectMonths||3;
-            const instSum=(q.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
-            return (
               <Card key={q.id} style={{marginBottom:14,overflow:"hidden",position:"relative"}}>
                 {/* Header row — single line, no wrap */}
                 <div style={{padding:"10px 16px",background:+qMg>=30?"#f0fdf4":"#fffbeb",borderBottom:"1px solid #e2e8f0",display:"flex",gap:8,alignItems:"center",flexWrap:"nowrap",overflow:"hidden"}}>
