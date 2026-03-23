@@ -2644,6 +2644,286 @@ const useDragSort = (items, onReorder) => {
 // 
 // COST SHEET (COGS + OPEX + Cashflow)
 // 
+const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQInst,setQDlv,addQEC,addQTK,addQInst,addQDlv,delQIC,delQEC,delQTK,delQO,reorderCOGS,reorderQTK,updQO,handleSave}) => {
+  const qIC=calcIC(q.internalCosts||[]),qEC=calcEC(q.externalCosts||[],true),qOPEX=calcTask(q.tasks||[]);
+  const qTC=qIC+qEC+qOPEX,qMg=margin(q.salesPrice,qTC);
+  const months=q.projectMonths||editCS.projectMonths||3;
+  const instSum=(q.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
+  const cogsDrag = useDragSort(
+    [...(q.internalCosts||[]),...(q.externalCosts||[])],
+    (fid,tid)=>reorderCOGS(q.id,fid,tid)
+  );
+  const taskDrag = useDragSort(q.tasks||[],(fid,tid)=>reorderQTK(q.id,fid,tid));
+  return (
+            const qTC=qIC+qEC+qOPEX,qMg=margin(q.salesPrice,qTC);
+            const months=q.projectMonths||editCS.projectMonths||3;
+            const instSum=(q.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
+            return (
+              <Card key={q.id} style={{marginBottom:14,overflow:"hidden",position:"relative"}}>
+                {/* Header row — single line, no wrap */}
+                <div style={{padding:"10px 16px",background:+qMg>=30?"#f0fdf4":"#fffbeb",borderBottom:"1px solid #e2e8f0",display:"flex",gap:8,alignItems:"center",flexWrap:"nowrap",overflow:"hidden"}}>
+                  {/* CS Code */}
+                  <div style={{flexShrink:0}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>CS Code</Span>
+                    <div style={{fontFamily:"monospace",fontWeight:900,fontSize:12,color:"#1e40af",padding:"3px 0"}}>{q.csCode}</div>
+                  </div>
+                  <div style={{width:1,background:"#e2e8f0",alignSelf:"stretch",marginX:4,flexShrink:0}}/>
+                  {/* OPP Code */}
+                  <div style={{flex:"0 0 120px"}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>OPP Code</Span>
+                    <Inp value={q.oppCode||""} onChange={e=>setQF(q.id,"oppCode",e.target.value)} style={{fontSize:11,fontFamily:"monospace",fontWeight:700,padding:"3px 6px",color:"#1e40af"}}/>
+                  </div>
+                  {/* Quote No. */}
+                  <div style={{flex:"0 0 110px"}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Quote No.</Span>
+                    <Inp value={q.quoteNo||""} onChange={e=>setQF(q.id,"quoteNo",e.target.value)} style={{fontSize:11,fontFamily:"monospace",padding:"3px 6px"}}/>
+                  </div>
+                  {/* Customer */}
+                  <div style={{flex:"1 1 160px",minWidth:0}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Customer</Span>
+                    <Sel value={q.custId||""} onChange={e=>setQF(q.id,"custId",e.target.value)} style={{fontSize:11,padding:"3px 6px",width:"100%"}}>
+                      <option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.id}>{c.companyEN}</option>)}
+                    </Sel>
+                  </div>
+                  {/* Sales Agent */}
+                  <div style={{flex:"0 0 140px"}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Agent</Span>
+                    <Sel value={q.salesAgent||""} onChange={e=>setQF(q.id,"salesAgent",e.target.value)} style={{fontSize:11,padding:"3px 6px"}}>
+                      <option value="">— Select —</option>{SALES_USERS.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+                    </Sel>
+                  </div>
+                  {/* Contact Person */}
+                  <div style={{flex:"0 0 150px"}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Contact</Span>
+                    <Sel value={q.contactPersonId||""} onChange={e=>setQF(q.id,"contactPersonId",e.target.value)} style={{fontSize:11,padding:"3px 6px"}}>
+                      <option value="">— Select —</option>
+                      {(customers.find(c=>c.id===q.custId)?.contacts||[]).filter(ct=>ct.active).map(ct=><option key={ct.id} value={ct.id}>{ct.name}</option>)}
+                    </Sel>
+                  </div>
+                  {/* Sales Price */}
+                  <div style={{flex:"0 0 90px"}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Price</Span>
+                    <Inp type="number" value={q.salesPrice} onChange={e=>updQO(q.id,q=>({...q,salesPrice:+e.target.value,lineItems:(q.lineItems||[]).map((li,i)=>i===0?{...li,unitPrice:+e.target.value}:li)}))} style={{fontSize:12,fontWeight:700,padding:"3px 6px"}}/>
+                  </div>
+                  {/* Months */}
+                  <div style={{flex:"0 0 52px"}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Mo.</Span>
+                    <Inp type="number" value={months} onChange={e=>setQF(q.id,"projectMonths",+e.target.value)} style={{fontSize:11,padding:"3px 5px"}}/>
+                  </div>
+                  {/* Margin badge */}
+                  <div style={{flex:"0 0 72px",padding:"5px 8px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center",flexShrink:0}}>
+                    <div style={{fontWeight:900,fontSize:15,color:+qMg>=30?"#16a34a":"#dc2626",lineHeight:1.2}}>{qMg}%</div>
+                    <div style={{fontWeight:700,fontSize:13,color:+qMg>=30?"#16a34a":"#dc2626"}}>{fmtK(marginAmt(q.salesPrice,qTC))}</div>
+                  </div>
+                  {/* Close button */}
+
+                </div>
+
+                {/* Cost grids */}
+                <div style={{padding:16,display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+                  <div>
+                    {/* Unified COGS table */}
+                    <div style={{marginBottom:4,display:"flex",alignItems:"center",gap:8}}>
+                      <Span s={11} w={700}>COGS</Span>
+                    </div>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
+                      <colgroup><col style={{width:"24px"}}/><col style={{width:"25%"}}/><col style={{width:"12%"}}/><col style={{width:"8%"}}/><col style={{width:"7%"}}/><col style={{width:"12%"}}/><col style={{width:"11%"}}/><col style={{width:"8%"}}/><col style={{width:"4%"}}/></colgroup>
+                      <TH cols={["","Label","Vendor","Unit","Qty","Rate","Total","Pay M.",""]}/>
+                      <tbody>
+                        {(q.internalCosts||[]).map(r=>(
+                          <tr key={r.id} draggable onDragStart={()=>cogsDrag.handleDragStart(r.id)} onDragEnter={()=>cogsDrag.handleDragEnter(r.id)} onDragEnd={cogsDrag.handleDragEnd} onDragOver={e=>e.preventDefault()} style={{borderBottom:"1px solid #f8fafc",cursor:"default",...cogsDrag.getRowStyle(r.id)}}>
+                            <td style={{padding:"3px 4px",cursor:"grab",color:"#94a3b8",userSelect:"none",textAlign:"center",fontSize:12}}>⠿</td>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQIC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px",fontSize:11,color:"#94a3b8",textAlign:"center"}}>—</td>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.unit} onChange={e=>setQIC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><NumInp value={r.qty} onChange={v=>setQIC(q.id,r.id,"qty",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><NumInp value={r.rate} onChange={v=>setQIC(q.id,r.id,"rate",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px",fontWeight:700,fontSize:13}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
+                            <td style={{padding:"3px 3px"}}>
+                              <Sel value={r.payMonth||1} onChange={e=>setQIC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:11,width:"100%"}}>
+                                {Array.from({length:(months||3)+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
+                              </Sel>
+                            </td>
+                            <td><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQIC(q.id,r.id)}>×</Btn></td>
+                          </tr>
+                        ))}
+                        {(q.externalCosts||[]).map(r=>(
+                          <tr key={r.id} draggable onDragStart={()=>cogsDrag.handleDragStart(r.id)} onDragEnter={()=>cogsDrag.handleDragEnter(r.id)} onDragEnd={cogsDrag.handleDragEnd} onDragOver={e=>e.preventDefault()} style={{borderBottom:"1px solid #f8fafc",cursor:"default",...cogsDrag.getRowStyle(r.id)}}>
+                            <td style={{padding:"3px 4px",cursor:"grab",color:"#94a3b8",userSelect:"none",textAlign:"center",fontSize:12}}>⠿</td>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQEC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.vendorName||""} onChange={e=>setQEC(q.id,r.id,"vendorName",e.target.value)} placeholder="Vendor" style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.unit||""} onChange={e=>setQEC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><NumInp value={r.qty} onChange={v=>setQEC(q.id,r.id,"qty",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><NumInp value={r.rate} onChange={v=>setQEC(q.id,r.id,"rate",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px",fontWeight:700,fontSize:13}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
+                            <td style={{padding:"3px 3px"}}>
+                              <Sel value={r.payMonth||1} onChange={e=>setQEC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:11,width:"100%"}}>
+                                {Array.from({length:(months||3)+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
+                              </Sel>
+                            </td>
+                            <td><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQEC(q.id,r.id)}>×</Btn></td>
+                          </tr>
+                        ))}
+                        <tr style={{borderTop:"1px solid #f1f5f9"}}>
+                          <td colSpan={6} style={{padding:"5px 4px"}}>
+                            <button onClick={()=>addQEC(q.id)} style={{fontSize:13,color:"#1e40af",background:"#eff6ff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 12px",cursor:"pointer",fontWeight:600}}>+ Add</button>
+                          </td>
+                          <td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap"}}>
+                            <span style={{fontSize:11,color:"#94a3b8",fontWeight:700,marginRight:6}}>Total COGS</span>
+                            <span style={{fontWeight:900,fontSize:12,color:"#0f172a"}}>฿{fmt(qIC+qEC)}</span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div>
+                    <Span s={12} w={700} style={{display:"block",marginBottom:6}}>OPEX — Man-day Tasks</Span>
+                    <TaskTableWidget tasks={q.tasks||[]} onSet={(tid,k,v)=>setQTK(q.id,tid,k,v)} onAdd={()=>addQTK(q.id)} onDel={tid=>delQTK(q.id,tid)} months={months}/>
+                    <div style={{display:"flex",justifyContent:"space-between",marginTop:6,padding:"5px 2px",borderTop:"1px solid #e2e8f0"}}><Span s={11} w={700}>Total OPEX</Span><Span s={12} w={900}>฿{fmt(qOPEX)}</Span></div>
+                  </div>
+                </div>
+
+                {/*  INSTALLMENTS (left) + CASHFLOW (right) — 2-col layout  */}
+                <div style={{padding:"0 16px 16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,borderTop:"1px solid #f1f5f9"}}>
+                  {/* Installments */}
+                  <div style={{paddingTop:14}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                      <Span s={12} w={700}>Installments</Span>
+                      <span style={{fontSize:13,fontWeight:700,color:Math.abs(instSum-100)<0.1?"#16a34a":"#dc2626"}}>({instSum}% {Math.abs(instSum-100)<0.1?"":""})</span>
+                    </div>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                      <thead><tr style={{background:"#f8fafc"}}>
+                        <th style={{padding:"5px 4px",width:22,textAlign:"center",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}>#</th>
+                        <th style={{padding:"5px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}>Label</th>
+                        <th style={{padding:"5px 4px",width:46,textAlign:"right",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}>%</th>
+                        <th style={{padding:"5px 4px",width:76,textAlign:"right",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}>Amount</th>
+                        <th style={{padding:"5px 4px",width:54,textAlign:"left",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}>Recv M.</th>
+                        <th style={{padding:"5px 4px",width:20,borderBottom:"1px solid #e2e8f0"}}/>
+                      </tr></thead>
+                      <tbody>
+                        {(q.installments||[]).map((ins,idx)=>(
+                          <tr key={ins.id} style={{borderBottom:"1px solid #f8fafc"}}>
+                            <td style={{padding:"4px 4px",textAlign:"center",color:"#94a3b8",fontWeight:700,fontSize:11,width:22}}>{idx+1}</td>
+                            <td style={{padding:"4px 4px"}}><Inp value={ins.label} onChange={e=>setQInst(q.id,ins.id,"label",e.target.value)} placeholder="" style={{padding:"2px 5px",fontSize:13,width:"100%",background:"#f8fafc"}}/></td>
+                            <td style={{padding:"4px 4px",width:46}}><Inp type="number" value={ins.pct} onChange={e=>setQInst(q.id,ins.id,"pct",+e.target.value)} style={{padding:"2px 4px",fontSize:13,width:38,textAlign:"right"}}/></td>
+                            <td style={{padding:"4px 4px",fontWeight:700,fontSize:13,textAlign:"right",whiteSpace:"nowrap",width:76}}>฿{fmt(Math.round(q.salesPrice*(ins.pct||0)/100))}</td>
+                            <td style={{padding:"4px 4px",width:54}}>
+                              <Sel value={ins.recvMonth||1} onChange={e=>setQInst(q.id,ins.id,"recvMonth",+e.target.value)} style={{padding:"2px 3px",fontSize:11,width:48}}>
+                                {Array.from({length:months+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
+                              </Sel>
+                            </td>
+                            <td style={{padding:"4px 4px",width:20}}><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQInst(q.id,ins.id)}>×</Btn></td>
+                          </tr>
+                        ))}
+                        <tr><td colSpan={6} style={{padding:"6px 4px"}}>
+                          <button onClick={()=>addQInst(q.id)} style={{fontSize:13,color:"#1e40af",background:"#eff6ff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 14px",cursor:"pointer",fontWeight:600}}>+ Installment</button>
+                        </td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Cashflow */}
+                  {(()=>{
+                    const cfM=q.projectMonths||editCS.projectMonths||3;
+                    const allM=Array.from({length:cfM+1},(_,i)=>i+1);
+                    const cByM={};
+                    (q.tasks||[]).forEach(t=>{const m=t.payMonth||1;const tc=(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior;cByM[m]=(cByM[m]||0)+tc;});
+                    (q.internalCosts||[]).forEach(r=>{const m=r.payMonth||1;const amt=(r.qty||0)*(r.rate||0);cByM[m]=(cByM[m]||0)+amt;});
+                    (q.externalCosts||[]).filter(r=>!r.clientBorne).forEach(r=>{const m=r.payMonth||1;const amt=(r.qty||0)*(r.rate||0);cByM[m]=(cByM[m]||0)+amt;});
+                    const rByM={};
+                    (q.installments||[]).forEach(ins=>{const m=ins.recvMonth||1;rByM[m]=(rByM[m]||0)+Math.round(q.salesPrice*(ins.pct||0)/100);});
+                    let run=0;
+                    const cfRows=allM.map(m=>{const out=cByM[m]||0,inn=rByM[m]||0;run+=inn-out;return{m,out,inn,net:inn-out,run};});
+                    const hasNeg=cfRows.some(r=>r.run<0);
+                    const maxAbs=Math.max(...cfRows.map(r=>Math.abs(r.run)),1);
+                    return(
+                      <div style={{paddingTop:14}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                          <Span s={12} w={700}>Cashflow</Span>
+                          <span style={{fontSize:11,color:"#94a3b8"}}>{cfM} months</span>
+                          <span style={{marginLeft:"auto",fontSize:13,fontWeight:700,color:hasNeg?"#dc2626":"#16a34a",background:hasNeg?"#fee2e2":"#dcfce7",padding:"1px 8px",borderRadius:10,whiteSpace:"nowrap"}}>
+                            {hasNeg?" Goes negative":" Positive throughout"}
+                          </span>
+                        </div>
+                        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                          <thead><tr>
+                            {["M","Cost Out","Revenue In","Net","Cumulative",""].map((h,i)=>(
+                              <th key={i} style={{padding:"2px 5px",textAlign:i>=1&&i<=4?"right":"left",fontWeight:700,color:"#94a3b8",fontSize:8,borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",letterSpacing:"0.04em"}}>{h}</th>
+                            ))}
+                          </tr></thead>
+                          <tbody>{cfRows.map(r=>(
+                            <tr key={r.m} style={{borderBottom:"1px solid #f8fafc",background:r.run<0?"#fff5f5":"transparent"}}>
+                              <td style={{padding:"2px 5px",fontWeight:700,color:"#374151"}}>M{r.m}</td>
+                              <td style={{padding:"2px 5px",color:"#dc2626",textAlign:"right"}}>{r.out>0?`฿${fmt(r.out)}`:"—"}</td>
+                              <td style={{padding:"2px 5px",color:"#16a34a",textAlign:"right"}}>{r.inn>0?`฿${fmt(r.inn)}`:"—"}</td>
+                              <td style={{padding:"2px 5px",textAlign:"right",fontWeight:600,color:r.net>=0?"#16a34a":"#dc2626"}}>{r.net!==0?`${r.net>0?"+":""}฿${fmt(r.net)}`:"—"}</td>
+                              <td style={{padding:"2px 5px",textAlign:"right",fontWeight:800,color:r.run>=0?"#16a34a":"#dc2626"}}>{r.run>=0?"+":""}฿{fmt(r.run)}</td>
+                              <td style={{padding:"2px 6px",width:64}}>
+                                <div style={{height:5,background:"#e2e8f0",borderRadius:3,overflow:"hidden"}}>
+                                  <div style={{height:"100%",width:`${Math.abs(r.run)/maxAbs*100}%`,background:r.run>=0?"#16a34a":"#dc2626",borderRadius:3}}/>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}</tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/*  PROJECT SCOPE (full width)  */}
+                <div style={{padding:"0 20px 16px",borderTop:"1px solid #f1f5f9"}}>
+                  <div style={{marginTop:14,marginBottom:12}}>
+                    <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Service Description</Span><Span s={11} c="#94a3b8">— Project title as it will appear in the Quotation</Span></div>
+                    <Inp value={q.projectTitle||""} onChange={e=>setQF(q.id,"projectTitle",e.target.value)} placeholder="" style={{fontSize:12}}/>
+                  </div>
+                  <div>
+                    <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Project Scope</Span><Span s={11} c="#94a3b8">— Scope details e.g. Project Address, Boundary, Base Year</Span></div>
+                    <Txta value={q.projectScope||""} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder="" style={{minHeight:80,fontSize:12}}/>
+                  </div>
+                </div>
+
+                {/*  DELIVERABLES (full width, editable list + preview)  */}
+                <div style={{padding:"0 20px 16px"}}>
+                  <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>Deliverables</Span>
+                  <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:6}}>
+                    {(q.deliverables||[]).map(d=>(
+                      <div key={d.id} style={{display:"flex",gap:6,alignItems:"center"}}>
+                        <span style={{color:"#06b6d4",fontWeight:900,fontSize:13,flexShrink:0}}></span>
+                        <Inp value={d.item} onChange={e=>setQDlv(q.id,d.id,e.target.value)} placeholder="" style={{padding:"3px 8px",fontSize:12,flex:1}}/>
+                        {(q.deliverables||[]).length>1&&<Btn variant="danger" style={{fontSize:13,padding:"1px 5px",flexShrink:0}} onClick={()=>delQDlv(q.id,d.id)}>×</Btn>}
+                      </div>
+                    ))}
+                    <button onClick={()=>addQDlv(q.id)} style={{alignSelf:"flex-start",marginTop:4,fontSize:13,color:"#1e40af",background:"none",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 10px",cursor:"pointer"}}>+ Add Deliverable</button>
+                  </div>
+                </div>
+
+                {/*  NOTES & CONDITIONS (full width)  */}
+                <div style={{padding:"0 20px 16px"}}>
+                  <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Notes & Conditions</Span>
+                  <Txta value={q.notes||""} onChange={e=>setQF(q.id,"notes",e.target.value)} placeholder="" style={{minHeight:80,fontSize:12}}/>
+                </div>
+
+                {/* Cost + margin + Save/Cancel footer */}
+                <div style={{borderTop:"1px solid #e2e8f0",padding:"12px 20px",background:"#f8fafc",display:"flex",justifyContent:"flex-end",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+                  {[{l:"COGS",v:qIC+qEC},{l:"OPEX",v:qOPEX},{l:"Total Cost",v:qTC,bold:true}].map(x=>(
+                    <div key={x.l} style={{textAlign:"center"}}>
+                      <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>{x.l}</Span>
+                      <Span s={13} w={x.bold?900:700}>฿{fmt(x.v)}</Span>
+                    </div>
+                  ))}
+                  <div style={{padding:"5px 12px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center"}}>
+                    <Span s={9} c={+qMg>=30?"#16a34a":"#dc2626"} style={{display:"block"}}>Margin</Span>
+                    <Span s={15} w={900} c={+qMg>=30?"#16a34a":"#dc2626"}>{qMg}%</Span>
+                  </div>
+                  <div style={{width:1,height:32,background:"#e2e8f0",flexShrink:0}}/>
+                  <Btn variant="ghost" onClick={()=>delQO(q.id)}>Cancel</Btn>
+                  <Btn onClick={handleSave} style={{padding:"8px 24px"}}>Save</Btn>
+                </div>
+              </Card>
+  );
+};
+
 const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,initSvcCode,onSvcReady}) => {
   const [selCode,sCode] = useState(SERVICES[0].code);
   useEffect(()=>{if(initSvcCode){sCode(initSvcCode);sView("quote");if(onSvcReady)onSvcReady();}},[initSvcCode]);
@@ -2870,281 +3150,15 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
               )}
             </div>
           )}
-          {(editCS.quoteOverrides||[]).map((q)=>{
-            const qIC=calcIC(q.internalCosts||[]),qEC=calcEC(q.externalCosts||[],true),qOPEX=calcTask(q.tasks||[]);
-            const qTC=qIC+qEC+qOPEX,qMg=margin(q.salesPrice,qTC);
-            const months=q.projectMonths||editCS.projectMonths||3;
-            const instSum=(q.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
-            const cogsDrag = useDragSort(
-              [...(q.internalCosts||[]),...(q.externalCosts||[])],
-              (fid,tid)=>reorderCOGS(q.id,fid,tid)
-            );
-            const taskDrag = useDragSort(q.tasks||[],(fid,tid)=>reorderQTK(q.id,fid,tid));
-            return (
-              <Card key={q.id} style={{marginBottom:14,overflow:"hidden",position:"relative"}}>
-                {/* Header row — single line, no wrap */}
-                <div style={{padding:"10px 16px",background:+qMg>=30?"#f0fdf4":"#fffbeb",borderBottom:"1px solid #e2e8f0",display:"flex",gap:8,alignItems:"center",flexWrap:"nowrap",overflow:"hidden"}}>
-                  {/* CS Code */}
-                  <div style={{flexShrink:0}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>CS Code</Span>
-                    <div style={{fontFamily:"monospace",fontWeight:900,fontSize:12,color:"#1e40af",padding:"3px 0"}}>{q.csCode}</div>
-                  </div>
-                  <div style={{width:1,background:"#e2e8f0",alignSelf:"stretch",marginX:4,flexShrink:0}}/>
-                  {/* OPP Code */}
-                  <div style={{flex:"0 0 120px"}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>OPP Code</Span>
-                    <Inp value={q.oppCode||""} onChange={e=>setQF(q.id,"oppCode",e.target.value)} style={{fontSize:13,fontFamily:"monospace",fontWeight:700,padding:"3px 6px",color:"#1e40af"}}/>
-                  </div>
-                  {/* Quote No. */}
-                  <div style={{flex:"0 0 110px"}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Quote No.</Span>
-                    <Inp value={q.quoteNo||""} onChange={e=>setQF(q.id,"quoteNo",e.target.value)} style={{fontSize:13,fontFamily:"monospace",padding:"3px 6px"}}/>
-                  </div>
-                  {/* Customer */}
-                  <div style={{flex:"1 1 160px",minWidth:0}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Customer</Span>
-                    <Sel value={q.custId||""} onChange={e=>setQF(q.id,"custId",e.target.value)} style={{fontSize:13,padding:"3px 6px",width:"100%"}}>
-                      <option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.id}>{c.companyEN}</option>)}
-                    </Sel>
-                  </div>
-                  {/* Sales Agent */}
-                  <div style={{flex:"0 0 140px"}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Agent</Span>
-                    <Sel value={q.salesAgent||""} onChange={e=>setQF(q.id,"salesAgent",e.target.value)} style={{fontSize:13,padding:"3px 6px"}}>
-                      <option value="">— Select —</option>{SALES_USERS.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
-                    </Sel>
-                  </div>
-                  {/* Contact Person */}
-                  <div style={{flex:"0 0 150px"}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Contact</Span>
-                    <Sel value={q.contactPersonId||""} onChange={e=>setQF(q.id,"contactPersonId",e.target.value)} style={{fontSize:13,padding:"3px 6px"}}>
-                      <option value="">— Select —</option>
-                      {(customers.find(c=>c.id===q.custId)?.contacts||[]).filter(ct=>ct.active).map(ct=><option key={ct.id} value={ct.id}>{ct.name}</option>)}
-                    </Sel>
-                  </div>
-                  {/* Sales Price */}
-                  <div style={{flex:"0 0 90px"}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Price</Span>
-                    <NumInp value={q.salesPrice} onChange={v=>updQO(q.id,q=>({...q,salesPrice:v,lineItems:(q.lineItems||[]).map((li,i)=>i===0?{...li,unitPrice:v}:li)}))} style={{fontSize:12,fontWeight:700,padding:"3px 6px"}}/>
-                  </div>
-                  {/* Months */}
-                  <div style={{flex:"0 0 52px"}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Mo.</Span>
-                    <NumInp value={months} onChange={v=>setQF(q.id,"projectMonths",v)} style={{fontSize:13,padding:"3px 5px"}}/>
-                  </div>
-                  {/* Margin badge */}
-                  <div style={{flex:"0 0 72px",padding:"5px 8px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center",flexShrink:0}}>
-                    <div style={{fontWeight:900,fontSize:15,color:+qMg>=30?"#16a34a":"#dc2626",lineHeight:1.2}}>{qMg}%</div>
-                    <div style={{fontWeight:700,fontSize:13,color:+qMg>=30?"#16a34a":"#dc2626"}}>฿{fmt(marginAmt(q.salesPrice,qTC))}</div>
-                  </div>
-                  {/* Close button */}
-
-                </div>
-
-                {/* Cost grids */}
-                <div style={{padding:16,display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-                  <div>
-                    {/* Unified COGS table */}
-                    <div style={{marginBottom:4,display:"flex",alignItems:"center",gap:8}}>
-                      <Span s={13} w={700} c="#374151" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>COGS</Span>
-                    </div>
-                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,tableLayout:"fixed"}}>
-                      <colgroup><col style={{width:"24px"}}/><col style={{width:"25%"}}/><col style={{width:"12%"}}/><col style={{width:"8%"}}/><col style={{width:"7%"}}/><col style={{width:"12%"}}/><col style={{width:"11%"}}/><col style={{width:"8%"}}/><col style={{width:"4%"}}/></colgroup>
-                      <TH cols={["","Label","Vendor","Unit","Qty","Rate","Total","Pay M.",""]}/>
-                      <tbody>
-                        {(q.internalCosts||[]).map(r=>(
-                          <tr key={r.id} draggable onDragStart={()=>cogsDrag.handleDragStart(r.id)} onDragEnter={()=>cogsDrag.handleDragEnter(r.id)} onDragEnd={cogsDrag.handleDragEnd} onDragOver={e=>e.preventDefault()} style={{borderBottom:"1px solid #f8fafc",cursor:"default",...cogsDrag.getRowStyle(r.id)}}>
-                            <td style={{padding:"3px 4px",cursor:"grab",color:"#94a3b8",userSelect:"none",textAlign:"center",fontSize:12}}>⠿</td>
-                            <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQIC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px",fontSize:13,color:"#94a3b8",textAlign:"center"}}>—</td>
-                            <td style={{padding:"3px 3px"}}><Inp value={r.unit} onChange={e=>setQIC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><NumInp value={r.qty} onChange={v=>setQIC(q.id,r.id,"qty",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><NumInp value={r.rate} onChange={v=>setQIC(q.id,r.id,"rate",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px",fontWeight:700,fontSize:13}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
-                            <td style={{padding:"3px 3px"}}>
-                              <Sel value={r.payMonth||1} onChange={e=>setQIC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:13,width:"100%"}}>
-                                {Array.from({length:(months||3)+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
-                              </Sel>
-                            </td>
-                            <td><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQIC(q.id,r.id)}>×</Btn></td>
-                          </tr>
-                        ))}
-                        {(q.externalCosts||[]).map(r=>(
-                          <tr key={r.id} draggable onDragStart={()=>cogsDrag.handleDragStart(r.id)} onDragEnter={()=>cogsDrag.handleDragEnter(r.id)} onDragEnd={cogsDrag.handleDragEnd} onDragOver={e=>e.preventDefault()} style={{borderBottom:"1px solid #f8fafc",cursor:"default",...cogsDrag.getRowStyle(r.id)}}>
-                            <td style={{padding:"3px 4px",cursor:"grab",color:"#94a3b8",userSelect:"none",textAlign:"center",fontSize:12}}>⠿</td>
-                            <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQEC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><Inp value={r.vendorName||""} onChange={e=>setQEC(q.id,r.id,"vendorName",e.target.value)} placeholder="Vendor" style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><Inp value={r.unit||""} onChange={e=>setQEC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><NumInp value={r.qty} onChange={v=>setQEC(q.id,r.id,"qty",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><NumInp value={r.rate} onChange={v=>setQEC(q.id,r.id,"rate",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px",fontWeight:700,fontSize:13}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
-                            <td style={{padding:"3px 3px"}}>
-                              <Sel value={r.payMonth||1} onChange={e=>setQEC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:13,width:"100%"}}>
-                                {Array.from({length:(months||3)+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
-                              </Sel>
-                            </td>
-                            <td><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQEC(q.id,r.id)}>×</Btn></td>
-                          </tr>
-                        ))}
-                        <tr style={{borderTop:"1px solid #f1f5f9"}}>
-                          <td colSpan={5} style={{padding:"5px 4px"}}>
-                            <button onClick={()=>addQEC(q.id)} style={{fontSize:13,color:"#1e40af",background:"transparent",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 12px",cursor:"pointer",fontWeight:600}}>+ Add</button>
-                          </td>
-                          <td colSpan={4} style={{padding:"5px 8px",textAlign:"right",whiteSpace:"nowrap"}}>
-                            <span style={{color:"#94a3b8",fontSize:12,fontWeight:600,marginRight:8}}>Total COGS</span>
-                            <span style={{fontWeight:700,fontSize:13,color:"#0f172a"}}>฿{fmt(qIC+qEC)}</span>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                  <div>
-                    <Span s={13} w={700} c="#374151" style={{textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:6}}>OPEX — Man-day Tasks</Span>
-                    <TaskTableWidget tasks={q.tasks||[]} onSet={(tid,k,v)=>setQTK(q.id,tid,k,v)} onAdd={()=>addQTK(q.id)} onDel={tid=>delQTK(q.id,tid)} onReorder={(fid,tid)=>reorderQTK(q.id,fid,tid)} dragProps={taskDrag} months={months}/>
-                    <div style={{display:"flex",justifyContent:"space-between",marginTop:6,padding:"5px 2px",borderTop:"1px solid #e2e8f0"}}><Span s={11} w={700}>Total OPEX</Span><Span s={12} w={900}>฿{fmt(qOPEX)}</Span></div>
-                  </div>
-                </div>
-
-                {/*  INSTALLMENTS (left) + CASHFLOW (right) — 2-col layout  */}
-                <div style={{padding:"0 16px 16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,borderTop:"1px solid #f1f5f9"}}>
-                  {/* Installments */}
-                  <div style={{paddingTop:14}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                      <Span s={13} w={700} c="#374151" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Installments</Span>
-                      <span style={{fontSize:13,fontWeight:700,color:Math.abs(instSum-100)<0.1?"#16a34a":"#dc2626"}}>({instSum}% {Math.abs(instSum-100)<0.1?"":""})</span>
-                    </div>
-                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-                      <thead><tr style={{background:"#f8fafc"}}>
-                        <th style={{padding:"5px 4px",width:22,textAlign:"center",fontWeight:700,color:"#64748b",fontSize:13,borderBottom:"1px solid #e2e8f0"}}>#</th>
-                        <th style={{padding:"5px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:13,borderBottom:"1px solid #e2e8f0"}}>Label</th>
-                        <th style={{padding:"5px 4px",width:46,textAlign:"right",fontWeight:700,color:"#64748b",fontSize:13,borderBottom:"1px solid #e2e8f0"}}>%</th>
-                        <th style={{padding:"5px 4px",width:76,textAlign:"right",fontWeight:700,color:"#64748b",fontSize:13,borderBottom:"1px solid #e2e8f0"}}>Amount</th>
-                        <th style={{padding:"5px 4px",width:54,textAlign:"left",fontWeight:700,color:"#64748b",fontSize:13,borderBottom:"1px solid #e2e8f0"}}>Recv M.</th>
-                        <th style={{padding:"5px 4px",width:20,borderBottom:"1px solid #e2e8f0"}}/>
-                      </tr></thead>
-                      <tbody>
-                        {(q.installments||[]).map((ins,idx)=>(
-                          <tr key={ins.id} style={{borderBottom:"1px solid #f8fafc"}}>
-                            <td style={{padding:"4px 4px",textAlign:"center",color:"#94a3b8",fontWeight:700,fontSize:13,width:22}}>{idx+1}</td>
-                            <td style={{padding:"4px 4px"}}><Inp value={ins.label} onChange={e=>setQInst(q.id,ins.id,"label",e.target.value)} placeholder="" style={{padding:"2px 5px",fontSize:13,width:"100%",background:"#f8fafc"}}/></td>
-                            <td style={{padding:"4px 4px",width:46}}><NumInp value={ins.pct} onChange={v=>setQInst(q.id,ins.id,"pct",v)} style={{padding:"2px 4px",fontSize:13,width:38}}/></td>
-                            <td style={{padding:"4px 4px",fontWeight:700,fontSize:13,textAlign:"right",whiteSpace:"nowrap",width:76}}>฿{fmt(Math.round(q.salesPrice*(ins.pct||0)/100))}</td>
-                            <td style={{padding:"4px 4px",width:54}}>
-                              <Sel value={ins.recvMonth||1} onChange={e=>setQInst(q.id,ins.id,"recvMonth",+e.target.value)} style={{padding:"2px 3px",fontSize:13,width:48}}>
-                                {Array.from({length:months+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
-                              </Sel>
-                            </td>
-                            <td style={{padding:"4px 4px",width:20}}><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQInst(q.id,ins.id)}>×</Btn></td>
-                          </tr>
-                        ))}
-                        <tr><td colSpan={6} style={{padding:"6px 4px"}}>
-                          <button onClick={()=>addQInst(q.id)} style={{fontSize:13,color:"#1e40af",background:"transparent",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 14px",cursor:"pointer",fontWeight:600}}>+ Installment</button>
-                        </td></tr>
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Cashflow */}
-                  {(()=>{
-                    const cfM=q.projectMonths||editCS.projectMonths||3;
-                    const allM=Array.from({length:cfM+1},(_,i)=>i+1);
-                    const cByM={};
-                    (q.tasks||[]).forEach(t=>{const m=t.payMonth||1;const tc=(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior;cByM[m]=(cByM[m]||0)+tc;});
-                    (q.internalCosts||[]).forEach(r=>{const m=r.payMonth||1;const amt=(r.qty||0)*(r.rate||0);cByM[m]=(cByM[m]||0)+amt;});
-                    (q.externalCosts||[]).filter(r=>!r.clientBorne).forEach(r=>{const m=r.payMonth||1;const amt=(r.qty||0)*(r.rate||0);cByM[m]=(cByM[m]||0)+amt;});
-                    const rByM={};
-                    (q.installments||[]).forEach(ins=>{const m=ins.recvMonth||1;rByM[m]=(rByM[m]||0)+Math.round(q.salesPrice*(ins.pct||0)/100);});
-                    let run=0;
-                    const cfRows=allM.map(m=>{const out=cByM[m]||0,inn=rByM[m]||0;run+=inn-out;return{m,out,inn,net:inn-out,run};});
-                    const hasNeg=cfRows.some(r=>r.run<0);
-                    const maxAbs=Math.max(...cfRows.map(r=>Math.abs(r.run)),1);
-                    return(
-                      <div style={{paddingTop:14}}>
-                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                          <Span s={13} w={700} c="#374151" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Cashflow</Span>
-                          <span style={{fontSize:13,color:"#94a3b8"}}>{cfM} months</span>
-                          <span style={{marginLeft:"auto",fontSize:13,fontWeight:700,color:hasNeg?"#dc2626":"#16a34a",background:hasNeg?"#fee2e2":"#dcfce7",padding:"1px 8px",borderRadius:10,whiteSpace:"nowrap"}}>
-                            {hasNeg?" Goes negative":" Positive throughout"}
-                          </span>
-                        </div>
-                        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-                          <thead><tr>
-                            {["M","Cost Out","Revenue In","Net","Cumulative",""].map((h,i)=>(
-                              <th key={i} style={{padding:"2px 5px",textAlign:i>=1&&i<=4?"right":"left",fontWeight:700,color:"#94a3b8",fontSize:13,borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",letterSpacing:"0.04em"}}>{h}</th>
-                            ))}
-                          </tr></thead>
-                          <tbody>{cfRows.map(r=>(
-                            <tr key={r.m} style={{borderBottom:"1px solid #f8fafc",background:r.run<0?"#fff5f5":"transparent"}}>
-                              <td style={{padding:"2px 5px",fontWeight:700,color:"#374151"}}>M{r.m}</td>
-                              <td style={{padding:"2px 5px",color:"#dc2626",textAlign:"right"}}>{r.out>0?`฿${fmt(r.out)}`:"—"}</td>
-                              <td style={{padding:"2px 5px",color:"#16a34a",textAlign:"right"}}>{r.inn>0?`฿${fmt(r.inn)}`:"—"}</td>
-                              <td style={{padding:"2px 5px",textAlign:"right",fontWeight:600,color:r.net>=0?"#16a34a":"#dc2626"}}>{r.net!==0?`${r.net>0?"+":""}฿${fmt(r.net)}`:"—"}</td>
-                              <td style={{padding:"2px 5px",textAlign:"right",fontWeight:800,color:r.run>=0?"#16a34a":"#dc2626"}}>{r.run>=0?"+":""}฿{fmt(r.run)}</td>
-                              <td style={{padding:"2px 6px",width:64}}>
-                                <div style={{height:5,background:"#e2e8f0",borderRadius:3,overflow:"hidden"}}>
-                                  <div style={{height:"100%",width:`${Math.abs(r.run)/maxAbs*100}%`,background:r.run>=0?"#16a34a":"#dc2626",borderRadius:3}}/>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}</tbody>
-                        </table>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/*  PROJECT SCOPE (full width)  */}
-                <div style={{padding:"0 20px 16px",borderTop:"1px solid #f1f5f9"}}>
-                  <div style={{marginTop:14,marginBottom:12}}>
-                    <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={13} w={700} c="#374151" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Service Description</Span><Span s={11} c="#94a3b8">— Project title as it will appear in the Quotation</Span></div>
-                    <Inp value={q.projectTitle||""} onChange={e=>setQF(q.id,"projectTitle",e.target.value)} placeholder="" style={{fontSize:13}}/>
-                  </div>
-                  <div>
-                    <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={13} w={700} c="#374151" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Project Scope</Span><Span s={11} c="#94a3b8">— Scope details e.g. Project Address, Boundary, Base Year</Span></div>
-                    <Txta value={q.projectScope||""} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder="" style={{minHeight:80,fontSize:13}}/>
-                  </div>
-                </div>
-
-                {/*  DELIVERABLES (full width, editable list + preview)  */}
-                <div style={{padding:"0 20px 16px"}}>
-                  <Span s={13} w={700} c="#374151" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>Deliverables</Span>
-                  <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:6}}>
-                    {(q.deliverables||[]).map(d=>(
-                      <div key={d.id} style={{display:"flex",gap:6,alignItems:"center"}}>
-                        <span style={{color:"#06b6d4",fontWeight:900,fontSize:13,flexShrink:0}}></span>
-                        <Inp value={d.item} onChange={e=>setQDlv(q.id,d.id,e.target.value)} placeholder="" style={{padding:"3px 8px",fontSize:13,flex:1}}/>
-                        {(q.deliverables||[]).length>1&&<Btn variant="danger" style={{fontSize:13,padding:"1px 5px",flexShrink:0}} onClick={()=>delQDlv(q.id,d.id)}>×</Btn>}
-                      </div>
-                    ))}
-                    <button onClick={()=>addQDlv(q.id)} style={{alignSelf:"flex-start",marginTop:4,fontSize:13,color:"#1e40af",background:"transparent",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 10px",cursor:"pointer",fontWeight:600}}>+ Deliverable</button>
-                  </div>
-                </div>
-
-                {/*  NOTES & CONDITIONS (full width)  */}
-                <div style={{padding:"0 20px 16px"}}>
-                  <Span s={13} w={700} c="#374151" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Notes & Conditions</Span>
-                  <Txta value={q.notes||""} onChange={e=>setQF(q.id,"notes",e.target.value)} placeholder="" style={{minHeight:80,fontSize:13}}/>
-                </div>
-
-                {/* Cost + margin + Save/Cancel footer */}
-                <div style={{borderTop:"1px solid #e2e8f0",padding:"12px 20px",background:"#f8fafc",display:"flex",justifyContent:"flex-end",alignItems:"center",gap:16,flexWrap:"wrap"}}>
-                  {[{l:"COGS",v:qIC+qEC},{l:"OPEX",v:qOPEX},{l:"Total Cost",v:qTC,bold:true}].map(x=>(
-                    <div key={x.l} style={{textAlign:"center"}}>
-                      <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>{x.l}</Span>
-                      <Span s={13} w={x.bold?900:700}>฿{fmt(x.v)}</Span>
-                    </div>
-                  ))}
-                  <div style={{padding:"5px 12px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center"}}>
-                    <Span s={9} c={+qMg>=30?"#16a34a":"#dc2626"} style={{display:"block"}}>Margin</Span>
-                    <Span s={15} w={900} c={+qMg>=30?"#16a34a":"#dc2626"}>{qMg}%</Span>
-                  </div>
-                  <div style={{width:1,height:32,background:"#e2e8f0",flexShrink:0}}/>
-                  <Btn variant="ghost" onClick={()=>delQO(q.id)}>Cancel</Btn>
-                  <Btn onClick={handleSave} style={{padding:"8px 24px"}}>Save</Btn>
-                </div>
-              </Card>
-            );
-          })}
+          {(editCS.quoteOverrides||[]).map((q)=>(
+            <QuoteCard key={q.id} q={q} editCS={editCS} customers={customers} opps={opps} user={user}
+              setQF={setQF} setQIC={setQIC} setQEC={setQEC} setQTK={setQTK} setQInst={setQInst} setQDlv={setQDlv}
+              addQEC={addQEC} addQTK={addQTK} addQInst={addQInst} addQDlv={addQDlv}
+              delQIC={delQIC} delQEC={delQEC} delQTK={delQTK} delQO={delQO}
+              reorderCOGS={reorderCOGS} reorderQTK={reorderQTK}
+              updQO={updQO} handleSave={handleSave}
+            />
+          ))}
         </div>
 
 
