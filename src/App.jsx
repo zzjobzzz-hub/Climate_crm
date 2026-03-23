@@ -214,6 +214,20 @@ const gsDelete = (collection, id) => {
 // 
 const SI = {width:"100%",border:"1px solid #e2e8f0",borderRadius:5,padding:"8px 11px",fontSize:14,color:"#1e293b",background:"#fafafa",outline:"none",boxSizing:"border-box"};
 const Inp  = ({style,...p}) => <input {...p} style={{...SI,...style}}/>;
+// Numeric input that shows commas and allows empty/partial editing
+const NumInp = ({value,onChange,style,...p}) => {
+  const [focused,setFocused] = React.useState(false);
+  const ref = React.useRef();
+  const [raw,setRaw] = React.useState(value===0?"":String(value));
+  React.useEffect(()=>{ if(!focused) setRaw(value===0?"":String(value)); },[value,focused]);
+  const display = focused ? raw : (value===0?"":Number(value).toLocaleString("en-US"));
+  return <input ref={ref} {...p} type="text" inputMode="numeric"
+    value={display}
+    onFocus={()=>{setFocused(true);setRaw(value===0?"":String(value));}}
+    onChange={e=>{const v=e.target.value.replace(/[^0-9.]/g,"");setRaw(v);const n=parseFloat(v);if(!isNaN(n))onChange(n);else if(v===""||v===".")onChange(0);}}
+    onBlur={()=>{setFocused(false);}}
+    style={{...SI,...style,textAlign:"right"}}/>;
+};
 const Sel  = ({style,children,...p}) => <select {...p} style={{...SI,...style}}>{children}</select>;
 const Txta = ({style,...p}) => <textarea {...p} style={{...SI,resize:"vertical",...style}}/>;
 
@@ -585,7 +599,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
           <MultiSelect label="Status"  options={OPP_STATUSES.map(s=>({value:s,label:s}))}       selected={fSt}  onChange={setFSt}  width={150}/>
           <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fSvc} onChange={setFSvc} width={150}/>
           <MultiSelect label="Agents"  options={SALES_USERS.map(u=>({value:u.id,label:u.name.split(" ")[0]}))} selected={fAg} onChange={setFAg} width={150}/>
-          {tab==="kpi"&&<><Sel value={year} onChange={e=>sYear(+e.target.value)} style={{width:88}}>{[2026,2027,2028].map(y=><option key={y}>{y}</option>)}</Sel><Inp type="number" value={annual} onChange={e=>sAnn(+e.target.value)} style={{width:160}}/></>}
+          {tab==="kpi"&&<><Sel value={year} onChange={e=>sYear(+e.target.value)} style={{width:88}}>{[2026,2027,2028].map(y=><option key={y}>{y}</option>)}</Sel><NumInp value={annual} onChange={v=>sAnn(v)} style={{width:160}}/></>}
         </div>
       </div>
 
@@ -689,7 +703,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
               {MONTHS.map((m,i)=>(
                 <div key={m} style={{textAlign:"center",minWidth:62}}>
                   <Span s={10} c="#64748b" style={{display:"block",marginBottom:3}}>{m}</Span>
-                  <Inp type="number" value={splits[i]} onChange={e=>upSplit(i,e.target.value)} style={{textAlign:"center",padding:"4px",fontSize:12}} min={0} max={30}/>
+                  <NumInp value={splits[i]} onChange={v=>upSplit(i,v)} style={{textAlign:"center",padding:"4px",fontSize:12}}/>
                   <Span s={9} c="#94a3b8" style={{display:"block",marginTop:2}}>฿{fmtM(Math.round(annual*splits[i]/100))}</Span>
                 </div>
               ))}
@@ -1110,9 +1124,9 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
   const initIssue = today();
   const savedQD = opp?.quotationData; // persisted from previous save
 
-  // Default notes pulled from qSnap or fallback
-  const defaultNotes = qSnap?.notes ||
-    "• ค่าใช้จ่ายในการเดินทางเพื่อ Site Visit รวมอยู่ในราคาข้างต้น\n• ค่าธรรมเนียม TGO (ถ้ามี) ลูกค้ารับผิดชอบตามจริง\n• ราคานี้มีผลภายใน 30 วันนับจากวันที่ออกใบเสนอราคา\n• ราคาดังกล่าวยังไม่รวมภาษีมูลค่าเพิ่ม (VAT) 7%";
+  const defaultNotes = qSnap?.notes || "";
+
+
 
   const qIssueDate = qSnap?.issueDate || initIssue;
   const qDueDate   = qSnap?.dueDate   || addDays(qIssueDate, 30);
@@ -1593,7 +1607,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
         <>
           <G2>
 <FRow label="OPP Code"><Inp value={f.oppCode} readOnly style={{border:"none",background:"transparent",fontFamily:"monospace",fontWeight:600,color:"#1e40af",cursor:"default"}}/></FRow>
-<FRow label="Quote No."><Inp value={f.quoteNo} readOnly style={{border:"none",background:"transparent",fontFamily:"monospace",cursor:"default"}}/></FRow>
+<FRow label="Quote No."><button onClick={()=>f.quoteNo&&sTab("quotation")} style={{fontFamily:"monospace",fontWeight:600,fontSize:14,background:"none",color:f.quoteNo?"#1e40af":"#94a3b8",border:"none",padding:"8px 0",cursor:f.quoteNo?"pointer":"default",textDecoration:f.quoteNo?"underline":"none"}}>{f.quoteNo||"—"}</button></FRow>
             {f.csCode&&<div style={{gridColumn:"1/-1",marginTop:4}}><FRow label="Cost Sheet & Pricing Code (CS Code)"><div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>{onSave({...f,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""});if(onGoToCS)onGoToCS(f.serviceCode);}} style={{fontFamily:"monospace",fontWeight:700,fontSize:13,background:"none",color:"#1e40af",padding:"4px 0",border:"none",cursor:"pointer",textDecoration:"underline"}}>{f.csCode}</button><Span s={11} c="#64748b">Click to open Cost Sheet (saves first)</Span></div></FRow></div>}
             <div style={{gridColumn:"1/-1"}}><FRow label="Customer"><Inp value={customers.find(c=>c.id===f.custId)?.companyEN||f.custId} readOnly style={{border:"none",background:"transparent",fontWeight:400,cursor:"default"}}/></FRow></div>
             <div style={{gridColumn:"1/-1"}}><FRow label="Service"><Inp value={`[${f.serviceCode}] ${f.serviceType}`} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow></div>
@@ -2100,7 +2114,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
             <div style={{gridColumn:"1/-1"}}><FRow label="Company"><Inp value={cust?.companyEN||""} readOnly style={{background:"#f8fafc",color:"#64748b",fontWeight:700}}/></FRow></div>
             <FRow label="Quote No."><Inp value={f.quoteNo} onChange={e=>{set("quoteNo",e.target.value);syncInstByQuote(e.target.value,f.totalContractValue);}} style={{fontFamily:"monospace"}}/></FRow>
             <FRow label="Service Type"><Inp value={f.serviceType} readOnly style={{background:"#f8fafc"}}/></FRow>
-            <FRow label="Total Contract Value (THB)" tip="Recalculates all installments"><Inp type="number" value={f.totalContractValue} onChange={e=>setCv(e.target.value)}/></FRow>
+            <FRow label="Total Contract Value (THB)" tip="Recalculates all installments"><NumInp value={f.totalContractValue} onChange={v=>setCv(v)}/></FRow>
             <FRow label="Delivery Status"><Sel value={f.deliveryStatus} onChange={e=>set("deliveryStatus",e.target.value)}>{DLV_STATUSES.map(s=><option key={s}>{s}</option>)}</Sel></FRow>
             <FRow label="Contract No."><Inp value={f.contractNo} onChange={e=>set("contractNo",e.target.value)}/></FRow>
             <FRow label="Contract Date"><Inp type="date" value={f.contractDate} onChange={e=>set("contractDate",e.target.value)}/></FRow>
@@ -2145,8 +2159,8 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
                 <tr key={ins.id} style={{borderBottom:"1px solid #f1f5f9"}}>
                   <TD><Span s={12} w={700} c="#94a3b8">#{ins.seq}</Span></TD>
                   <TD><Inp value={ins.label} readOnly style={{padding:"4px 6px",fontSize:12,background:"transparent",border:"none",color:"#374151",cursor:"default"}}/></TD>
-                  <TD><Inp type="number" value={ins.pct} onChange={e=>changeIns(idx,"pct",e.target.value)} style={{padding:"4px 6px",fontSize:12,width:55}}/></TD>
-                  <TD><Inp type="number" value={ins.amount} onChange={e=>changeIns(idx,"amount",+e.target.value)} style={{padding:"4px 6px",fontSize:12,width:90,fontWeight:700}}/></TD>
+                  <TD><NumInp value={ins.pct} onChange={v=>changeIns(idx,"pct",v)} style={{padding:"4px 6px",fontSize:12,width:55}}/></TD>
+                  <TD><NumInp value={ins.amount} onChange={v=>changeIns(idx,"amount",v)} style={{padding:"4px 6px",fontSize:12,width:90,fontWeight:700}}/></TD>
                   <TD><Inp value={ins.invoiceNo} onChange={e=>changeIns(idx,"invoiceNo",e.target.value)} style={{padding:"4px 6px",fontSize:12}}/></TD>
                   <TD><Inp type="date" value={ins.invoiceDate} onChange={e=>changeIns(idx,"invoiceDate",e.target.value)} style={{padding:"4px 6px",fontSize:12}}/></TD>
                   <TD><Inp value={ins.receiptNo} onChange={e=>changeIns(idx,"receiptNo",e.target.value)} style={{padding:"4px 6px",fontSize:12}}/></TD>
@@ -2420,7 +2434,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
                 <TR key={ins.id}>
                   <TD><Span s={12} w={700} c="#94a3b8">#{ins.seq}</Span></TD>
                   <TD><input value={ins.label||""} readOnly style={{width:"100%",padding:"3px 6px",fontSize:11,border:"none",background:"transparent",color:"#374151",cursor:"default",outline:"none"}}/></TD>
-                  <TD style={{whiteSpace:"nowrap"}}><input type="number" value={ins.pct} onChange={e=>changeLocalIns(ins.id,"pct",e.target.value)} style={{width:48,padding:"3px 5px",fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",textAlign:"right"}}/><span style={{fontSize:10,color:"#94a3b8",marginLeft:2}}>%</span></TD>
+                  <TD style={{whiteSpace:"nowrap"}}><NumInp value={ins.pct} onChange={v=>changeLocalIns(ins.id,"pct",v)} style={{width:48,padding:"3px 5px",fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa"}}/><span style={{fontSize:10,color:"#94a3b8",marginLeft:2}}>%</span></TD>
                   <TD right style={{fontWeight:700,whiteSpace:"nowrap"}}>฿{fmt(ins.amount)}</TD>
                   <TD><input value={ins.invoiceNo||""} onChange={e=>changeLocalIns(ins.id,"invoiceNo",e.target.value)} style={{width:"100%",padding:"3px 6px",fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",fontFamily:"monospace"}}/></TD>
                   <TD><input type="date" value={ins.invoiceDate||""} onChange={e=>changeLocalIns(ins.id,"invoiceDate",e.target.value)} style={{fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",padding:"2px 4px"}}/></TD>
@@ -2532,7 +2546,7 @@ const TaskRow = React.memo(({t,onSet,onDel,months}) => {
         </td>
         {["manager","senior","junior"].map(lvl=>(
           <td key={lvl} style={{padding:"3px 4px"}}>
-            <input type="number" value={t[lvl]||0}
+            <input type="text" inputMode="numeric" value={t[lvl]||""}
               onChange={e=>onSet(t.id,lvl,+e.target.value)}
               style={{padding:"2px 4px",fontSize:13,width:48,textAlign:"center",border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",outline:"none"}}/>
           </td>
@@ -2540,7 +2554,7 @@ const TaskRow = React.memo(({t,onSet,onDel,months}) => {
         <td style={{padding:"3px 4px",fontWeight:700,whiteSpace:"nowrap",fontSize:13}}>฿{fmt(tc)}</td>
         <td style={{padding:"3px 4px"}}>
           <Sel value={t.payMonth||1} onChange={e=>onSet(t.id,"payMonth",+e.target.value)} style={{padding:"2px 3px",fontSize:13,width:52}}>
-            {Array.from({length:months||3},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
+            {Array.from({length:(months||3)+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
           </Sel>
         </td>
         <td style={{padding:"3px 4px"}}>
@@ -2645,6 +2659,13 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
   const setQEC=(qid,rid,k,v)=>updQO(qid,q=>({...q,externalCosts:(q.externalCosts||[]).map(r=>r.id===rid?{...r,[k]:v}:r)}));
   const addQEC=qid=>updQO(qid,q=>({...q,externalCosts:[...(q.externalCosts||[]),{id:uid(),label:"",unit:"Job",qty:0,rate:0,vendorName:"",clientBorne:false,payMonth:1}]}));
   const delQEC=(qid,rid)=>updQO(qid,q=>({...q,externalCosts:(q.externalCosts||[]).filter(r=>r.id!==rid)}));
+  const reorderCOGS=(qid,fromId,toId)=>updQO(qid,q=>{
+    const all=[...(q.internalCosts||[]).map(r=>({...r,_t:"i"})),...(q.externalCosts||[]).map(r=>({...r,_t:"e"}))];
+    const fi=all.findIndex(r=>r.id===fromId); const ti=all.findIndex(r=>r.id===toId);
+    if(fi<0||ti<0||fi===ti) return q;
+    const reordered=[...all]; reordered.splice(ti,0,reordered.splice(fi,1)[0]);
+    return {...q,internalCosts:reordered.filter(r=>r._t==="i").map(({_t,...r})=>r),externalCosts:reordered.filter(r=>r._t==="e").map(({_t,...r})=>r)};
+  });
   const setQInst=(qid,iid,k,v)=>updQO(qid,q=>({...q,installments:(q.installments||[]).map(i=>i.id===iid?{...i,[k]:v}:i)}));
   const addQInst=qid=>updQO(qid,q=>({...q,installments:[...(q.installments||[]),{id:uid(),seq:(q.installments||[]).length+1,label:"",pct:0,detail:"",recvMonth:1}]}));
   const delQInst=(qid,iid)=>updQO(qid,q=>({...q,installments:(q.installments||[]).filter(i=>i.id!==iid)}));
@@ -2803,7 +2824,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                     <div key={l.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:7,marginBottom:6}}>
                       <span style={{fontSize:12,color:'#94a3b8',whiteSpace:'nowrap'}}>{l.ts}</span>
                       <span style={{fontSize:12,fontWeight:700,fontFamily:'monospace',color:'#92400e',background:'#fef3c7',padding:'2px 8px',borderRadius:4,border:'1px solid #fde68a'}}>{l.quoteSnapshot.csCode}</span>
-                      <span style={{fontSize:12,color:'#374151',flex:1}}>{l.quoteSnapshot.quoteNo} · {customers.find(c=>c.id===l.quoteSnapshot.custId)?.companyEN||l.quoteSnapshot.custId}</span>
+                      <span style={{fontSize:12,color:'#374151',flex:1}}>{l.quoteSnapshot.quoteNo} {customers.find(c=>c.id===l.quoteSnapshot.custId)?.companyEN||l.quoteSnapshot.custId}</span>
                       <Btn variant='ghost' style={{fontSize:13,padding:'4px 14px'}} onClick={()=>{
                         sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid()}]}));
                         const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} for editing`};
@@ -2865,12 +2886,12 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                   {/* Sales Price */}
                   <div style={{flex:"0 0 90px"}}>
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Price</Span>
-                    <Inp type="number" value={q.salesPrice} onChange={e=>updQO(q.id,q=>({...q,salesPrice:+e.target.value,lineItems:(q.lineItems||[]).map((li,i)=>i===0?{...li,unitPrice:+e.target.value}:li)}))} style={{fontSize:12,fontWeight:700,padding:"3px 6px"}}/>
+                    <NumInp value={q.salesPrice} onChange={v=>updQO(q.id,q=>({...q,salesPrice:v,lineItems:(q.lineItems||[]).map((li,i)=>i===0?{...li,unitPrice:v}:li)}))} style={{fontSize:12,fontWeight:700,padding:"3px 6px"}}/>
                   </div>
                   {/* Months */}
                   <div style={{flex:"0 0 52px"}}>
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Mo.</Span>
-                    <Inp type="number" value={months} onChange={e=>setQF(q.id,"projectMonths",+e.target.value)} style={{fontSize:13,padding:"3px 5px"}}/>
+                    <NumInp value={months} onChange={v=>setQF(q.id,"projectMonths",v)} style={{fontSize:13,padding:"3px 5px"}}/>
                   </div>
                   {/* Margin badge */}
                   <div style={{flex:"0 0 72px",padding:"5px 8px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center",flexShrink:0}}>
@@ -2893,32 +2914,32 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                       <TH cols={["Label","Vendor","Unit","Qty","Rate","Total","Pay M.",""]}/>
                       <tbody>
                         {(q.internalCosts||[]).map(r=>(
-                          <tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
+                          <tr key={r.id} draggable onDragStart={e=>e.dataTransfer.setData("cogsDrag",r.id+"|"+q.id)} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const[fid,fqid]=e.dataTransfer.getData("cogsDrag").split("|");if(fqid===q.id)reorderCOGS(q.id,fid,r.id);}} style={{borderBottom:"1px solid #f8fafc",cursor:"grab"}}>
                             <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQIC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px",fontSize:13,color:"#94a3b8",textAlign:"center"}}>—</td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.unit} onChange={e=>setQIC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><Inp type="number" value={r.qty} onChange={e=>setQIC(q.id,r.id,"qty",+e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><Inp type="number" value={r.rate} onChange={e=>setQIC(q.id,r.id,"rate",+e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><NumInp value={r.qty} onChange={v=>setQIC(q.id,r.id,"qty",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><NumInp value={r.rate} onChange={v=>setQIC(q.id,r.id,"rate",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px",fontWeight:700,fontSize:13}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
                             <td style={{padding:"3px 3px"}}>
                               <Sel value={r.payMonth||1} onChange={e=>setQIC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:13,width:"100%"}}>
-                                {Array.from({length:months||3},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
+                                {Array.from({length:(months||3)+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
                               </Sel>
                             </td>
                             <td><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQIC(q.id,r.id)}>×</Btn></td>
                           </tr>
                         ))}
                         {(q.externalCosts||[]).map(r=>(
-                          <tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
+                          <tr key={r.id} draggable onDragStart={e=>e.dataTransfer.setData("cogsDrag",r.id+"|"+q.id)} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const[fid,fqid]=e.dataTransfer.getData("cogsDrag").split("|");if(fqid===q.id)reorderCOGS(q.id,fid,r.id);}} style={{borderBottom:"1px solid #f8fafc",cursor:"grab"}}>
                             <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQEC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.vendorName||""} onChange={e=>setQEC(q.id,r.id,"vendorName",e.target.value)} placeholder="Vendor" style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.unit||""} onChange={e=>setQEC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><Inp type="number" value={r.qty} onChange={e=>setQEC(q.id,r.id,"qty",+e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><Inp type="number" value={r.rate} onChange={e=>setQEC(q.id,r.id,"rate",+e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><NumInp value={r.qty} onChange={v=>setQEC(q.id,r.id,"qty",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><NumInp value={r.rate} onChange={v=>setQEC(q.id,r.id,"rate",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px",fontWeight:700,fontSize:13}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
                             <td style={{padding:"3px 3px"}}>
                               <Sel value={r.payMonth||1} onChange={e=>setQEC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:13,width:"100%"}}>
-                                {Array.from({length:months||3},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
+                                {Array.from({length:(months||3)+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
                               </Sel>
                             </td>
                             <td><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQEC(q.id,r.id)}>×</Btn></td>
@@ -2928,8 +2949,10 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                           <td colSpan={4} style={{padding:"5px 4px"}}>
                             <button onClick={()=>addQEC(q.id)} style={{fontSize:13,color:"#1e40af",background:"transparent",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 12px",cursor:"pointer",fontWeight:600}}>+ Add</button>
                           </td>
-                          <td colSpan={3} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap",color:"#94a3b8",fontSize:12,fontWeight:600}}>Total COGS</td>
-                          <td style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a"}}>฿{fmt(qIC+qEC)}</td>
+                          <td colSpan={4} style={{padding:"5px 8px",textAlign:"right",whiteSpace:"nowrap"}}>
+                            <span style={{color:"#94a3b8",fontSize:12,fontWeight:600,marginRight:8}}>Total COGS</span>
+                            <span style={{fontWeight:700,fontSize:13,color:"#0f172a"}}>฿{fmt(qIC+qEC)}</span>
+                          </td>
                         </tr>
                       </tbody>
                     </table>
@@ -2963,7 +2986,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                           <tr key={ins.id} style={{borderBottom:"1px solid #f8fafc"}}>
                             <td style={{padding:"4px 4px",textAlign:"center",color:"#94a3b8",fontWeight:700,fontSize:13,width:22}}>{idx+1}</td>
                             <td style={{padding:"4px 4px"}}><Inp value={ins.label} onChange={e=>setQInst(q.id,ins.id,"label",e.target.value)} placeholder="" style={{padding:"2px 5px",fontSize:13,width:"100%",background:"#f8fafc"}}/></td>
-                            <td style={{padding:"4px 4px",width:46}}><Inp type="number" value={ins.pct} onChange={e=>setQInst(q.id,ins.id,"pct",+e.target.value)} style={{padding:"2px 4px",fontSize:13,width:38,textAlign:"right"}}/></td>
+                            <td style={{padding:"4px 4px",width:46}}><NumInp value={ins.pct} onChange={v=>setQInst(q.id,ins.id,"pct",v)} style={{padding:"2px 4px",fontSize:13,width:38}}/></td>
                             <td style={{padding:"4px 4px",fontWeight:700,fontSize:13,textAlign:"right",whiteSpace:"nowrap",width:76}}>฿{fmt(Math.round(q.salesPrice*(ins.pct||0)/100))}</td>
                             <td style={{padding:"4px 4px",width:54}}>
                               <Sel value={ins.recvMonth||1} onChange={e=>setQInst(q.id,ins.id,"recvMonth",+e.target.value)} style={{padding:"2px 3px",fontSize:13,width:48}}>
