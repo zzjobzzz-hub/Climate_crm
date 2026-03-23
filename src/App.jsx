@@ -2520,7 +2520,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
 };
 
 //  TaskRow: isolated component so taskName input retains focus on keystroke 
-const TaskRow = React.memo(({t,onSet,onDel,months}) => {
+const TaskRow = React.memo(({t,onSet,onDel,months,dragStyle,onDragStart,onDragEnter,onDragEnd}) => {
   const [name,setName]         = useState(t.taskName);
   const [agentOpen,setAO]      = useState(false);
   useEffect(()=>{ setName(t.taskName); },[t.taskName]);
@@ -2537,8 +2537,8 @@ const TaskRow = React.memo(({t,onSet,onDel,months}) => {
 
   return (
     <>
-      <tr draggable onDragStart={e=>e.dataTransfer.setData("taskDrag",t.id)} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const fid=e.dataTransfer.getData("taskDrag");if(fid&&fid!==t.id&&onReorder)onReorder(fid,t.id);}} style={{borderBottom:agentOpen?"none":"1px solid #f8fafc",cursor:"default"}}>
-        <td style={{padding:"3px 4px",cursor:"grab",color:"#cbd5e1",userSelect:"none",textAlign:"center",fontSize:14}}>⠿</td>
+      <tr draggable onDragStart={onDragStart||undefined} onDragEnter={onDragEnter||undefined} onDragEnd={onDragEnd||undefined} onDragOver={e=>e.preventDefault()} style={{borderBottom:agentOpen?"none":"1px solid #f8fafc",cursor:"default",...(dragStyle||{})}}>
+        <td style={{padding:"3px 4px",cursor:"grab",color:"#94a3b8",userSelect:"none",textAlign:"center",fontSize:16,transition:"color .15s"}} onMouseEnter={e=>e.currentTarget.style.color="#475569"} onMouseLeave={e=>e.currentTarget.style.color="#94a3b8"}>⠿</td>
         <td style={{padding:"3px 4px"}}>
           <input value={name}
             onChange={e=>setName(e.target.value)}
@@ -2601,7 +2601,7 @@ const TaskRow = React.memo(({t,onSet,onDel,months}) => {
 });
 
 //  TaskTableWidget: standalone table, uses TaskRow to prevent focus loss 
-const TaskTableWidget = ({tasks,onSet,onAdd,onDel,onReorder,months}) => (
+const TaskTableWidget = ({tasks,onSet,onAdd,onDel,onReorder,dragProps,months}) => (
     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
       <colgroup><col style={{width:"20px"}}/><col style={{width:"36%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"10%"}}/><col style={{width:"9%"}}/><col style={{width:"13%"}}/></colgroup>
       <thead><tr style={{background:"#f8fafc"}}>
@@ -2609,12 +2609,37 @@ const TaskTableWidget = ({tasks,onSet,onAdd,onDel,onReorder,months}) => (
         {["Task / Activity","Mgr (days)","Sr (days)","Jr (days)","Total Cost","Pay Month","Agents / Actions"].map(h=><th key={h} style={{padding:"5px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:9,borderBottom:"1px solid #e2e8f0"}}>{h}</th>)}
       </tr></thead>
       <tbody>
-        {(tasks||[]).map(t=><TaskRow key={t.id} t={t} onSet={onSet} onDel={onDel} onReorder={onReorder} months={months}/>)}
+        {(tasks||[]).map(t=><TaskRow key={t.id} t={t} onSet={onSet} onDel={onDel} onReorder={onReorder} months={months} dragStyle={dragProps?dragProps.getRowStyle(t.id):{}} onDragStart={dragProps?()=>dragProps.handleDragStart(t.id):null} onDragEnter={dragProps?()=>dragProps.handleDragEnter(t.id):null} onDragEnd={dragProps?dragProps.handleDragEnd:null}/>)}
         {/* +Task button on left under Task/Activity column */}
         <tr><td/><td style={{padding:"4px 4px"}}><button onClick={onAdd} style={{fontSize:13,color:"#1e40af",background:"transparent",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 14px",cursor:"pointer",fontWeight:600}}>+ Task</button></td><td colSpan={5} style={{padding:"4px 6px",fontWeight:700,fontSize:11,textAlign:"right"}}>Total OPEX: <span style={{fontWeight:900,fontSize:12}}>฿{fmt((tasks||[]).reduce((s,t)=>(s+(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior),0))}</span></td><td/></tr>
       </tbody>
     </table>
 );
+
+// 
+// Smooth drag-to-sort hook
+// 
+const useDragSort = (items, onReorder) => {
+  const [dragging, setDragging] = React.useState(null); // id being dragged
+  const [over, setOver] = React.useState(null); // id being hovered over
+
+  const handleDragStart = (id) => setDragging(id);
+  const handleDragEnter = (id) => { if(id !== dragging) setOver(id); };
+  const handleDragEnd = () => {
+    if(dragging && over && dragging !== over) onReorder(dragging, over);
+    setDragging(null); setOver(null);
+  };
+
+  const getRowStyle = (id) => ({
+    opacity: id === dragging ? 0.4 : 1,
+    background: id === over ? "#eff6ff" : "",
+    transition: "background .1s, opacity .1s",
+    transform: id === over ? "scaleY(1.03)" : "scaleY(1)",
+    transformOrigin: "top",
+  });
+
+  return { dragging, over, handleDragStart, handleDragEnter, handleDragEnd, getRowStyle };
+};
 
 // 
 // COST SHEET (COGS + OPEX + Cashflow)
@@ -2850,6 +2875,11 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
             const qTC=qIC+qEC+qOPEX,qMg=margin(q.salesPrice,qTC);
             const months=q.projectMonths||editCS.projectMonths||3;
             const instSum=(q.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
+            const cogsDrag = useDragSort(
+              [...(q.internalCosts||[]),...(q.externalCosts||[])],
+              (fid,tid)=>reorderCOGS(q.id,fid,tid)
+            );
+            const taskDrag = useDragSort(q.tasks||[],(fid,tid)=>reorderQTK(q.id,fid,tid));
             return (
               <Card key={q.id} style={{marginBottom:14,overflow:"hidden",position:"relative"}}>
                 {/* Header row — single line, no wrap */}
@@ -2919,12 +2949,12 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                       <Span s={13} w={700} c="#374151" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>COGS</Span>
                     </div>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,tableLayout:"fixed"}}>
-                      <colgroup><col style={{width:"20px"}}/><col style={{width:"25%"}}/><col style={{width:"12%"}}/><col style={{width:"8%"}}/><col style={{width:"7%"}}/><col style={{width:"12%"}}/><col style={{width:"11%"}}/><col style={{width:"8%"}}/><col style={{width:"4%"}}/></colgroup>
+                      <colgroup><col style={{width:"24px"}}/><col style={{width:"25%"}}/><col style={{width:"12%"}}/><col style={{width:"8%"}}/><col style={{width:"7%"}}/><col style={{width:"12%"}}/><col style={{width:"11%"}}/><col style={{width:"8%"}}/><col style={{width:"4%"}}/></colgroup>
                       <TH cols={["","Label","Vendor","Unit","Qty","Rate","Total","Pay M.",""]}/>
                       <tbody>
                         {(q.internalCosts||[]).map(r=>(
-                          <tr key={r.id} draggable onDragStart={e=>e.dataTransfer.setData("cogsDrag",r.id+"|"+q.id)} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const[fid,fqid]=e.dataTransfer.getData("cogsDrag").split("|");if(fqid===q.id)reorderCOGS(q.id,fid,r.id);}} style={{borderBottom:"1px solid #f8fafc",cursor:"default"}}>
-                            <td style={{padding:"3px 4px",cursor:"grab",color:"#cbd5e1",userSelect:"none",textAlign:"center",fontSize:14}}>⠿</td>
+                          <tr key={r.id} draggable onDragStart={()=>cogsDrag.handleDragStart(r.id)} onDragEnter={()=>cogsDrag.handleDragEnter(r.id)} onDragEnd={cogsDrag.handleDragEnd} onDragOver={e=>e.preventDefault()} style={{borderBottom:"1px solid #f8fafc",cursor:"default",...cogsDrag.getRowStyle(r.id)}}>
+                            <td style={{padding:"3px 4px",cursor:"grab",color:"#94a3b8",userSelect:"none",textAlign:"center",fontSize:16}}>⠿</td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQIC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px",fontSize:13,color:"#94a3b8",textAlign:"center"}}>—</td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.unit} onChange={e=>setQIC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
@@ -2940,8 +2970,8 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                           </tr>
                         ))}
                         {(q.externalCosts||[]).map(r=>(
-                          <tr key={r.id} draggable onDragStart={e=>e.dataTransfer.setData("cogsDrag",r.id+"|"+q.id)} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const[fid,fqid]=e.dataTransfer.getData("cogsDrag").split("|");if(fqid===q.id)reorderCOGS(q.id,fid,r.id);}} style={{borderBottom:"1px solid #f8fafc",cursor:"default"}}>
-                            <td style={{padding:"3px 4px",cursor:"grab",color:"#cbd5e1",userSelect:"none",textAlign:"center",fontSize:14}}>⠿</td>
+                          <tr key={r.id} draggable onDragStart={()=>cogsDrag.handleDragStart(r.id)} onDragEnter={()=>cogsDrag.handleDragEnter(r.id)} onDragEnd={cogsDrag.handleDragEnd} onDragOver={e=>e.preventDefault()} style={{borderBottom:"1px solid #f8fafc",cursor:"default",...cogsDrag.getRowStyle(r.id)}}>
+                            <td style={{padding:"3px 4px",cursor:"grab",color:"#94a3b8",userSelect:"none",textAlign:"center",fontSize:16}}>⠿</td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQEC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.vendorName||""} onChange={e=>setQEC(q.id,r.id,"vendorName",e.target.value)} placeholder="Vendor" style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.unit||""} onChange={e=>setQEC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
@@ -2970,7 +3000,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                   </div>
                   <div>
                     <Span s={13} w={700} c="#374151" style={{textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:6}}>OPEX — Man-day Tasks</Span>
-                    <TaskTableWidget tasks={q.tasks||[]} onSet={(tid,k,v)=>setQTK(q.id,tid,k,v)} onAdd={()=>addQTK(q.id)} onDel={tid=>delQTK(q.id,tid)} onReorder={(fid,tid)=>reorderQTK(q.id,fid,tid)} months={months}/>
+                    <TaskTableWidget tasks={q.tasks||[]} onSet={(tid,k,v)=>setQTK(q.id,tid,k,v)} onAdd={()=>addQTK(q.id)} onDel={tid=>delQTK(q.id,tid)} onReorder={(fid,tid)=>reorderQTK(q.id,fid,tid)} dragProps={taskDrag} months={months}/>
                     <div style={{display:"flex",justifyContent:"space-between",marginTop:6,padding:"5px 2px",borderTop:"1px solid #e2e8f0"}}><Span s={11} w={700}>Total OPEX</Span><Span s={12} w={900}>฿{fmt(qOPEX)}</Span></div>
                   </div>
                 </div>
