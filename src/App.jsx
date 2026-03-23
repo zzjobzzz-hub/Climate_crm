@@ -4,7 +4,7 @@
 // USERS — all roles see same Admin view (Req 16, 17, 18)
 // 
 const USERS = [
-  { id:"korakoj.s",     email:"korakoj.s@wavebcg.com",      name:"Korakoj Sanguanpiyapan",     role:"md",        password:"Krj@Wave26!" },
+  { id:"korakoj.s",     email:"korakoj.s@wavebcg.com",      name:"Korakoj Sanguanpiyapan",     role:"sales",     password:"Krj@Wave26!" },
   { id:"chawapol.ta",   email:"chawapol.ta@wavebcg.com",    name:"Chawapol Tangsirichoochuay", role:"admin",     password:"Cwp@Wave26!" },
   { id:"songyot.kr",    email:"songyot.kr@wavebcg.com",     name:"Songyot Kraprom",            role:"sales",     password:"Sgt@Wave26!" },
   { id:"theerayut.c",   email:"theerayut.c@wavebcg.com",    name:"Theerayut Chimpitak",        role:"sales",     password:"Trt@Wave26!" },
@@ -14,7 +14,7 @@ const USERS = [
   { id:"nattaya.s",     email:"nattaya.s@wavebcg.com",      name:"Nattaya Sonsiri",            role:"operation", password:"Nty@Wave26!" },
   { id:"ausanee.s",     email:"ausanee.s@wavebcg.com",      name:"Ausanee Suttiwong",          role:"operation", password:"Asn@Wave26!" },
   { id:"nattharika.p",  email:"nattharika.p@wavebcg.com",   name:"Nattharika Phongmanee",      role:"operation", password:"Ntk@Wave26!" },
-  { id:"krispira.ru",   email:"krispira.ru@wavebcg.com",    name:"Krispira Rutanatumsri",      role:"operation", password:"Ksp@Wave26!" },
+  { id:"krispira.ru",   email:"krispira.ru@wavebcg.com",    name:"Krispira Rutanatumsri",      role:"sales",     password:"Ksp@Wave26!" },
   { id:"piyabut.ma",   email:"piyabut.ma@wavebcg.com",     name:"Piyabut Mahasabsombut",       role:"operation", password:"Pbt@Wave26!" },
   { id:"taraphong.sr", email:"taraphong.sr@wavebcg.com",   name:"Taraphong Sriaram",            role:"operation", password:"Trp@Wave26!" },
 ];
