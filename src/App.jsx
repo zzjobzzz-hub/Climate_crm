@@ -2537,7 +2537,8 @@ const TaskRow = React.memo(({t,onSet,onDel,months}) => {
 
   return (
     <>
-      <tr style={{borderBottom:agentOpen?"none":"1px solid #f8fafc"}}>
+      <tr draggable onDragStart={e=>e.dataTransfer.setData("taskDrag",t.id)} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const fid=e.dataTransfer.getData("taskDrag");if(fid&&fid!==t.id&&onReorder)onReorder(fid,t.id);}} style={{borderBottom:agentOpen?"none":"1px solid #f8fafc",cursor:"default"}}>
+        <td style={{padding:"3px 4px",cursor:"grab",color:"#cbd5e1",userSelect:"none",textAlign:"center",fontSize:14}}>⠿</td>
         <td style={{padding:"3px 4px"}}>
           <input value={name}
             onChange={e=>setName(e.target.value)}
@@ -2600,16 +2601,17 @@ const TaskRow = React.memo(({t,onSet,onDel,months}) => {
 });
 
 //  TaskTableWidget: standalone table, uses TaskRow to prevent focus loss 
-const TaskTableWidget = ({tasks,onSet,onAdd,onDel,months}) => (
+const TaskTableWidget = ({tasks,onSet,onAdd,onDel,onReorder,months}) => (
     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
-      <colgroup><col style={{width:"40%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"11%"}}/><col style={{width:"9%"}}/><col style={{width:"13%"}}/></colgroup>
+      <colgroup><col style={{width:"20px"}}/><col style={{width:"36%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"10%"}}/><col style={{width:"9%"}}/><col style={{width:"13%"}}/></colgroup>
       <thead><tr style={{background:"#f8fafc"}}>
+        <th style={{padding:"5px 4px",borderBottom:"1px solid #e2e8f0"}}/>
         {["Task / Activity","Mgr (days)","Sr (days)","Jr (days)","Total Cost","Pay Month","Agents / Actions"].map(h=><th key={h} style={{padding:"5px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:9,borderBottom:"1px solid #e2e8f0"}}>{h}</th>)}
       </tr></thead>
       <tbody>
-        {(tasks||[]).map(t=><TaskRow key={t.id} t={t} onSet={onSet} onDel={onDel} months={months}/>)}
+        {(tasks||[]).map(t=><TaskRow key={t.id} t={t} onSet={onSet} onDel={onDel} onReorder={onReorder} months={months}/>)}
         {/* +Task button on left under Task/Activity column */}
-        <tr><td style={{padding:"4px 4px"}}><button onClick={onAdd} style={{fontSize:13,color:"#1e40af",background:"transparent",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 14px",cursor:"pointer",fontWeight:600}}>+ Task</button></td><td colSpan={5} style={{padding:"4px 6px",fontWeight:700,fontSize:11,textAlign:"right"}}>Total OPEX: <span style={{fontWeight:900,fontSize:12}}>฿{fmt((tasks||[]).reduce((s,t)=>(s+(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior),0))}</span></td><td/></tr>
+        <tr><td/><td style={{padding:"4px 4px"}}><button onClick={onAdd} style={{fontSize:13,color:"#1e40af",background:"transparent",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 14px",cursor:"pointer",fontWeight:600}}>+ Task</button></td><td colSpan={5} style={{padding:"4px 6px",fontWeight:700,fontSize:11,textAlign:"right"}}>Total OPEX: <span style={{fontWeight:900,fontSize:12}}>฿{fmt((tasks||[]).reduce((s,t)=>(s+(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior),0))}</span></td><td/></tr>
       </tbody>
     </table>
 );
@@ -2653,6 +2655,13 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
   const setQTK=(qid,tid,k,v)=>updQO(qid,q=>({...q,tasks:(q.tasks||[]).map(t=>t.id===tid?{...t,[k]:v}:t)}));
   const addQTK=qid=>updQO(qid,q=>({...q,tasks:[...(q.tasks||[]),{id:uid(),taskName:"",manager:0,senior:0,junior:0,payMonth:1,agents:[]}]}));
   const delQTK=(qid,tid)=>updQO(qid,q=>({...q,tasks:(q.tasks||[]).filter(t=>t.id!==tid)}));
+  const reorderQTK=(qid,fromId,toId)=>updQO(qid,q=>{
+    const arr=[...(q.tasks||[])];
+    const fi=arr.findIndex(t=>t.id===fromId); const ti=arr.findIndex(t=>t.id===toId);
+    if(fi<0||ti<0||fi===ti) return q;
+    arr.splice(ti,0,arr.splice(fi,1)[0]);
+    return {...q,tasks:arr};
+  });
   const setQIC=(qid,rid,k,v)=>updQO(qid,q=>({...q,internalCosts:(q.internalCosts||[]).map(r=>r.id===rid?{...r,[k]:v}:r)}));
   const addQIC=qid=>updQO(qid,q=>({...q,internalCosts:[...(q.internalCosts||[]),{id:uid(),label:"",unit:"Unit",qty:0,rate:0,payMonth:1}]}));
   const delQIC=(qid,rid)=>updQO(qid,q=>({...q,internalCosts:(q.internalCosts||[]).filter(r=>r.id!==rid)}));
@@ -2910,11 +2919,12 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                       <Span s={13} w={700} c="#374151" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>COGS</Span>
                     </div>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,tableLayout:"fixed"}}>
-                      <colgroup><col style={{width:"27%"}}/><col style={{width:"13%"}}/><col style={{width:"8%"}}/><col style={{width:"7%"}}/><col style={{width:"13%"}}/><col style={{width:"12%"}}/><col style={{width:"8%"}}/><col style={{width:"4%"}}/></colgroup>
-                      <TH cols={["Label","Vendor","Unit","Qty","Rate","Total","Pay M.",""]}/>
+                      <colgroup><col style={{width:"20px"}}/><col style={{width:"25%"}}/><col style={{width:"12%"}}/><col style={{width:"8%"}}/><col style={{width:"7%"}}/><col style={{width:"12%"}}/><col style={{width:"11%"}}/><col style={{width:"8%"}}/><col style={{width:"4%"}}/></colgroup>
+                      <TH cols={["","Label","Vendor","Unit","Qty","Rate","Total","Pay M.",""]}/>
                       <tbody>
                         {(q.internalCosts||[]).map(r=>(
-                          <tr key={r.id} draggable onDragStart={e=>e.dataTransfer.setData("cogsDrag",r.id+"|"+q.id)} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const[fid,fqid]=e.dataTransfer.getData("cogsDrag").split("|");if(fqid===q.id)reorderCOGS(q.id,fid,r.id);}} style={{borderBottom:"1px solid #f8fafc",cursor:"grab"}}>
+                          <tr key={r.id} draggable onDragStart={e=>e.dataTransfer.setData("cogsDrag",r.id+"|"+q.id)} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const[fid,fqid]=e.dataTransfer.getData("cogsDrag").split("|");if(fqid===q.id)reorderCOGS(q.id,fid,r.id);}} style={{borderBottom:"1px solid #f8fafc",cursor:"default"}}>
+                            <td style={{padding:"3px 4px",cursor:"grab",color:"#cbd5e1",userSelect:"none",textAlign:"center",fontSize:14}}>⠿</td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQIC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px",fontSize:13,color:"#94a3b8",textAlign:"center"}}>—</td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.unit} onChange={e=>setQIC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
@@ -2930,7 +2940,8 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                           </tr>
                         ))}
                         {(q.externalCosts||[]).map(r=>(
-                          <tr key={r.id} draggable onDragStart={e=>e.dataTransfer.setData("cogsDrag",r.id+"|"+q.id)} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const[fid,fqid]=e.dataTransfer.getData("cogsDrag").split("|");if(fqid===q.id)reorderCOGS(q.id,fid,r.id);}} style={{borderBottom:"1px solid #f8fafc",cursor:"grab"}}>
+                          <tr key={r.id} draggable onDragStart={e=>e.dataTransfer.setData("cogsDrag",r.id+"|"+q.id)} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const[fid,fqid]=e.dataTransfer.getData("cogsDrag").split("|");if(fqid===q.id)reorderCOGS(q.id,fid,r.id);}} style={{borderBottom:"1px solid #f8fafc",cursor:"default"}}>
+                            <td style={{padding:"3px 4px",cursor:"grab",color:"#cbd5e1",userSelect:"none",textAlign:"center",fontSize:14}}>⠿</td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQEC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.vendorName||""} onChange={e=>setQEC(q.id,r.id,"vendorName",e.target.value)} placeholder="Vendor" style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.unit||""} onChange={e=>setQEC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
@@ -2946,7 +2957,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                           </tr>
                         ))}
                         <tr style={{borderTop:"1px solid #f1f5f9"}}>
-                          <td colSpan={4} style={{padding:"5px 4px"}}>
+                          <td colSpan={5} style={{padding:"5px 4px"}}>
                             <button onClick={()=>addQEC(q.id)} style={{fontSize:13,color:"#1e40af",background:"transparent",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 12px",cursor:"pointer",fontWeight:600}}>+ Add</button>
                           </td>
                           <td colSpan={4} style={{padding:"5px 8px",textAlign:"right",whiteSpace:"nowrap"}}>
@@ -2959,7 +2970,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                   </div>
                   <div>
                     <Span s={13} w={700} c="#374151" style={{textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:6}}>OPEX — Man-day Tasks</Span>
-                    <TaskTableWidget tasks={q.tasks||[]} onSet={(tid,k,v)=>setQTK(q.id,tid,k,v)} onAdd={()=>addQTK(q.id)} onDel={tid=>delQTK(q.id,tid)} months={months}/>
+                    <TaskTableWidget tasks={q.tasks||[]} onSet={(tid,k,v)=>setQTK(q.id,tid,k,v)} onAdd={()=>addQTK(q.id)} onDel={tid=>delQTK(q.id,tid)} onReorder={(fid,tid)=>reorderQTK(q.id,fid,tid)} months={months}/>
                     <div style={{display:"flex",justifyContent:"space-between",marginTop:6,padding:"5px 2px",borderTop:"1px solid #e2e8f0"}}><Span s={11} w={700}>Total OPEX</Span><Span s={12} w={900}>฿{fmt(qOPEX)}</Span></div>
                   </div>
                 </div>
