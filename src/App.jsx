@@ -785,27 +785,14 @@ const CustForm = ({initial,user,onSave,onClose,onDelete}) => {
           </Sel>
         </FRow>
         <FRow label="Business Type"><Inp value={f.businessType} onChange={e=>set("businessType",e.target.value)}/></FRow>
-        <FRow label="Company Size"><Sel value={f.companySize} onChange={e=>set("companySize",e.target.value)}>{["","Micro","Small","Medium","Large Enterprise"].map(v=><option key={v}>{v}</option>)}</Sel></FRow>
+        <FRow label="Company Size"><Sel value={f.companySize} onChange={e=>set("companySize",e.target.value)}>{["Small","Medium","Large"].map(v=><option key={v}>{v}</option>)}</Sel></FRow>
         <FRow label="Province"><Inp value={f.province} onChange={e=>set("province",e.target.value)}/></FRow>
         <div style={{gridColumn:"1/-1"}}><FRow label="Address"><Inp value={f.address} onChange={e=>set("address",e.target.value)}/></FRow></div>
         <FRow label="Assigned Agent"><Sel value={f.assignedTo} onChange={e=>set("assignedTo",e.target.value)}>
           <option value="">— Any —</option>
           {SALES_USERS.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
         </Sel></FRow>
-        <div style={{gridColumn:"1/-1"}}>
-              <FRow label="Note Log">
-                <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-                  {f.remark&&[...f.remark.split("\n").filter(Boolean)].reverse().map((line,i)=>(
-                    <div key={i} style={{padding:"6px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa"}}>{line}</div>
-                  ))}
-                  <div style={{display:"flex",gap:0}}>
-                    <Inp value={""} placeholder={`Add note… (${today()})`}
-                      onKeyDown={e=>{if(e.key==="Enter"&&e.target.value.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()}] ${e.target.value.trim()}`);e.target.value="";}}}
-                      style={{borderRadius:0,background:"#fff",flex:1,border:"none",borderTop:"1px solid #f1f5f9"}}/>
-                  </div>
-                </div>
-              </FRow>
-            </div>
+        <div style={{gridColumn:"1/-1"}}><FRow label="Remark"><Inp value={f.remark} onChange={e=>set("remark",e.target.value)}/></FRow></div>
       </G2>
       <Divider/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -1589,6 +1576,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
   const blank={id:newOppCode,custId:customers[0]?.id||"",oppCode:newOppCode,quoteNo:newQtNo,jobCode:"",serviceCode:SERVICES[0].code,serviceType:SERVICES[0].name,salesPrice:SERVICES[0].stdPrice,totalCost:SERVICES[0].stdCost,status:"Proposal",assignedTo:SALES_USERS[0]?.id||"",createdDate:today(),lostReason:"",activityLog:[],remark:"",ranking:"Medium"};
   const [f,sF] = useState(initial?{...initial,activityLog:initial.activityLog||[]}:blank);
   const [tab,sTab] = useState(initTab);
+  const [noteInput,sNoteInput] = useState("");
   const set=(k,v)=>sF(p=>({...p,[k]:v}));
   const isWon=f.status==="Won", isLost=f.status==="Lost";
   const mg=margin(f.salesPrice,f.totalCost||0);
@@ -1631,8 +1619,8 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                     <div key={i} style={{padding:"6px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa"}}>{line}</div>
                   ))}
                   <div style={{display:"flex",gap:0}}>
-                    <Inp value={""} placeholder={`Add note… (${today()})`}
-                      onKeyDown={e=>{if(e.key==="Enter"&&e.target.value.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()}] ${e.target.value.trim()}`);e.target.value="";}}}
+                    <Inp value={noteInput} onChange={e=>sNoteInput(e.target.value)} placeholder={`Add note… (${today()})`}
+                      onKeyDown={e=>{if(e.key==="Enter"&&noteInput.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()}] ${noteInput.trim()}`);sNoteInput("");}}}
                       style={{borderRadius:0,background:"#fff",flex:1,border:"none",borderTop:"1px solid #f1f5f9"}}/>
                   </div>
                 </div>
@@ -2033,6 +2021,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
   // eslint-disable-next-line
   },[]);
   const [tab,sTab] = useState(initTab);
+  const [noteInput,sNoteInput] = useState("");
   const set=(k,v)=>sF(p=>({...p,[k]:v}));
   // Build installments from a source array + contract value
   const buildInstFromSource=(srcInst,cv)=>srcInst.map((ins,i)=>({
@@ -2125,8 +2114,8 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
                     <div key={i} style={{padding:"6px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa"}}>{line}</div>
                   ))}
                   <div style={{display:"flex",gap:0}}>
-                    <Inp value={""} placeholder={`Add note… (${today()})`}
-                      onKeyDown={e=>{if(e.key==="Enter"&&e.target.value.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()}] ${e.target.value.trim()}`);e.target.value="";}}}
+                    <Inp value={noteInput} onChange={e=>sNoteInput(e.target.value)} placeholder={`Add note… (${today()})`}
+                      onKeyDown={e=>{if(e.key==="Enter"&&noteInput.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()}] ${noteInput.trim()}`);sNoteInput("");}}}
                       style={{borderRadius:0,background:"#fff",flex:1,border:"none",borderTop:"1px solid #f1f5f9"}}/>
                   </div>
                 </div>
