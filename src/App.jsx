@@ -2609,7 +2609,7 @@ const TaskTableWidget = ({tasks,onSet,onAdd,onDel,months}) => (
       <tbody>
         {(tasks||[]).map(t=><TaskRow key={t.id} t={t} onSet={onSet} onDel={onDel} months={months}/>)}
         {/* +Task button on left under Task/Activity column */}
-        <tr style={{borderTop:"1px solid #f1f5f9"}}><td colSpan={4} style={{padding:"5px 4px"}}><button onClick={onAdd} style={{fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 14px",cursor:"pointer",fontWeight:600}}>+ Task</button></td><td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap",color:"#94a3b8",fontSize:11,fontWeight:600}}>Total OPEX</td><td style={{padding:"5px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a"}} colSpan={1}>฿{fmt((tasks||[]).reduce((s,t)=>(s+(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior),0))}</td></tr>
+        <tr style={{borderTop:"1px solid #e2e8f0"}}><td colSpan={4} style={{padding:"5px 4px"}}><button onClick={onAdd} style={{fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 14px",cursor:"pointer",fontWeight:600}}>+ Task</button></td><td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap",color:"#94a3b8",fontSize:11,fontWeight:600}}>Total OPEX</td><td style={{padding:"5px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a"}} colSpan={1}>฿{fmt((tasks||[]).reduce((s,t)=>(s+(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior),0))}</td></tr>
       </tbody>
     </table>
 );
@@ -2732,7 +2732,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                             <td><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQEC(q.id,r.id)}>×</Btn></td>
                           </tr>
                         ))}
-                        <tr style={{borderTop:"1px solid #f1f5f9"}}>
+                        <tr style={{borderTop:"1px solid #e2e8f0"}}>
                           <td colSpan={4} style={{padding:"5px 4px"}}>
                             <button onClick={()=>addQEC(q.id)} style={{fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 12px",cursor:"pointer",fontWeight:600}}>+ Add</button>
                           </td>
@@ -2745,7 +2745,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                   <div>
                     <Span s={12} w={700} style={{display:"block",marginBottom:6}}>OPEX — Man-day Tasks</Span>
                     <TaskTableWidget tasks={q.tasks||[]} onSet={(tid,k,v)=>setQTK(q.id,tid,k,v)} onAdd={()=>addQTK(q.id)} onDel={tid=>delQTK(q.id,tid)} months={months}/>
-                    <div style={{display:"flex",justifyContent:"space-between",marginTop:6,padding:"5px 2px",borderTop:"1px solid #e2e8f0"}}><Span s={11} w={700}>Total OPEX</Span><Span s={12} w={900}>฿{fmt(qOPEX)}</Span></div>
+
                   </div>
                 </div>
 
