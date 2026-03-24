@@ -2560,8 +2560,8 @@ const TaskRow = React.memo(({t,onSet,onDel,months}) => {
         <td style={{padding:"3px 4px"}}>
           <div style={{display:"flex",gap:3,alignItems:"center"}}>
             <button onClick={()=>setAO(p=>!p)} title="Assign agents"
-              style={{fontSize:12,padding:"1px 5px",border:`1px solid ${agents.length>0?"#86efac":"#e2e8f0"}`,borderRadius:3,background:agents.length>0?"#f0fdf4":"#f8fafc",color:agents.length>0?"#16a34a":"#64748b",cursor:"pointer",whiteSpace:"nowrap"}}>
-              {agents.length>0?` ${agents.length}`:""}
+              style={{fontSize:13,padding:"1px 5px",border:`1px solid ${agents.length>0?"#86efac":"#e2e8f0"}`,borderRadius:3,background:agents.length>0?"#f0fdf4":"#f8fafc",color:agents.length>0?"#16a34a":"#64748b",cursor:"pointer",whiteSpace:"nowrap",minWidth:24,textAlign:"center"}}>
+              {agents.length>0?`@${agents.length}`:"@"}
             </button>
             <Btn variant="danger" style={{fontSize:13,padding:"1px 5px"}} onClick={()=>onDel(t.id)}>×</Btn>
           </div>
@@ -2604,7 +2604,7 @@ const TaskTableWidget = ({tasks,onSet,onAdd,onDel,months}) => (
     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
       <colgroup><col style={{width:"40%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"11%"}}/><col style={{width:"9%"}}/><col style={{width:"13%"}}/></colgroup>
       <thead><tr style={{background:"#f8fafc"}}>
-        {["Task / Activity","Mgr (days)","Sr (days)","Jr (days)","Total Cost","Pay Month","Agents / Actions"].map(h=><th key={h} style={{padding:"5px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:9,borderBottom:"1px solid #e2e8f0"}}>{h}</th>)}
+        {["Task / Activity","Mgr (days)","Sr (days)","Jr (days)","Total Cost","Pay Month","Agent / Cancel"].map(h=><th key={h} style={{padding:"5px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:9,borderBottom:"1px solid #e2e8f0"}}>{h}</th>)}
       </tr></thead>
       <tbody>
         {(tasks||[]).map(t=><TaskRow key={t.id} t={t} onSet={onSet} onDel={onDel} months={months}/>)}
@@ -2673,7 +2673,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                   {/* Sales Price */}
                   <div style={{flex:"0 0 90px"}}>
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Price</Span>
-                    <Inp type="number" value={q.salesPrice} onChange={e=>updQO(q.id,q=>({...q,salesPrice:+e.target.value,lineItems:(q.lineItems||[]).map((li,i)=>i===0?{...li,unitPrice:+e.target.value}:li)}))} style={{fontSize:12,fontWeight:700,padding:"3px 6px"}}/>
+                    <NumInp value={q.salesPrice} onChange={v=>updQO(q.id,q=>({...q,salesPrice:v,lineItems:(q.lineItems||[]).map((li,i)=>i===0?{...li,unitPrice:v}:li)}))} style={{fontSize:12,fontWeight:700,padding:"3px 6px"}}/>
                   </div>
                   {/* Months */}
                   <div style={{flex:"0 0 52px"}}>
@@ -2733,13 +2733,11 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                           </tr>
                         ))}
                         <tr style={{borderTop:"1px solid #f1f5f9"}}>
-                          <td colSpan={6} style={{padding:"5px 4px"}}>
-                            <button onClick={()=>addQEC(q.id)} style={{fontSize:13,color:"#1e40af",background:"#eff6ff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 12px",cursor:"pointer",fontWeight:600}}>+ Add</button>
+                          <td colSpan={4} style={{padding:"5px 4px"}}>
+                            <button onClick={()=>addQEC(q.id)} style={{fontSize:13,color:"#1e40af",background:"transparent",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 12px",cursor:"pointer",fontWeight:600}}>+ Add</button>
                           </td>
-                          <td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap"}}>
-                            <span style={{fontSize:11,color:"#94a3b8",fontWeight:700,marginRight:6}}>Total COGS</span>
-                            <span style={{fontWeight:900,fontSize:12,color:"#0f172a"}}>฿{fmt(qIC+qEC)}</span>
-                          </td>
+                          <td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap",color:"#94a3b8",fontSize:11,fontWeight:600}}>Total COGS</td>
+                          <td colSpan={2} style={{padding:"5px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a"}}>฿{fmt(qIC+qEC)}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -2810,7 +2808,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                           <Span s={12} w={700}>Cashflow</Span>
                           <span style={{fontSize:11,color:"#94a3b8"}}>{cfM} months</span>
                           <span style={{marginLeft:"auto",fontSize:13,fontWeight:700,color:hasNeg?"#dc2626":"#16a34a",background:hasNeg?"#fee2e2":"#dcfce7",padding:"1px 8px",borderRadius:10,whiteSpace:"nowrap"}}>
-                            {hasNeg?" Goes negative":" Positive throughout"}
+                            {hasNeg?" Negative":" Positive"}
                           </span>
                         </div>
                         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
