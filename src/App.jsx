@@ -1629,8 +1629,11 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
             <div style={{gridColumn:"1/-1"}}>
               <FRow label="Note Log">
                 <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-                  {f.remark&&[...f.remark.split("\n").filter(Boolean)].reverse().map((line,i)=>(
-                    <div key={i} style={{padding:"6px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa"}}>{line}</div>
+                  {f.remark&&[...f.remark.split("\n").filter(Boolean)].reverse().map((line,i,arr)=>(
+                    <div key={i} style={{padding:"5px 8px 5px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"flex-start",gap:6}}>
+                      <span style={{flex:1,lineHeight:1.5}}>{line}</span>
+                      <button onClick={()=>{const lines=f.remark.split("\n").filter(Boolean);const orig=arr[arr.length-1-i];const newRemark=lines.filter(l=>l!==orig).join("\n");const updated={...f,remark:newRemark,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""};set("remark",newRemark);onSave(updated);}} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
+                    </div>
                   ))}
                   <div style={{display:"flex",gap:0}}>
                     <Inp value={noteInput} onChange={e=>sNoteInput(e.target.value)} placeholder={`Add note… (${today()})`}
@@ -2622,7 +2625,7 @@ const TaskTableWidget = ({tasks,onSet,onAdd,onDel,months}) => (
 // 
 // COST SHEET (COGS + OPEX + Cashflow)
 // 
-const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQInst,setQDlv,addQEC,addQTK,addQInst,addQDlv,delQIC,delQEC,delQTK,delQO,updQO,handleSave}) => {
+const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQInst,setQDlv,addQEC,addQTK,addQInst,addQDlv,delQIC,delQEC,delQTK,delQInst,delQO,updQO,handleSave}) => {
   const qIC=calcIC(q.internalCosts||[]),qEC=calcEC(q.externalCosts||[],true),qOPEX=calcTask(q.tasks||[]);
   const qTC=qIC+qEC+qOPEX,qMg=margin(q.salesPrice,qTC);
   const months=q.projectMonths||editCS.projectMonths||3;
