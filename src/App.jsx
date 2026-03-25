@@ -3108,7 +3108,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
             <QuoteCard key={q.id} q={q} editCS={editCS} customers={customers} opps={opps} user={user}
               setQF={setQF} setQIC={setQIC} setQEC={setQEC} setQTK={setQTK} setQInst={setQInst} setQDlv={setQDlv}
               addQEC={addQEC} addQTK={addQTK} addQInst={addQInst} addQDlv={addQDlv}
-              delQIC={delQIC} delQEC={delQEC} delQTK={delQTK} delQO={delQO}
+              delQIC={delQIC} delQEC={delQEC} delQTK={delQTK} delQInst={delQInst} delQO={delQO}
               updQO={updQO} handleSave={handleSave}
             />
           ))}
