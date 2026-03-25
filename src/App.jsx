@@ -998,7 +998,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
             ))}
           </tr></thead>
           <tbody>{list.map(c=>(
-            <TR key={c.id}>
+            <TR key={c.id} onClick={()=>{sE(c);sF(true);}}>
               <TD style={{fontFamily:"monospace",fontSize:11,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.id}</TD>
               <TD style={{fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.companyEN}</TD>
               <TD style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.sector||c.industry||"—"}</TD>
@@ -1923,7 +1923,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
             ))}
           </tr></thead>
           <tbody>{list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);const mAmt=marginAmt(o.salesPrice,o.totalCost||0);const oRank=o.ranking||"Medium";return(
-            <TR key={o.id}>
+            <TR key={o.id} onClick={()=>{sE(o);sF(true);}}>
               <TD style={{fontWeight:700,color:"#1e40af",fontFamily:"monospace",fontSize:12}}>{o.oppCode}</TD>
               <TD>
                 {o.quoteNo
