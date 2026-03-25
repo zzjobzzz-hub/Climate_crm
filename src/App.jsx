@@ -1668,12 +1668,12 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                   {f.remark&&[...f.remark.split("\n").filter(Boolean)].reverse().map((line,i,arr)=>(
                     <div key={i} style={{padding:"5px 8px 5px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"flex-start",gap:6}}>
                       <span style={{flex:1,lineHeight:1.5}}>{line}</span>
-                      <button onClick={()=>{const lines=f.remark.split("\n").filter(Boolean);const orig=arr[arr.length-1-i];const newRemark=lines.filter(l=>l!==orig).join("\n");const updated={...f,remark:newRemark,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""};set("remark",newRemark);onSave(updated);}} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
+                      <button onClick={()=>{const lines=f.remark.split("\n").filter(Boolean);const orig=arr[arr.length-1-i];const newRemark=lines.filter(l=>l!==orig).join("\n");set("remark",newRemark);}} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
                     </div>
                   ))}
                   <div style={{display:"flex",gap:0}}>
                     <Inp value={noteInput} onChange={e=>sNoteInput(e.target.value)} placeholder={`Add note… (${today()})`}
-                      onKeyDown={e=>{if(e.key==="Enter"&&noteInput.trim()){const newRemark=(f.remark?f.remark+"\n":"")+`[${today()}] ${noteInput.trim()}`;set("remark",newRemark);sNoteInput("");const updated={...f,remark:newRemark,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""};onSave(updated);}}}
+                      onKeyDown={e=>{if(e.key==="Enter"&&noteInput.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()}] ${noteInput.trim()}`);sNoteInput("");}}}
                       style={{borderRadius:0,background:"#fff",flex:1,border:"none",borderTop:"1px solid #f1f5f9"}}/>
                   </div>
                 </div>
@@ -2643,7 +2643,7 @@ const TaskTableWidget = ({tasks,onSet,onAdd,onDel,months}) => (
     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
       <colgroup><col style={{width:"40%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"11%"}}/><col style={{width:"9%"}}/><col style={{width:"13%"}}/></colgroup>
       <thead><tr style={{background:"#f8fafc"}}>
-        {["Task / Activity","Mgr (days)","Sr (days)","Jr (days)","Total Cost","Pay Month","Agent / Cancel"].map(h=><th key={h} style={{padding:"5px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:9,borderBottom:"1px solid #e2e8f0"}}>{h}</th>)}
+        {["Task / Activity","Mgr (hrs)","Sr (hrs)","Jr (hrs)","Total Cost","Pay Month","Agent / Cancel"].map(h=><th key={h} style={{padding:"5px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:9,borderBottom:"1px solid #e2e8f0"}}>{h}</th>)}
       </tr></thead>
       <tbody>
         {(tasks||[]).map(t=><TaskRow key={t.id} t={t} onSet={onSet} onDel={onDel} months={months}/>)}
@@ -2782,7 +2782,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                     </table>
                   </div>
                   <div>
-                    <Span s={12} w={700} style={{display:"block",marginBottom:6}}>OPEX — Man-day Tasks</Span>
+                    <Span s={12} w={700} style={{display:"block",marginBottom:6}}>OPEX — Man-hour Tasks</Span>
                     <TaskTableWidget tasks={q.tasks||[]} onSet={(tid,k,v)=>setQTK(q.id,tid,k,v)} onAdd={()=>addQTK(q.id)} onDel={tid=>delQTK(q.id,tid)} months={months}/>
 
                   </div>
