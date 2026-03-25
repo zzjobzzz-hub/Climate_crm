@@ -470,7 +470,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     setKpiSplits(p=>({...p,[year+"_log"]:[...(p[year+"_log"]||[]),entry]}));
     toast("KPI & Forecast saved",`${year} splits saved by ${user.name}`);
   };
-  const BAR_H=90;
+  const BAR_H=160;
   const maxV=Math.max(...monthData.map(d=>Math.max(d.fc,d.bl,d.rec)),1);
   const hBar=(e,data)=>sTT({vis:true,x:e.clientX,y:e.clientY,data});
   const leaveBar=()=>sTT(p=>({...p,vis:false}));
@@ -659,35 +659,41 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
                 <div key={x.l} style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:12,height:12,background:x.c,borderRadius:2}}/><Span s={11} c="#94a3b8">{x.l}</Span></div>
               ))}
             </div>
-            <div style={{display:"flex",gap:4,alignItems:"flex-end",height:BAR_H+52,paddingTop:32}}>
-              {monthData.map((d,i) => {
-                const fcH=Math.round((d.fc/maxV)*BAR_H);
-                const blH=Math.round((d.bl/maxV)*BAR_H);
-                const recH=Math.round((d.rec/maxV)*BAR_H);
-                return (
-                  <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center"}}>
-                    <div style={{width:"100%",display:"flex",gap:1,alignItems:"flex-end",height:BAR_H,position:"relative"}}>
-                      {/* Forecast */}
-                      <div style={{flex:1,position:"relative",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
-                        {d.fc>0&&<span style={{position:"absolute",top:-18,fontSize:8,color:"#94a3b8",fontWeight:700,whiteSpace:"nowrap"}}>{fmtK(d.fc)}</span>}
-                        <div style={{width:"100%",background:"#cbd5e1",borderRadius:"2px 2px 0 0",height:`${fcH}px`,minHeight:d.fc>0?2:0}}/>
+            <div style={{position:"relative",paddingTop:24}}>
+              {/* Horizontal grid lines */}
+              {[0.25,0.5,0.75,1].map(r=>(
+                <div key={r} style={{position:"absolute",left:0,right:0,bottom:36+Math.round(r*BAR_H),borderTop:"1px dashed #f1f5f9",zIndex:0}}/>
+              ))}
+              <div style={{display:"flex",gap:3,alignItems:"flex-end",height:BAR_H+36}}>
+                {monthData.map((d,i) => {
+                  const fcH=Math.round((d.fc/maxV)*BAR_H);
+                  const blH=Math.round((d.bl/maxV)*BAR_H);
+                  const recH=Math.round((d.rec/maxV)*BAR_H);
+                  return (
+                    <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",position:"relative",zIndex:1}}>
+                      <div style={{width:"100%",display:"flex",gap:1,alignItems:"flex-end",height:BAR_H}}>
+                        {/* Forecast */}
+                        <div style={{flex:1,position:"relative",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:"100%"}}>
+                          {d.fc>0&&<span style={{position:"absolute",top:-20,fontSize:9,color:"#94a3b8",fontWeight:700,whiteSpace:"nowrap",letterSpacing:"-0.03em"}}>{fmtK(d.fc)}</span>}
+                          <div style={{width:"100%",background:"#cbd5e1",borderRadius:"3px 3px 0 0",height:`${fcH}px`,minHeight:d.fc>0?2:0}}/>
+                        </div>
+                        {/* Backlog */}
+                        <div style={{flex:1,position:"relative",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:"100%"}}>
+                          {d.bl>0&&<span style={{position:"absolute",top:-20,fontSize:9,color:"#1e40af",fontWeight:700,whiteSpace:"nowrap",letterSpacing:"-0.03em"}}>{fmtK(d.bl)}</span>}
+                          <div style={{width:"100%",background:"#1e40af",borderRadius:"3px 3px 0 0",height:`${blH}px`,minHeight:d.bl>0?2:0,cursor:"pointer"}} onMouseEnter={e=>hBar(e,{label:`${d.m} Backlog`,items:d.blItems,total:d.bl})} onMouseMove={moveBar} onMouseLeave={leaveBar}/>
+                        </div>
+                        {/* Received */}
+                        <div style={{flex:1,position:"relative",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:"100%"}}>
+                          {d.rec>0&&<span style={{position:"absolute",top:-20,fontSize:9,color:"#16a34a",fontWeight:700,whiteSpace:"nowrap",letterSpacing:"-0.03em"}}>{fmtK(d.rec)}</span>}
+                          <div style={{width:"100%",background:"#22c55e",borderRadius:"3px 3px 0 0",height:`${recH}px`,minHeight:d.rec>0?2:0,cursor:"pointer"}} onMouseEnter={e=>hBar(e,{label:`${d.m} Received`,items:d.recItems,total:d.rec})} onMouseMove={moveBar} onMouseLeave={leaveBar}/>
+                        </div>
                       </div>
-                      {/* Backlog */}
-                      <div style={{flex:1,position:"relative",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
-                        {d.bl>0&&<span style={{position:"absolute",top:-18,fontSize:8,color:"#1e40af",fontWeight:700,whiteSpace:"nowrap"}}>{fmtK(d.bl)}</span>}
-                        <div style={{width:"100%",background:"#1e40af",borderRadius:"2px 2px 0 0",height:`${blH}px`,minHeight:d.bl>0?2:0,cursor:"pointer"}} onMouseEnter={e=>hBar(e,{label:`${d.m} Backlog`,items:d.blItems,total:d.bl})} onMouseMove={moveBar} onMouseLeave={leaveBar}/>
-                      </div>
-                      {/* Received */}
-                      <div style={{flex:1,position:"relative",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
-                        {d.rec>0&&<span style={{position:"absolute",top:-18,fontSize:8,color:"#16a34a",fontWeight:700,whiteSpace:"nowrap"}}>{fmtK(d.rec)}</span>}
-                        <div style={{width:"100%",background:"#22c55e",borderRadius:"2px 2px 0 0",height:`${recH}px`,minHeight:d.rec>0?2:0,cursor:"pointer"}} onMouseEnter={e=>hBar(e,{label:`${d.m} Received`,items:d.recItems,total:d.rec})} onMouseMove={moveBar} onMouseLeave={leaveBar}/>
-                      </div>
+                      <span style={{fontSize:10,color:"#94a3b8",marginTop:5,fontWeight:500}}>{d.m}</span>
+                      {d.bl>0&&<span style={{fontSize:9,color:+d.ach>=100?"#16a34a":+d.ach>=80?"#d97706":"#ef4444",fontWeight:700,marginTop:1}}>{d.ach}%</span>}
                     </div>
-                    <span style={{fontSize:9,color:"#94a3b8",marginTop:4}}>{d.m}</span>
-                    {d.bl>0&&<span style={{fontSize:8,color:+d.ach>=100?"#16a34a":+d.ach>=80?"#d97706":"#ef4444",fontWeight:700}}>{d.ach}%</span>}
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </Card>
 
@@ -774,15 +780,14 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
       )}
 
       {tt.vis&&tt.data&&(
-        <div style={{position:"fixed",left:tt.x+14,top:tt.y-8,background:"#0f172a",color:"#fff",borderRadius:7,padding:"10px 14px",fontSize:12,zIndex:9999,pointerEvents:"none",maxWidth:260,boxShadow:"0 8px 32px rgba(0,0,0,.28)"}}>
+        <div style={{position:"fixed",left:tt.x+14,top:tt.y-8,background:"#0f172a",color:"#fff",borderRadius:7,padding:"10px 14px",fontSize:12,zIndex:9999,pointerEvents:"none",maxWidth:280,maxHeight:320,overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,.28)"}}>
           <div style={{fontWeight:700,marginBottom:6}}>{tt.data.label}</div>
-          {(tt.data.items||[]).slice(0,3).map((it,i)=>(
+          {(tt.data.items||[]).map((it,i)=>(
             <div key={i} style={{marginBottom:4,paddingBottom:4,borderBottom:"1px solid #1e293b"}}>
               <div style={{color:"#94a3b8",fontSize:10}}>{it.company}</div>
               <div style={{color:"#22c55e",fontWeight:700}}>฿{fmt(it.amount)}</div>
             </div>
           ))}
-          {(tt.data.items||[]).length>3&&<div style={{color:"#64748b",fontSize:10}}>+{tt.data.items.length-3} more</div>}
           <div style={{fontWeight:700,marginTop:4}}>Total: ฿{fmt(tt.data.total)}</div>
         </div>
       )}
