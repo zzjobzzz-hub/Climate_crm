@@ -426,7 +426,7 @@ const LoginPage = ({onLogin}) => {
 // 
 // DASHBOARD (Req 12, 13, 14)
 // 
-const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toast}) => {
+const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toast,onGoToCS}) => {
   const [tab,sTab]   = useState("dash");
   const [year,sYear] = useState(2026);
   const [annual,sAnn] = useState(ANNUAL_KPI);
@@ -489,6 +489,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
 
   // Req 13: Pipeline analysis with monthly breakdown + sort + service count
   const PipelineAnalysis = () => {
+    const [hoveredTag, setHoveredTag] = React.useState(null); // {stage, code, x, y}
     const monthOpps = pMonth==="All"?filteredOpps:filteredOpps.filter(o=>{
       const ms=`${year}-${String(MONTHS.indexOf(pMonth)+1).padStart(2,"0")}`;
       return o.createdDate?.startsWith(ms);
@@ -505,9 +506,14 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     // service type count per stage
     const allSvcs=[...new Set(monthOpps.map(o=>o.serviceCode))];
 
+    // companies for hovered tag
+    const tooltipOpps = hoveredTag
+      ? monthOpps.filter(o=>o.serviceCode===hoveredTag.code && o.status===hoveredTag.stage)
+      : [];
+
     return (
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-        <Card style={{padding:20}}>
+        <Card style={{padding:20,position:"relative"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
             <Span s={13} w={700}>Pipeline by Stage</Span>
             <div style={{display:"flex",gap:6,alignItems:"center"}}>
@@ -533,13 +539,36 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
               </div>
               <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:5}}>
                 {Object.entries(s.bySvc).sort((a,b)=>b[1]-a[1]).map(([code,val],ci) => (
-                  <span key={code} style={{background:SVC_PALETTE[ci%SVC_PALETTE.length]+"22",color:SVC_PALETTE[ci%SVC_PALETTE.length],border:`1px solid ${SVC_PALETTE[ci%SVC_PALETTE.length]}44`,fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:3}}>
+                  <span key={code}
+                    onMouseEnter={e=>{const r=e.currentTarget.getBoundingClientRect();setHoveredTag({stage:s.stage,code,x:r.left,y:r.bottom+6});}}
+                    onMouseLeave={()=>setHoveredTag(null)}
+                    style={{background:SVC_PALETTE[ci%SVC_PALETTE.length]+"22",color:SVC_PALETTE[ci%SVC_PALETTE.length],border:`1px solid ${SVC_PALETTE[ci%SVC_PALETTE.length]}44`,fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:3,cursor:"default",userSelect:"none"}}>
                     {code}: {fmtK(val)}
                   </span>
                 ))}
               </div>
             </div>
           ))}
+
+          {/* Tooltip */}
+          {hoveredTag && tooltipOpps.length>0 && (
+            <div style={{position:"fixed",left:hoveredTag.x,top:hoveredTag.y,zIndex:9999,background:"#1e293b",color:"#f8fafc",borderRadius:8,padding:"10px 14px",boxShadow:"0 8px 32px rgba(0,0,0,.28)",minWidth:220,maxWidth:320,pointerEvents:"none"}}>
+              <div style={{fontWeight:800,fontSize:12,marginBottom:7,color:"#94a3b8",letterSpacing:"0.05em",textTransform:"uppercase"}}>{hoveredTag.code} · {hoveredTag.stage}</div>
+              {tooltipOpps.map(o=>{
+                const cust=customers.find(c=>c.id===o.custId);
+                return(
+                  <div key={o.id} style={{display:"flex",justifyContent:"space-between",gap:12,marginBottom:5,fontSize:12}}>
+                    <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"#e2e8f0"}}>{cust?.companyEN||o.custId}</span>
+                    <span style={{fontWeight:700,color:"#fbbf24",whiteSpace:"nowrap"}}>฿{fmt(o.salesPrice)}</span>
+                  </div>
+                );
+              })}
+              <div style={{borderTop:"1px solid #334155",marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between",fontSize:11,fontWeight:700}}>
+                <span style={{color:"#94a3b8"}}>{tooltipOpps.length} deal{tooltipOpps.length>1?"s":""}</span>
+                <span style={{color:"#fbbf24"}}>฿{fmt(tooltipOpps.reduce((s,o)=>s+o.salesPrice,0))}</span>
+              </div>
+            </div>
+          )}
         </Card>
 
         <Card style={{padding:20,overflow:"hidden"}}>
@@ -560,7 +589,9 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
                   const rowTotal=rowOpps.reduce((s,o)=>s+o.salesPrice,0);
                   return (
                     <tr key={code} style={{borderBottom:"1px solid #f1f5f9"}}>
-                      <td style={{padding:"6px 8px",fontWeight:700,color:"#1e40af"}}>{code}</td>
+                      <td style={{padding:"6px 8px",fontWeight:700}}>
+                        <button onClick={()=>onGoToCS&&onGoToCS(code)} style={{background:"none",border:"none",padding:0,cursor:"pointer",color:"#1e40af",fontWeight:700,fontSize:11,textDecoration:"underline",textDecorationStyle:"dotted",textUnderlineOffset:2}}>{code}</button>
+                      </td>
                       {OPP_STATUSES.map((st,j) => { const items=rowOpps.filter(o=>o.status===st); const v=items.reduce((s,o)=>s+o.salesPrice,0); return (
                         <td key={st} style={{padding:"6px 8px",textAlign:"right",color:v>0?"#0f172a":"#e2e8f0",fontWeight:v>0?700:400}}>
                           {v>0?<><span style={{color:STAGE_COLORS[j]}}>{items.length}×</span> {fmtK(v)}</>:"—"}
@@ -3313,7 +3344,7 @@ function App() {
         </div>
       </div>
       <div style={{maxWidth:1440,margin:"0 auto",padding:24}}>
-        {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI} toast={toast}/>}
+        {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI} toast={toast} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}}/>}
         {page==="customers" && <CustomersPage user={user} customers={customers} opps={opps} onSave={saveItem(sCusts,"customers")} onDelete={deleteItem(sCusts,"customers")} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)}/>}
         {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} onDelete={deleteItem(sOpps,"opportunities")} onSaveCS={saveCS} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} onDeleteDelivery={deleteItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)}/>}
         {page==="delivery"  && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}}/>}
