@@ -1349,9 +1349,8 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
   <div style="display:flex;gap:10px;align-items:flex-start">
     ${pdfLogoHtml}
     <div>
-      <div class="co-name">Wave BCG</div>
-      <div class="co-sub">Company Limited</div>
-      <div class="co-addr">Tax ID: ${WAVE_CO.taxId}<br/>${WAVE_CO.address}<br/>Tel: ${WAVE_CO.tel} · ${WAVE_CO.email}</div>
+      <div class="co-name"><span style="color:#00b3a4">WAVE BCG</span><span style="color:#0c1a2e"> Company Limited</span></div>
+      <div class="co-addr">Tax ID: ${WAVE_CO.taxId}<br/>${WAVE_CO.address}<br/>Tel: ${WAVE_CO.tel}<br/>${WAVE_CO.email}</div>
     </div>
   </div>
   <div style="text-align:right">
@@ -1469,12 +1468,14 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
           <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
             {logoB64&&<img src={logoB64} style={{height:44,width:"auto",objectFit:"contain",flexShrink:0}} alt="Wave BCG"/>}
             <div>
-              <div style={{fontSize:13,fontWeight:900,color:"#0c1a2e",letterSpacing:"-0.02em",lineHeight:1.15,fontFamily:"'Inter Tight','Inter',system-ui,sans-serif"}}>Wave BCG</div>
-              <div style={{fontSize:10,fontWeight:700,color:"#00b3a4",letterSpacing:"0.03em",marginBottom:4}}>Company Limited</div>
-              <div style={{color:"#64748b",fontSize:9,lineHeight:1.7}}>
+              <div style={{fontSize:13,fontWeight:900,letterSpacing:"-0.02em",lineHeight:1.2,fontFamily:"'Inter Tight','Inter',system-ui,sans-serif"}}>
+                <span style={{color:"#00b3a4"}}>WAVE BCG</span><span style={{color:"#0c1a2e"}}> Company Limited</span>
+              </div>
+              <div style={{color:"#64748b",fontSize:9,lineHeight:1.7,marginTop:3}}>
                 Tax ID: {WAVE_CO.taxId}<br/>
                 {WAVE_CO.address}<br/>
-                Tel: {WAVE_CO.tel} · {WAVE_CO.email}
+                Tel: {WAVE_CO.tel}<br/>
+                {WAVE_CO.email}
               </div>
             </div>
           </div>
