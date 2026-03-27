@@ -1207,13 +1207,13 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
   const setIssue = v  => sF(p=>({...p,issueDate:v,dueDate:addDays(v,30)}));
 
   // Logo: fetch from Google Drive as base64 on mount
-  const LOGO_GDRIVE = "https://lh3.googleusercontent.com/d/1XGaqgtoVNS2BZshMNDYQuQl8AbfW1z56";
+  const LOGO_GDRIVE = "https://lh3.googleusercontent.com/d/191l9t4ftBD6PV42Lo293UzYI9VWx8leX";
   const [logoB64, setLogoB64] = useState("");
   useEffect(()=>{
     const URLS=[
-      "https://lh3.googleusercontent.com/d/1XGaqgtoVNS2BZshMNDYQuQl8AbfW1z56",
-      "https://drive.google.com/uc?export=view&id=1XGaqgtoVNS2BZshMNDYQuQl8AbfW1z56",
-      "https://drive.google.com/thumbnail?id=1XGaqgtoVNS2BZshMNDYQuQl8AbfW1z56&sz=w400",
+      "https://lh3.googleusercontent.com/d/191l9t4ftBD6PV42Lo293UzYI9VWx8leX",
+      "https://drive.google.com/uc?export=view&id=191l9t4ftBD6PV42Lo293UzYI9VWx8leX",
+      "https://drive.google.com/thumbnail?id=191l9t4ftBD6PV42Lo293UzYI9VWx8leX&sz=w400",
     ];
     const tryNext=async(idx)=>{
       if(idx>=URLS.length) return;
