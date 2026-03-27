@@ -1105,20 +1105,20 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
 // OPPORTUNITIES
 // 
 // 
-// QUOTATION PREVIEW & EXPORT — Wave Exponential Public Company Limited
+// QUOTATION PREVIEW & EXPORT — Wave BCG Company Limited
 // 
 // 
-// QUOTATION PREVIEW & EXPORT — Wave Exponential Public Company Limited
+// QUOTATION PREVIEW & EXPORT — Wave BCG Company Limited
 // 
 
 // Logo removed — using company name text only
 
 const WAVE_CO = {
-  name:       "Wave Exponential Public Company Limited",
-  taxId:      "0107570002026",
-  address:    "2445/19,21 Tararom Business Tower, 14th Floor, New Petchburi Road, Bangkapi Sub-district, Huaykhwang District Bangkok 10310",
-  tel:        "02-665-6705 #1008",
-  email:      "service@wave-groups.com",
+  name:       "Wave BCG Company Limited",
+  taxId:      "0105528019566",
+  address:    "2445/19 Tararom Business Tower 14th Floor, New Petchaburi Rd, Bang Kapi, Huai Khwang, Bangkok 10310",
+  tel:        "02-665-6705 #1015",
+  email:      "service@wavebcg.com",
   signer:     "Korakoj Sanguanpiyapan",
   signerTitle:"Managing Director Climate Business",
 };
@@ -1282,7 +1282,7 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
       </tr>`;
     }).join("");
     // PDF logo: use cached base64 from state, or empty
-    const pdfLogoHtml = logoB64 ? `<img src="${logoB64}" style="height:40px;width:auto;object-fit:contain" alt="Wave Exponential"/>` : "";
+    const pdfLogoHtml = logoB64 ? `<img src="${logoB64}" style="height:40px;width:auto;object-fit:contain" alt="Wave BCG"/>` : "";
 
     const w = window.open("","_blank");
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Quotation ${f.quoteNo}</title>
@@ -1349,8 +1349,8 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
   <div style="display:flex;gap:10px;align-items:flex-start">
     ${pdfLogoHtml}
     <div>
-      <div class="co-name">Wave Exponential</div>
-      <div class="co-sub">Public Company Limited</div>
+      <div class="co-name">Wave BCG</div>
+      <div class="co-sub">Company Limited</div>
       <div class="co-addr">Tax ID: ${WAVE_CO.taxId}<br/>${WAVE_CO.address}<br/>Tel: ${WAVE_CO.tel} · ${WAVE_CO.email}</div>
     </div>
   </div>
@@ -1467,10 +1467,10 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
         {/* HEADER — Logo + Company + Quote Meta */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14,paddingBottom:12,borderBottom:"2.5px solid #0c1a2e"}}>
           <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
-            {logoB64&&<img src={logoB64} style={{height:44,width:"auto",objectFit:"contain",flexShrink:0}} alt="Wave Exponential"/>}
+            {logoB64&&<img src={logoB64} style={{height:44,width:"auto",objectFit:"contain",flexShrink:0}} alt="Wave BCG"/>}
             <div>
-              <div style={{fontSize:13,fontWeight:900,color:"#0c1a2e",letterSpacing:"-0.02em",lineHeight:1.15,fontFamily:"'Inter Tight','Inter',system-ui,sans-serif"}}>Wave Exponential</div>
-              <div style={{fontSize:10,fontWeight:700,color:"#00b3a4",letterSpacing:"0.03em",marginBottom:4}}>Public Company Limited</div>
+              <div style={{fontSize:13,fontWeight:900,color:"#0c1a2e",letterSpacing:"-0.02em",lineHeight:1.15,fontFamily:"'Inter Tight','Inter',system-ui,sans-serif"}}>Wave BCG</div>
+              <div style={{fontSize:10,fontWeight:700,color:"#00b3a4",letterSpacing:"0.03em",marginBottom:4}}>Company Limited</div>
               <div style={{color:"#64748b",fontSize:9,lineHeight:1.7}}>
                 Tax ID: {WAVE_CO.taxId}<br/>
                 {WAVE_CO.address}<br/>
