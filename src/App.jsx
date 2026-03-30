@@ -3236,7 +3236,14 @@ const NAV = [
 function App() {
   // S3: Restore session from localStorage — checks expiry timestamp
   const [user,sUser] = useState(()=>loadSession());
-
+useEffect(()=>{
+  if(!user) return;
+  const interval = setInterval(()=>{
+    const s = loadSession();
+    if(!s){ clearSession(); sUser(null); }
+  }, 5_000);
+  return ()=>clearInterval(interval);
+},[user]);
   // Hash-based routing — syncs with browser back/forward
   const getPageFromHash = () => { const h=location.hash.replace("#",""); return NAV.find(n=>n.key===h)?h:"dashboard"; };
   const [page,setPageState] = useState(getPageFromHash);
@@ -3256,48 +3263,45 @@ function App() {
   const [kpiSplits,sKPI]     = useState({2026:DEFAULT_SPLIT.slice(),2027:DEFAULT_SPLIT.slice(),2028:DEFAULT_SPLIT.slice()});
   const [gsStatus,sGSStatus] = useState("idle"); // "idle"|"loading"|"synced"|"error"
   const [userList,sUserList] = useState([]);      // S2: safe user list {id,name,role} loaded from GS
-  const {toasts,show:toast}  = useToast();
+ const {toasts,show:toast}  = useToast();
 
-  //  Load all data from Google Sheets on mount 
+//  Load all data from Google Sheets on mount 
+useEffect(()=>{
   if(!user) return;
-  useEffect(()=>{
-    sGSStatus("loading");
-    Promise.all([
-      gsGet("customers"),
-      gsGet("opportunities"),
-      gsGet("deliveries"),
-      gsGet("costsheets"),
-      gsGet("kpi"),
-      gsGet("users"),
-    ]).then(([c,o,d,cs,k,u])=>{
-      if(c.length) sCusts(c.map(x=>({...x,id:String(x.id||"")})));
-      if(o.length) sOpps(o.map(x=>({...x,id:String(x.id||""),custId:String(x.custId||"")})));
-      if(d.length) sDlv(d.map(x=>({...x,id:String(x.id||""),custId:String(x.custId||"")})));
-      // S2: Populate module-level USERS arrays for all dropdowns/lookups throughout app
-      if(u.length){
-        const safe = u.map(x=>({id:String(x.id||""),email:String(x.email||""),name:String(x.name||""),role:String(x.role||"")}));
-        USERS       = safe;
-        SALES_USERS = safe.filter(x=>x.role==="sales");
-        OP_USERS    = safe.filter(x=>x.role==="operation");
-        sUserList(safe);
-      }
-      // Merge loaded costSheets with defaults for any services not yet in Sheet
-      // Always clear quoteOverrides on load — user must click Edit to re-open
-      if(cs.length){
-        const merged = SEED_COST_SHEETS.map(def=>{
-          const fromGS = cs.find(x=>x.serviceCode===def.serviceCode);
-          return fromGS ? {...def,...fromGS, quoteOverrides:[]} : def;
-        });
-        sCS(merged);
-      }
-      if(k.length){
-        const kpiObj={};
-        k.forEach(r=>{ if(r.year) kpiObj[r.year]=r.splits||DEFAULT_SPLIT.slice(); });
-        if(Object.keys(kpiObj).length) sKPI(p=>({...p,...kpiObj}));
-      }
-      sGSStatus("synced");
-    }).catch(()=>sGSStatus("error"));
-  },[users]);
+  sGSStatus("loading");
+  Promise.all([
+    gsGet("customers"),
+    gsGet("opportunities"),
+    gsGet("deliveries"),
+    gsGet("costsheets"),
+    gsGet("kpi"),
+    gsGet("users"),
+  ]).then(([c,o,d,cs,k,u])=>{
+    if(c.length) sCusts(c.map(x=>({...x,id:String(x.id||"")})));
+    if(o.length) sOpps(o.map(x=>({...x,id:String(x.id||""),custId:String(x.custId||"")})));
+    if(d.length) sDlv(d.map(x=>({...x,id:String(x.id||""),custId:String(x.custId||"")})));
+    if(u.length){
+      const safe = u.map(x=>({id:String(x.id||""),email:String(x.email||""),name:String(x.name||""),role:String(x.role||"")}));
+      USERS       = safe;
+      SALES_USERS = safe.filter(x=>x.role==="sales");
+      OP_USERS    = safe.filter(x=>x.role==="operation");
+      sUserList(safe);
+    }
+    if(cs.length){
+      const merged = SEED_COST_SHEETS.map(def=>{
+        const fromGS = cs.find(x=>x.serviceCode===def.serviceCode);
+        return fromGS ? {...def,...fromGS, quoteOverrides:[]} : def;
+      });
+      sCS(merged);
+    }
+    if(k.length){
+      const kpiObj={};
+      k.forEach(r=>{ if(r.year) kpiObj[r.year]=r.splits||DEFAULT_SPLIT.slice(); });
+      if(Object.keys(kpiObj).length) sKPI(p=>({...p,...kpiObj}));
+    }
+    sGSStatus("synced");
+  }).catch(()=>sGSStatus("error"));
+},[user]);
 
   //  saveItem: update local state + push to Google Sheets 
   const saveItem = (setter, collection) => item => {
