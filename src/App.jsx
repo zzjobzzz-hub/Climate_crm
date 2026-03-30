@@ -187,52 +187,45 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // 
 const GS_URL = "https://script.google.com/macros/s/AKfycbywD_YAL8cVKFRxUqZjlGKlJhlI7JdmrCv9wKmNBFADKaoxl4Q9n_g9lWqYxvtEhW7_xw/exec";
 
-// S1: Server-side login — credentials validated in GAS, never in browser
-const gsLogin = async (email, password) => {
-  const r = await fetch(GS_URL, {
-    method:"POST", redirect:"follow",
-    headers:{"Content-Type":"text/plain"},
-    body: JSON.stringify({action:"login", email, password}),
-  });
-  return r.json();
+// Unified request helper
+const gsRequest = async (body) => {
+  try {
+    const r = await fetch(GS_URL, {
+      method: "POST", redirect: "follow",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ ...body, token: GS_AUTH_TOKEN }),
+    });
+    const j = await r.json();
+    return j.ok ? { ok: true, data: j.data } : { ok: false, error: j.error || "Server error" };
+  } catch (e) {
+    return { ok: false, error: "Network error" };
+  }
 };
 
-// Read a full collection from Google Sheets (S4: token in query param)
+// S1: Server-side login
+const gsLogin = (email, password) => gsRequest({ action: "login", email, password });
+
+// Read a full collection from Google Sheets
 const gsGet = async (collection) => {
   try {
     const url = `${GS_URL}?collection=${encodeURIComponent(collection)}&token=${encodeURIComponent(GS_AUTH_TOKEN)}`;
-    const r = await fetch(url, {cache:"no-store",redirect:"follow"});
+    const r = await fetch(url, { cache: "no-store", redirect: "follow" });
     const j = await r.json();
     return j.ok ? j.data : [];
-  } catch(e) { return []; }
+  } catch (e) { return []; }
 };
 
-// Save (upsert) a single record — fire-and-forget, non-blocking (S4: token in body)
-const gsSave = (collection, record, userId="", summary="") => {
-  fetch(GS_URL, {
-    method:"POST", redirect:"follow",
-    headers:{"Content-Type":"text/plain"},
-    body: JSON.stringify({action:"save", collection, record, userId, summary, token:GS_AUTH_TOKEN}),
-  }).catch(()=>{});
-};
+// Save (upsert) a single record
+const gsSave = (collection, record, userId = "", summary = "") => 
+  gsRequest({ action: "save", collection, record, userId, summary });
 
-// Save entire collection (S4: token in body)
-const gsSaveAll = (collection, records) => {
-  fetch(GS_URL, {
-    method:"POST", redirect:"follow",
-    headers:{"Content-Type":"text/plain"},
-    body: JSON.stringify({action:"saveAll", collection, records, token:GS_AUTH_TOKEN}),
-  }).catch(()=>{});
-};
+// Save entire collection
+const gsSaveAll = (collection, records) => 
+  gsRequest({ action: "saveAll", collection, records });
 
-// Delete a single record from Google Sheets (S4: token in body)
-const gsDelete = (collection, id) => {
-  fetch(GS_URL, {
-    method:"POST", redirect:"follow",
-    headers:{"Content-Type":"text/plain"},
-    body: JSON.stringify({action:"delete", collection, id, token:GS_AUTH_TOKEN}),
-  }).catch(()=>{});
-};
+// Delete a single record
+const gsDelete = (collection, id) => 
+  gsRequest({ action: "delete", collection, id });
 // 
 // UI PRIMITIVES
 // 
@@ -3233,194 +3226,224 @@ const NAV = [
   {key:"setup",label:"Setup"},
 ];
 
-function App() {
-  // S3: Restore session from localStorage — checks expiry timestamp
-  const [user,sUser] = useState(()=>loadSession());
+// 
+// DATA LAYER & AUTH HOOKS
+// 
+const useAuth = () => {
+  const [user, setUser] = React.useState(() => loadSession());
+  const login = (u) => { saveSession(u); setUser(u); };
+  const logout = () => { clearSession(); setUser(null); };
+  return { user, login, logout };
+};
 
-  // Hash-based routing — syncs with browser back/forward
-  const getPageFromHash = () => { const h=location.hash.replace("#",""); return NAV.find(n=>n.key===h)?h:"dashboard"; };
-  const [page,setPageState] = useState(getPageFromHash);
-  const sPage = (p) => { location.hash = p; setPageState(p); };
-  useEffect(()=>{
-    const onHash = () => setPageState(getPageFromHash());
-    window.addEventListener("hashchange", onHash);
-    return ()=>window.removeEventListener("hashchange", onHash);
-  },[]);
-  const [customers,sCusts]   = useState(SEED_CUSTOMERS);
-  const [opps,sOpps]         = useState(SEED_OPPS);
-  const [deliveries,sDlv]    = useState(SEED_DELIVERIES);
-  const [costSheets,sCS]     = useState(SEED_COST_SHEETS);
-  const [initSvcCode,sSvcCode] = useState(null);
-  const [initCustId,sCustId]   = useState(null);
-  const [initOppCode,sOppCode] = useState(null);
-  const [kpiSplits,sKPI]     = useState({2026:DEFAULT_SPLIT.slice(),2027:DEFAULT_SPLIT.slice(),2028:DEFAULT_SPLIT.slice()});
-  const [gsStatus,sGSStatus] = useState("idle"); // "idle"|"loading"|"synced"|"error"
-  const [userList,sUserList] = useState([]);      // S2: safe user list {id,name,role} loaded from GS
-  const {toasts,show:toast}  = useToast();
+const useCRMData = (user, toast) => {
+  const [customers, setCustomers] = React.useState(SEED_CUSTOMERS);
+  const [opps, setOpps] = React.useState(SEED_OPPS);
+  const [deliveries, setDeliveries] = React.useState(SEED_DELIVERIES);
+  const [costSheets, setCostSheets] = React.useState(SEED_COST_SHEETS);
+  const [kpiSplits, setKpiSplits] = React.useState({ 2026: DEFAULT_SPLIT.slice(), 2027: DEFAULT_SPLIT.slice(), 2028: DEFAULT_SPLIT.slice() });
+  const [userList, setUserList] = React.useState([]);
+  const [gsStatus, setGsStatus] = React.useState("idle");
 
-  // Strip _json suffix from GAS column names (e.g. saveLog_json → saveLog)
   const stripJsonSuffix = obj => {
     if (!obj || typeof obj !== "object") return obj;
     const out = {};
     Object.keys(obj).forEach(k => {
-      const clean = k.endsWith("_json") ? k.slice(0, -5) : k;
-      out[clean] = obj[k];
+      const isJson = k.endsWith("_json");
+      const clean = isJson ? k.slice(0, -5) : k;
+      let val = obj[k];
+      if (isJson && typeof val === "string" && val.trim()) {
+        try { val = JSON.parse(val); } catch (e) { console.error("JSON parse error for " + k, e); }
+      }
+      out[clean] = val;
     });
     return out;
   };
 
-  //  Load all data from Google Sheets on mount 
-  useEffect(()=>{
-    if(!user) return;
-    sGSStatus("loading");
-    Promise.all([
-      gsGet("customers"),
-      gsGet("opportunities"),
-      gsGet("deliveries"),
-      gsGet("costsheets"),
-      gsGet("kpi"),
-      gsGet("users"),
-    ]).then(([c,o,d,cs,k,u])=>{
-      if(c.length) sCusts(c.map(x=>stripJsonSuffix({...x,id:String(x.id||"")})));
-      if(o.length) sOpps(o.map(x=>stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")})));
-      if(d.length) sDlv(d.map(x=>stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")})));
-      // S2: Populate module-level USERS arrays for all dropdowns/lookups throughout app
-      if(u.length){
-        const safe = u.map(x=>({id:String(x.id||""),email:String(x.email||""),name:String(x.name||""),role:String(x.role||"")}));
-        USERS       = safe;
-        SALES_USERS = safe.filter(x=>x.role==="sales");
-        OP_USERS    = safe.filter(x=>x.role==="operation");
-        sUserList(safe);
+  const refresh = React.useCallback(async () => {
+    if (!user) return;
+    setGsStatus("loading");
+    try {
+      const [c, o, d, cs, k, u] = await Promise.all([
+        gsGet("customers"), gsGet("opportunities"), gsGet("deliveries"),
+        gsGet("costsheets"), gsGet("kpi"), gsGet("users"),
+      ]);
+
+      if (c.length) setCustomers(c.map(x => stripJsonSuffix({ ...x, id: String(x.id || "") })));
+      if (o.length) setOpps(o.map(x => stripJsonSuffix({ ...x, id: String(x.id || ""), custId: String(x.custId || "") })));
+      if (d.length) setDeliveries(d.map(x => stripJsonSuffix({ ...x, id: String(x.id || ""), custId: String(x.custId || "") })));
+      
+      if (u.length) {
+        const safe = u.map(x => ({ id: String(x.id || ""), email: String(x.email || ""), name: String(x.name || ""), role: String(x.role || "") }));
+        USERS = safe;
+        SALES_USERS = safe.filter(x => x.role === "sales");
+        OP_USERS = safe.filter(x => x.role === "operation");
+        setUserList(safe);
       }
-      // Merge loaded costSheets with defaults for any services not yet in Sheet
-      // Always clear quoteOverrides on load — user must click Edit to re-open
-      if(cs.length){
-        const merged = SEED_COST_SHEETS.map(def=>{
-          const fromGS = cs.find(x=>x.serviceCode===def.serviceCode);
-          return fromGS ? {...def,...stripJsonSuffix(fromGS), quoteOverrides:[]} : def;
+
+      if (cs.length) {
+        const merged = SEED_COST_SHEETS.map(def => {
+          const fromGS = cs.find(x => x.serviceCode === def.serviceCode);
+          return fromGS ? { ...def, ...stripJsonSuffix(fromGS), quoteOverrides: [] } : def;
         });
-        sCS(merged);
+        setCostSheets(merged);
       }
-      if(k.length){
-        const kpiObj={};
-        k.forEach(r=>{ if(r.year) kpiObj[r.year]=r.splits||DEFAULT_SPLIT.slice(); });
-        if(Object.keys(kpiObj).length) sKPI(p=>({...p,...kpiObj}));
-      }
-      sGSStatus("synced");
-    }).catch(()=>sGSStatus("error"));
-  },[user]);
 
-  //  saveItem: update local state + push to Google Sheets 
-  const saveItem = (setter, collection) => item => {
-    const norm = (item.custId!==undefined)
-      ? {...item,id:String(item.id||""),custId:String(item.custId||"")}
-      : {...item,id:String(item.id||"")};
-    setter(p => p.find(x=>x.id===norm.id) ? p.map(x=>x.id===norm.id?norm:x) : [...p,norm]);
-    if(collection) gsSave(collection, norm);
+      if (k.length) {
+        const kpiObj = {};
+        k.forEach(r => { if (r.year) kpiObj[r.year] = r.splits || DEFAULT_SPLIT.slice(); });
+        if (Object.keys(kpiObj).length) setKpiSplits(p => ({ ...p, ...kpiObj }));
+      }
+      setGsStatus("synced");
+    } catch (e) {
+      setGsStatus("error");
+    }
+  }, [user]);
+
+  React.useEffect(() => { refresh(); }, [refresh]);
+
+  const prepareForSave = (item) => {
+    const out = { ...item };
+    // These keys are stored as JSON strings in the backend
+    const jsonKeys = ["contacts", "workLog", "activityLog", "installments", "quotationData", "internalCosts", "externalCosts", "tasks", "quoteOverrides", "saveLog", "deliverables", "lineItems"];
+    Object.keys(out).forEach(k => {
+      if (jsonKeys.includes(k) && Array.isArray(out[k])) {
+        out[k + "_json"] = JSON.stringify(out[k]);
+        delete out[k];
+      }
+    });
+    return out;
   };
-  //  deleteItem: remove from local state + delete from Google Sheets 
-  const deleteItem = (setter, collection) => id => {
-    setter(p => p.filter(x=>x.id!==id));
-    if(collection) gsDelete(collection, id);
+
+  const saveItem = (collection, setter) => async (item) => {
+    const norm = (item.custId !== undefined)
+      ? { ...item, id: String(item.id || ""), custId: String(item.custId || "") }
+      : { ...item, id: String(item.id || "") };
+    
+    setter(p => p.find(x => x.id === norm.id) ? p.map(x => x.id === norm.id ? norm : x) : [...p, norm]);
+    const res = await gsSave(collection, prepareForSave(norm));
+    if (!res.ok) toast("Error saving", res.error, "error");
+    return res;
   };
-  //  saveOpp: save opp + auto-sync customers.status (Option 1) 
-  // Priority: Won > active OPP status > Lost
+
+  const deleteItem = (collection, setter) => async (id) => {
+    setter(p => p.filter(x => x.id !== id));
+    const res = await gsDelete(collection, id);
+    if (!res.ok) toast("Error deleting", res.error, "error");
+    return res;
+  };
+
   const deriveOppStatus = (custId, allOpps) => {
-    const custOpps = allOpps.filter(o=>o.custId===custId);
-    if(!custOpps.length) return null;
-    const sorted = [...custOpps].sort((a,b)=>b.createdDate?.localeCompare(a.createdDate||"")||0);
-    if(sorted.some(o=>o.status==="Won")) return "Won";
-    const active = sorted.find(o=>o.status!=="Lost");
-    if(active) return active.status;
-    return "Lost";
+    const custOpps = allOpps.filter(o => o.custId === custId);
+    if (!custOpps.length) return null;
+    const sorted = [...custOpps].sort((a, b) => b.createdDate?.localeCompare(a.createdDate || "") || 0);
+    if (sorted.some(o => o.status === "Won")) return "Won";
+    const active = sorted.find(o => o.status !== "Lost");
+    return active ? active.status : "Lost";
   };
-  const saveOpp = opp => {
-    const norm = {...opp, id:String(opp.id||""), custId:String(opp.custId||"")};
-    // 1. Single sOpps call — build merged list, then sync customer inside same updater
-    sOpps(prev => {
-      // Build new opps list with this opp upserted
-      const next = prev.find(x=>x.id===norm.id)
-        ? prev.map(x=>x.id===norm.id ? norm : x)
-        : [...prev, norm];
-      // Derive customer status from the fully updated opps list
-      if(norm.custId) {
-        const newStatus = deriveOppStatus(norm.custId, next);
-        if(newStatus) {
-          sCusts(cList => cList.map(c => {
-            if(c.id !== norm.custId) return c;
-            if(c.status === newStatus) return c; // already correct, no GS call needed
-            const updated = {...c, status: newStatus};
-            gsSave("customers", updated); // push to GS
-            return updated;
-          }));
-        }
+
+  const saveOpp = async (opp) => {
+    const norm = { ...opp, id: String(opp.id || ""), custId: String(opp.custId || "") };
+    const nextOpps = opps.find(x => x.id === norm.id) ? opps.map(x => x.id === norm.id ? norm : x) : [...opps, norm];
+    setOpps(nextOpps);
+
+    if (norm.custId) {
+      const newStatus = deriveOppStatus(norm.custId, nextOpps);
+      const cust = customers.find(c => c.id === norm.custId);
+      if (cust && cust.status !== newStatus) {
+        const updatedCust = { ...cust, status: newStatus };
+        setCustomers(p => p.map(c => c.id === norm.custId ? updatedCust : c));
+        await gsSave("customers", prepareForSave(updatedCust));
       }
-      return next;
-    });
-    // 2. Push opp to GS
-    gsSave("opportunities", norm);
+    }
+    await gsSave("opportunities", prepareForSave(norm));
   };
 
-  //  saveCS: update local + push entire costsheets collection 
-  const saveCS = cs => {
-    sCS(p => {
-      const next = p.find(x=>x.serviceCode===cs.serviceCode)
-        ? p.map(x=>x.serviceCode===cs.serviceCode?cs:x)
-        : [...p,cs];
-      gsSave("costsheets", cs); // upsert single cost sheet record
-      return next;
-    });
+  const saveCS = async (cs) => {
+    setCostSheets(p => p.map(x => x.serviceCode === cs.serviceCode ? cs : x));
+    await gsSave("costsheets", prepareForSave(cs));
   };
 
-  //  Sync status badge 
+  return {
+    customers, opps, deliveries, costSheets, kpiSplits, userList, gsStatus,
+    setCustomers, setOpps, setDeliveries, setCostSheets, setKpiSplits,
+    saveItem, deleteItem, saveOpp, saveCS, refresh
+  };
+};
+
+function App() {
+  const { user, login, logout } = useAuth();
+  const { toasts, show: toast } = useToast();
+  const {
+    customers, opps, deliveries, costSheets, kpiSplits, userList, gsStatus,
+    setCustomers, setOpps, setDeliveries, setCostSheets, setKpiSplits,
+    saveItem, deleteItem, saveOpp, saveCS
+  } = useCRMData(user, toast);
+
+  const getPageFromHash = () => { const h = location.hash.replace("#", ""); return NAV.find(n => n.key === h) ? h : "dashboard"; };
+  const [page, setPageState] = React.useState(getPageFromHash);
+  const sPage = (p) => { location.hash = p; setPageState(p); };
+
+  React.useEffect(() => {
+    const onHash = () => setPageState(getPageFromHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  const [initSvcCode, sSvcCode] = React.useState(null);
+  const [initCustId, sCustId] = React.useState(null);
+  const [initOppCode, sOppCode] = React.useState(null);
+
   const SyncBadge = () => {
     const map = {
-      loading: {label:"Syncing…",  c:"#d97706", bg:"#fef3c7"},
-      synced:  {label:" GS Live", c:"#16a34a", bg:"#dcfce7"},
-      error:   {label:"GS Offline",c:"#dc2626", bg:"#fee2e2"},
-      idle:    {label:"GS Ready",  c:"#64748b", bg:"#f1f5f9"},
+      loading: { label: "Syncing…", c: "#d97706", bg: "#fef3c7" },
+      synced: { label: " GS Live", c: "#16a34a", bg: "#dcfce7" },
+      error: { label: "GS Offline", c: "#dc2626", bg: "#fee2e2" },
+      idle: { label: "GS Ready", c: "#64748b", bg: "#f1f5f9" },
     };
-    const s = map[gsStatus]||map.idle;
+    const s = map[gsStatus] || map.idle;
     return (
-      <span style={{fontSize:10,fontWeight:700,color:s.c,background:s.bg,
-        padding:"2px 8px",borderRadius:10,border:`1px solid ${s.c}33`,whiteSpace:"nowrap"}}>
+      <span style={{
+        fontSize: 10, fontWeight: 700, color: s.c, background: s.bg,
+        padding: "2px 8px", borderRadius: 10, border: `1px solid ${s.c}33`, whiteSpace: "nowrap"
+      }}>
         {s.label}
       </span>
     );
   };
 
-  if(!user) return <LoginPage onLogin={u=>{ saveSession(u); sUser(u); sPage("dashboard"); }}/>;
+  if (!user) return <LoginPage onLogin={u => { login(u); sPage("dashboard"); }} />;
 
   return (
-    <div style={{minHeight:"100vh",background:"#f8fafc",fontFamily:"'DM Sans','Noto Sans Thai',system-ui,sans-serif",fontSize:15}}>
+    <div style={{ minHeight: "100vh", background: "#f8fafc", fontFamily: "'DM Sans','Noto Sans Thai',system-ui,sans-serif", fontSize: 15 }}>
       <style>{`@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}} input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0} input[type=number]{-moz-appearance:textfield}`}</style>
-      <div style={{background:"#fff",borderBottom:"1px solid #e2e8f0",position:"sticky",top:0,zIndex:100}}>
-        <div style={{maxWidth:1440,margin:"0 auto",padding:"0 24px",display:"flex",alignItems:"center",gap:0}}>
-          <div onClick={()=>sPage("dashboard")} style={{paddingRight:18,borderRight:"1px solid #f1f5f9",marginRight:4,flexShrink:0,cursor:"pointer"}}>
-            <div style={{fontSize:13,fontWeight:900,color:"#0f172a",letterSpacing:"-0.04em",lineHeight:1.2}}>Climate<br/>CRM</div>
+      <div style={{ background: "#fff", borderBottom: "1px solid #e2e8f0", position: "sticky", top: 0, zIndex: 100 }}>
+        <div style={{ maxWidth: 1440, margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", gap: 0 }}>
+          <div onClick={() => sPage("dashboard")} style={{ paddingRight: 18, borderRight: "1px solid #f1f5f9", marginRight: 4, flexShrink: 0, cursor: "pointer" }}>
+            <div style={{ fontSize: 13, fontWeight: 900, color: "#0f172a", letterSpacing: "-0.04em", lineHeight: 1.2 }}>Climate<br />CRM</div>
           </div>
-          <nav style={{display:"flex",flex:1,overflow:"auto"}}>
-            {NAV.map(n=><button key={n.key} onClick={()=>sPage(n.key)} style={{padding:"15px 13px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:page===n.key?800:500,color:page===n.key?"#0f172a":"#94a3b8",borderBottom:page===n.key?"2.5px solid #0f172a":"2.5px solid transparent",whiteSpace:"nowrap"}}>{n.label}</button>)}
+          <nav style={{ display: "flex", flex: 1, overflow: "auto" }}>
+            {NAV.map(n => <button key={n.key} onClick={() => sPage(n.key)} style={{ padding: "15px 13px", border: "none", background: "none", cursor: "pointer", fontSize: 13, fontWeight: page === n.key ? 800 : 500, color: page === n.key ? "#0f172a" : "#94a3b8", borderBottom: page === n.key ? "2.5px solid #0f172a" : "2.5px solid transparent", whiteSpace: "nowrap" }}>{n.label}</button>)}
           </nav>
-          <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-            <SyncBadge/>
-            <div style={{textAlign:"right"}}>
-              <div style={{fontSize:13,fontWeight:700,color:"#374151"}}>{user.name}</div>
-              <div style={{fontSize:10,color:user.role==="md"?"#0ea5e9":user.role==="admin"?"#16a34a":user.role==="operation"?"#7c3aed":"#1e40af",textTransform:"uppercase",letterSpacing:"0.06em"}}>{user.role}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+            <SyncBadge />
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>{user.name}</div>
+              <div style={{ fontSize: 10, color: user.role === "md" ? "#0ea5e9" : user.role === "admin" ? "#16a34a" : user.role === "operation" ? "#7c3aed" : "#1e40af", textTransform: "uppercase", letterSpacing: "0.06em" }}>{user.role}</div>
             </div>
-            <button onClick={()=>{ clearSession(); sUser(null); }} style={{padding:"6px 14px",border:"1px solid #e2e8f0",borderRadius:5,background:"#fff",cursor:"pointer",fontSize:13,color:"#64748b"}}>Sign Out</button>
+            <button onClick={logout} style={{ padding: "6px 14px", border: "1px solid #e2e8f0", borderRadius: 5, background: "#fff", cursor: "pointer", fontSize: 13, color: "#64748b" }}>Sign Out</button>
           </div>
         </div>
       </div>
-      <div style={{maxWidth:1440,margin:"0 auto",padding:24}}>
-        {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI} toast={toast} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}}/>}
-        {page==="customers" && <CustomersPage user={user} customers={customers} opps={opps} onSave={saveItem(sCusts,"customers")} onDelete={deleteItem(sCusts,"customers")} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)} userList={userList}/>}
-        {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} onDelete={deleteItem(sOpps,"opportunities")} onSaveCS={saveCS} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} onDeleteDelivery={deleteItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)} userList={userList}/>}
-        {page==="delivery"  && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}} userList={userList}/>}
-        {page==="costsheet" && <CostSheetPage costSheets={costSheets} onSave={saveCS} customers={customers} opps={opps} user={user} onSaveOpp={saveOpp} toast={toast} initSvcCode={initSvcCode} onSvcReady={()=>sSvcCode(null)}/>}
-        {page==="setup"     && <SetupPage/>}
+      <div style={{ maxWidth: 1440, margin: "0 auto", padding: 24 }}>
+        {page === "dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={setKpiSplits} toast={toast} onGoToCS={code => { sSvcCode(code); sPage("costsheet"); }} />}
+        {page === "customers" && <CustomersPage user={user} customers={customers} opps={opps} onSave={saveItem("customers", setCustomers)} onDelete={deleteItem("customers", setCustomers)} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={() => sCustId(null)} userList={userList} />}
+        {page === "opps" && <OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} onDelete={deleteItem("opportunities", setOpps)} onSaveCS={saveCS} deliveries={deliveries} onSaveDelivery={saveItem("deliveries", setDeliveries)} onDeleteDelivery={deleteItem("deliveries", setDeliveries)} toast={toast} costSheets={costSheets} onGoToCS={code => { sSvcCode(code); sPage("costsheet"); }} initOppCode={initOppCode} onOppReady={() => sOppCode(null)} userList={userList} />}
+        {page === "delivery" && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem("deliveries", setDeliveries)} toast={toast} costSheets={costSheets} onGoToCS={code => { sSvcCode(code); sPage("costsheet"); }} onGoToCust={id => { sCustId(id); sPage("customers"); }} onGoToOpp={code => { sOppCode(code); sPage("opps"); }} userList={userList} />}
+        {page === "costsheet" && <CostSheetPage costSheets={costSheets} onSave={saveCS} customers={customers} opps={opps} user={user} onSaveOpp={saveOpp} toast={toast} initSvcCode={initSvcCode} onSvcReady={() => sSvcCode(null)} />}
+        {page === "setup" && <SetupPage />}
       </div>
-      <Toast toasts={toasts}/>
+      <Toast toasts={toasts} />
     </div>
   );
 }
