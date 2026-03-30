@@ -8,7 +8,7 @@
 // S4: All GS requests include GS_AUTH_TOKEN matched against Script Properties on server
 // 
 const GS_AUTH_TOKEN  = "wB@CRM-2026-xK9q";   // Must match AUTH_SECRET in GAS Script Properties
-const SESSION_HOURS  = 1;
+const SESSION_HOURS  = 8;
 const SESSION_KEY    = "crm_session";
 const SESSION_EXPIRY_MS = SESSION_HOURS * 60 * 60 * 1000;
 
@@ -185,7 +185,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // S4: All requests include GS_AUTH_TOKEN verified server-side
 // 
-const GS_URL = "https://script.google.com/macros/s/AKfycbx8-ndTNu8QeCtiXA9GgxFK0R5-q8f2Nl_FE4_3BYhJxgrYHLwvQzVx-QccCNz9dT1n9g/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbywD_YAL8cVKFRxUqZjlGKlJhlI7JdmrCv9wKmNBFADKaoxl4Q9n_g9lWqYxvtEhW7_xw/exec";
 
 // S1: Server-side login — credentials validated in GAS, never in browser
 const gsLogin = async (email, password) => {
@@ -3236,14 +3236,7 @@ const NAV = [
 function App() {
   // S3: Restore session from localStorage — checks expiry timestamp
   const [user,sUser] = useState(()=>loadSession());
-useEffect(()=>{
-  if(!user) return;
-  const interval = setInterval(()=>{
-    const s = loadSession();
-    if(!s){ clearSession(); sUser(null); }
-  }, 5_000);
-  return ()=>clearInterval(interval);
-},[user]);
+
   // Hash-based routing — syncs with browser back/forward
   const getPageFromHash = () => { const h=location.hash.replace("#",""); return NAV.find(n=>n.key===h)?h:"dashboard"; };
   const [page,setPageState] = useState(getPageFromHash);
@@ -3263,45 +3256,59 @@ useEffect(()=>{
   const [kpiSplits,sKPI]     = useState({2026:DEFAULT_SPLIT.slice(),2027:DEFAULT_SPLIT.slice(),2028:DEFAULT_SPLIT.slice()});
   const [gsStatus,sGSStatus] = useState("idle"); // "idle"|"loading"|"synced"|"error"
   const [userList,sUserList] = useState([]);      // S2: safe user list {id,name,role} loaded from GS
- const {toasts,show:toast}  = useToast();
+  const {toasts,show:toast}  = useToast();
 
-//  Load all data from Google Sheets on mount 
-useEffect(()=>{
-  if(!user) return;
-  sGSStatus("loading");
-  Promise.all([
-    gsGet("customers"),
-    gsGet("opportunities"),
-    gsGet("deliveries"),
-    gsGet("costsheets"),
-    gsGet("kpi"),
-    gsGet("users"),
-  ]).then(([c,o,d,cs,k,u])=>{
-    if(c.length) sCusts(c.map(x=>({...x,id:String(x.id||"")})));
-    if(o.length) sOpps(o.map(x=>({...x,id:String(x.id||""),custId:String(x.custId||"")})));
-    if(d.length) sDlv(d.map(x=>({...x,id:String(x.id||""),custId:String(x.custId||"")})));
-    if(u.length){
-      const safe = u.map(x=>({id:String(x.id||""),email:String(x.email||""),name:String(x.name||""),role:String(x.role||"")}));
-      USERS       = safe;
-      SALES_USERS = safe.filter(x=>x.role==="sales");
-      OP_USERS    = safe.filter(x=>x.role==="operation");
-      sUserList(safe);
-    }
-    if(cs.length){
-      const merged = SEED_COST_SHEETS.map(def=>{
-        const fromGS = cs.find(x=>x.serviceCode===def.serviceCode);
-        return fromGS ? {...def,...fromGS, quoteOverrides:[]} : def;
-      });
-      sCS(merged);
-    }
-    if(k.length){
-      const kpiObj={};
-      k.forEach(r=>{ if(r.year) kpiObj[r.year]=r.splits||DEFAULT_SPLIT.slice(); });
-      if(Object.keys(kpiObj).length) sKPI(p=>({...p,...kpiObj}));
-    }
-    sGSStatus("synced");
-  }).catch(()=>sGSStatus("error"));
-},[user]);
+  // Strip _json suffix from GAS column names (e.g. saveLog_json → saveLog)
+  const stripJsonSuffix = obj => {
+    if (!obj || typeof obj !== "object") return obj;
+    const out = {};
+    Object.keys(obj).forEach(k => {
+      const clean = k.endsWith("_json") ? k.slice(0, -5) : k;
+      out[clean] = obj[k];
+    });
+    return out;
+  };
+
+  //  Load all data from Google Sheets on mount 
+  useEffect(()=>{
+    if(!user) return;
+    sGSStatus("loading");
+    Promise.all([
+      gsGet("customers"),
+      gsGet("opportunities"),
+      gsGet("deliveries"),
+      gsGet("costsheets"),
+      gsGet("kpi"),
+      gsGet("users"),
+    ]).then(([c,o,d,cs,k,u])=>{
+      if(c.length) sCusts(c.map(x=>stripJsonSuffix({...x,id:String(x.id||"")})));
+      if(o.length) sOpps(o.map(x=>stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")})));
+      if(d.length) sDlv(d.map(x=>stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")})));
+      // S2: Populate module-level USERS arrays for all dropdowns/lookups throughout app
+      if(u.length){
+        const safe = u.map(x=>({id:String(x.id||""),email:String(x.email||""),name:String(x.name||""),role:String(x.role||"")}));
+        USERS       = safe;
+        SALES_USERS = safe.filter(x=>x.role==="sales");
+        OP_USERS    = safe.filter(x=>x.role==="operation");
+        sUserList(safe);
+      }
+      // Merge loaded costSheets with defaults for any services not yet in Sheet
+      // Always clear quoteOverrides on load — user must click Edit to re-open
+      if(cs.length){
+        const merged = SEED_COST_SHEETS.map(def=>{
+          const fromGS = cs.find(x=>x.serviceCode===def.serviceCode);
+          return fromGS ? {...def,...stripJsonSuffix(fromGS), quoteOverrides:[]} : def;
+        });
+        sCS(merged);
+      }
+      if(k.length){
+        const kpiObj={};
+        k.forEach(r=>{ if(r.year) kpiObj[r.year]=r.splits||DEFAULT_SPLIT.slice(); });
+        if(Object.keys(kpiObj).length) sKPI(p=>({...p,...kpiObj}));
+      }
+      sGSStatus("synced");
+    }).catch(()=>sGSStatus("error"));
+  },[user]);
 
   //  saveItem: update local state + push to Google Sheets 
   const saveItem = (setter, collection) => item => {
