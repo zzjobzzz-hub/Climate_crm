@@ -3259,6 +3259,7 @@ function App() {
   const {toasts,show:toast}  = useToast();
 
   //  Load all data from Google Sheets on mount 
+  if(!user) return;
   useEffect(()=>{
     sGSStatus("loading");
     Promise.all([
@@ -3296,7 +3297,7 @@ function App() {
       }
       sGSStatus("synced");
     }).catch(()=>sGSStatus("error"));
-  },[]);
+  },[users]);
 
   //  saveItem: update local state + push to Google Sheets 
   const saveItem = (setter, collection) => item => {
