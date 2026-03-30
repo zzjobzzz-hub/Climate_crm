@@ -8,7 +8,7 @@
 // S4: All GS requests include GS_AUTH_TOKEN matched against Script Properties on server
 // 
 const GS_AUTH_TOKEN  = "wB@CRM-2026-xK9q";   // Must match AUTH_SECRET in GAS Script Properties
-const SESSION_HOURS  = 0.01;
+const SESSION_HOURS  = 1;
 const SESSION_KEY    = "crm_session";
 const SESSION_EXPIRY_MS = SESSION_HOURS * 60 * 60 * 1000;
 
