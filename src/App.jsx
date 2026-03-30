@@ -3153,15 +3153,15 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           </div>
           {(editCS.quoteOverrides||[]).length===0&&(
             <div>
-              {(editCS.saveLog||[]).filter(l=>l.quoteSnapshot).length>0&&(
-                <div style={{marginBottom:12}}>
+              {(editCS.saveLog || []).filter(l => l.quoteSnapshot).length > 0 && (
+                <div style={{ marginBottom: 12 }}>
                   {Object.values(
-                    [...(editCS.saveLog||[])].filter(l=>l.quoteSnapshot).reduce((acc,l)=>{
-                      const key=l.quoteSnapshot.quoteNo;
-                      if(!acc[key]||l.ts>acc[key].ts) acc[key]=l;
+                    [...(editCS.saveLog || [])].filter(l => l.quoteSnapshot).reduce((acc, l) => {
+                      const key = l.quoteSnapshot.quoteNo;
+                      if (!acc[key] || l.ts > acc[key].ts) acc[key] = l;
                       return acc;
-                    },{})
-                  ).sort((a,b)=>b.ts.localeCompare(a.ts)).map(l=>(
+                    }, {})
+                  ).sort((a, b) => b.ts.localeCompare(a.ts)).map(l => (
                     <div key={l.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:7,marginBottom:6}}>
                       <span style={{fontSize:12,color:'#94a3b8',whiteSpace:'nowrap'}}>{l.ts}</span>
                       <span style={{fontSize:12,fontWeight:700,fontFamily:'monospace',color:'#92400e',background:'#fef3c7',padding:'2px 8px',borderRadius:4,border:'1px solid #fde68a'}}>{l.quoteSnapshot.csCode}</span>
