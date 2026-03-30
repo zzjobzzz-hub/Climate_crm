@@ -1,25 +1,41 @@
 // React, useState, useMemo, useRef, useEffect, useCallback — globals from CDN
 
 // 
-// USERS — all roles see same Admin view (Req 16, 17, 18)
+// SECURITY CONFIG
+// S1: Passwords validated server-side via Google Apps Script (no credentials in source)
+// S2: User list loaded from GS "users" tab at runtime (id, name, role only — no hash)
+// S3: Session expires after SESSION_HOURS hours
+// S4: All GS requests include GS_AUTH_TOKEN matched against Script Properties on server
 // 
-const USERS = [
-  { id:"korakoj.s",     email:"korakoj.s@wavebcg.com",      name:"Korakoj Sanguanpiyapan",     role:"sales",     password:"Krj@Wave26!" },
-  { id:"chawapol.ta",   email:"chawapol.ta@wavebcg.com",    name:"Chawapol Tangsirichoochuay", role:"admin",     password:"Cwp@Wave26!" },
-  { id:"songyot.kr",    email:"songyot.kr@wavebcg.com",     name:"Songyot Kraprom",            role:"sales",     password:"Sgt@Wave26!" },
-  { id:"theerayut.c",   email:"theerayut.c@wavebcg.com",    name:"Theerayut Chimpitak",        role:"sales",     password:"Trt@Wave26!" },
-  { id:"nattapon.yi",   email:"nattapon.yi@wavebcg.com",    name:"Nattapon Yingsakda",         role:"operation", password:"Ntp@Wave26!" },
-  { id:"panita.s",      email:"panita.s@wavebcg.com",       name:"Panita Sutaket",             role:"operation", password:"Pnt@Wave26!" },
-  { id:"waruntara.t",   email:"waruntara.t@wavebcg.com",    name:"Waruntara Tankam",           role:"operation", password:"Wrt@Wave26!" },
-  { id:"nattaya.s",     email:"nattaya.s@wavebcg.com",      name:"Nattaya Sonsiri",            role:"operation", password:"Nty@Wave26!" },
-  { id:"ausanee.s",     email:"ausanee.s@wavebcg.com",      name:"Ausanee Suttiwong",          role:"operation", password:"Asn@Wave26!" },
-  { id:"nattharika.p",  email:"nattharika.p@wavebcg.com",   name:"Nattharika Phongmanee",      role:"operation", password:"Ntk@Wave26!" },
-  { id:"krispira.ru",   email:"krispira.ru@wavebcg.com",    name:"Krispira Rutanatumsri",      role:"sales",     password:"Ksp@Wave26!" },
-  { id:"piyabut.ma",   email:"piyabut.ma@wavebcg.com",     name:"Piyabut Mahasabsombut",       role:"operation", password:"Pbt@Wave26!" },
-  { id:"taraphong.sr", email:"taraphong.sr@wavebcg.com",   name:"Taraphong Sriaram",            role:"operation", password:"Trp@Wave26!" },
-];
-const SALES_USERS = USERS.filter(u => u.role === "sales");
-const OP_USERS    = USERS.filter(u => u.role === "operation");
+const GS_AUTH_TOKEN  = "wB@CRM-2026-xK9q";   // Must match AUTH_SECRET in GAS Script Properties
+const SESSION_HOURS  = 0.01;
+const SESSION_KEY    = "crm_session";
+const SESSION_EXPIRY_MS = SESSION_HOURS * 60 * 60 * 1000;
+
+// S3: Session helpers
+const saveSession = user => {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({
+    id: user.id, name: user.name, email: user.email, role: user.role,
+    expiry: Date.now() + SESSION_EXPIRY_MS,
+  }));
+};
+const loadSession = () => {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (!s.expiry || Date.now() > s.expiry) { localStorage.removeItem(SESSION_KEY); return null; }
+    return s;
+  } catch (_) { return null; }
+};
+const clearSession = () => localStorage.removeItem(SESSION_KEY);
+
+// S2: USERS, SALES_USERS, OP_USERS are populated at runtime from GS "users" tab.
+// These start empty and are filled by the App() useEffect on mount.
+// All dropdown/lookup code uses these module-level arrays so they work once populated.
+let USERS       = [];
+let SALES_USERS = [];
+let OP_USERS    = [];
 
 // 
 // CONSTANTS
@@ -167,46 +183,54 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 
 // 
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
+// S4: All requests include GS_AUTH_TOKEN verified server-side
 // 
 const GS_URL = "https://script.google.com/macros/s/AKfycbywD_YAL8cVKFRxUqZjlGKlJhlI7JdmrCv9wKmNBFADKaoxl4Q9n_g9lWqYxvtEhW7_xw/exec";
 
-// Read a full collection from Google Sheets
+// S1: Server-side login — credentials validated in GAS, never in browser
+const gsLogin = async (email, password) => {
+  const r = await fetch(GS_URL, {
+    method:"POST", redirect:"follow",
+    headers:{"Content-Type":"text/plain"},
+    body: JSON.stringify({action:"login", email, password}),
+  });
+  return r.json();
+};
+
+// Read a full collection from Google Sheets (S4: token in query param)
 const gsGet = async (collection) => {
   try {
-    const r = await fetch(`${GS_URL}?collection=${collection}`, {cache:"no-store",redirect:"follow"});
+    const url = `${GS_URL}?collection=${encodeURIComponent(collection)}&token=${encodeURIComponent(GS_AUTH_TOKEN)}`;
+    const r = await fetch(url, {cache:"no-store",redirect:"follow"});
     const j = await r.json();
     return j.ok ? j.data : [];
   } catch(e) { return []; }
 };
 
-// Save (upsert) a single record — fire-and-forget, non-blocking
+// Save (upsert) a single record — fire-and-forget, non-blocking (S4: token in body)
 const gsSave = (collection, record, userId="", summary="") => {
   fetch(GS_URL, {
-    method:"POST",
-    redirect:"follow",
+    method:"POST", redirect:"follow",
     headers:{"Content-Type":"text/plain"},
-    body: JSON.stringify({action:"save", collection, record, userId, summary}),
+    body: JSON.stringify({action:"save", collection, record, userId, summary, token:GS_AUTH_TOKEN}),
   }).catch(()=>{});
 };
 
-// Save entire collection (used for costsheets which have no simple id upsert)
+// Save entire collection (S4: token in body)
 const gsSaveAll = (collection, records) => {
   fetch(GS_URL, {
-    method:"POST",
-    redirect:"follow",
+    method:"POST", redirect:"follow",
     headers:{"Content-Type":"text/plain"},
-    body: JSON.stringify({action:"saveAll", collection, records}),
+    body: JSON.stringify({action:"saveAll", collection, records, token:GS_AUTH_TOKEN}),
   }).catch(()=>{});
 };
 
-
-// Delete a single record from Google Sheets
+// Delete a single record from Google Sheets (S4: token in body)
 const gsDelete = (collection, id) => {
   fetch(GS_URL, {
-    method:"POST",
-    redirect:"follow",
+    method:"POST", redirect:"follow",
     headers:{"Content-Type":"text/plain"},
-    body: JSON.stringify({action:"delete", collection, id}),
+    body: JSON.stringify({action:"delete", collection, id, token:GS_AUTH_TOKEN}),
   }).catch(()=>{});
 };
 // 
@@ -332,13 +356,15 @@ const MultiSelect = ({label,options,selected,onChange,width=180}) => {
 };
 
 //  Activity log 
-const ActivityLog = ({logs,currentUser,onAdd,placeholder="Add a note…"}) => {
+const ActivityLog = ({logs,currentUser,onAdd,placeholder="Add a note…",users=[]}) => {
   const [note,sN] = useState("");
+  // Resolve a user by id — falls back to module-level USERS for any entries logged before the GS load
+  const findUser = id => users.find(x=>x.id===id) || USERS.find(x=>x.id===id);
   return (
     <div>
       <div style={{maxHeight:260,overflow:"auto",marginBottom:12,display:"flex",flexDirection:"column",gap:8}}>
         {(!logs||!logs.length) && <div style={{padding:20,textAlign:"center",color:"#94a3b8",fontSize:13}}>No activity logged yet.</div>}
-        {[...(logs||[])].reverse().map(l => { const u=USERS.find(x=>x.id===l.author); return (
+        {[...(logs||[])].reverse().map(l => { const u=findUser(l.author); return (
           <div key={l.id} style={{padding:"10px 14px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,display:"flex",gap:10}}>
             <div style={{width:32,height:32,background:"#0f172a",color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13,flexShrink:0}}>{(u?.name||"?")[0]}</div>
             <div style={{flex:1}}>
@@ -391,15 +417,29 @@ const GSGuideModal = ({module,headers,onClose}) => (
 );
 
 // 
-// LOGIN (Req 17, 18, 19)
+// LOGIN — S1: Server-side credential validation via GAS
 // 
 const LoginPage = ({onLogin}) => {
-  const [email,sEmail] = useState("");
-  const [pwd,sPwd]     = useState("");
-  const [err,sErr]     = useState("");
-  const go = () => {
-    const u = USERS.find(x => x.email.toLowerCase()===email.toLowerCase().trim() && x.password===pwd);
-    u ? onLogin(u) : sErr("Email or password is incorrect.");
+  const [email,sEmail]     = useState("");
+  const [pwd,sPwd]         = useState("");
+  const [err,sErr]         = useState("");
+  const [loading,sLoading] = useState(false);
+
+  const go = async () => {
+    if (!email.trim() || !pwd) { sErr("Please enter your email and password."); return; }
+    sLoading(true); sErr("");
+    try {
+      const result = await gsLogin(email.trim(), pwd);
+      if (result.ok) {
+        onLogin(result.user);
+      } else {
+        sErr(result.error || "Email or password is incorrect.");
+      }
+    } catch (_) {
+      sErr("Unable to connect. Please check your connection and try again.");
+    } finally {
+      sLoading(false);
+    }
   };
   return (
     <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans',system-ui,sans-serif"}}>
@@ -412,10 +452,10 @@ const LoginPage = ({onLogin}) => {
         </div>
         <Card style={{padding:28}}>
           {/* Req 17: email as username, text input not dropdown */}
-          <FRow label="Email"><Inp type="email" value={email} onChange={e=>sEmail(e.target.value)} placeholder="your.email@wavebcg.com" onKeyDown={e=>e.key==="Enter"&&go()}/></FRow>
-          <FRow label="Password"><Inp type="password" value={pwd} onChange={e=>sPwd(e.target.value)} placeholder="Enter your password" onKeyDown={e=>e.key==="Enter"&&go()}/></FRow>
+          <FRow label="Email"><Inp type="email" value={email} onChange={e=>sEmail(e.target.value)} placeholder="your.email@wavebcg.com" onKeyDown={e=>e.key==="Enter"&&!loading&&go()} disabled={loading}/></FRow>
+          <FRow label="Password"><Inp type="password" value={pwd} onChange={e=>sPwd(e.target.value)} placeholder="Enter your password" onKeyDown={e=>e.key==="Enter"&&!loading&&go()} disabled={loading}/></FRow>
           {err && <div style={{background:"#fee2e2",color:"#dc2626",padding:"8px 12px",borderRadius:5,fontSize:13,marginBottom:12}}>{err}</div>}
-          <Btn style={{width:"100%",padding:11,fontSize:14}} onClick={go}>Sign In</Btn>
+          <Btn style={{width:"100%",padding:11,fontSize:14,opacity:loading?0.7:1}} onClick={go} disabled={loading}>{loading?"Signing in…":"Sign In"}</Btn>
           {/* Req 18: no credential hints shown */}
         </Card>
       </div>
@@ -876,7 +916,7 @@ const CustForm = ({initial,user,onSave,onClose,onDelete}) => {
 };
 
 const CUST_HDR = ["ID","Company EN","Industry","Province","Contacts","Agent","Ranking","Status","Last Contact","Remark"];
-const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,initCustId,onCustReady}) => {
+const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,initCustId,onCustReady,userList=[]}) => {
   const [search,sS]=useState(""); const [fR,setFR]=useState([]); const [fSt,setFSt]=useState([]); const [fAg,setFAg]=useState([]);
   const [form,sF]=useState(false); const [edit,sE]=useState(null); const [gs,sGS]=useState(false);
   const [logCust,sLog]=useState(null);
@@ -1093,7 +1133,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
           <Span s={11} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:6}}>Customer Activity Log</Span>
           <ActivityLog logs={logCust.workLog||[]} currentUser={user}
             onAdd={entry=>{const up={...logCust,workLog:[...(logCust.workLog||[]),entry],lastContact:today()};onSave(up);sLog(up);toast("Log added",logCust.companyEN);}}
-            placeholder="Log a call, meeting, site visit…"/>
+            placeholder="Log a call, meeting, site visit…" users={userList}/>
           <div style={{display:"flex",justifyContent:"flex-end",marginTop:12}}><Btn onClick={()=>sLog(null)}>Done</Btn></div>
         </Modal>
       )}
@@ -1622,7 +1662,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
   );
 };
 
-const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS,onDelete,initTab="detail"}) => {
+const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS,onDelete,initTab="detail",userList=[]}) => {
   const newOppCode=genOppCode(opps); const newQtNo=genQuoteNo(opps);
   const blank={id:newOppCode,custId:customers[0]?.id||"",oppCode:newOppCode,quoteNo:newQtNo,jobCode:"",serviceCode:SERVICES[0].code,serviceType:SERVICES[0].name,salesPrice:SERVICES[0].stdPrice,totalCost:SERVICES[0].stdCost,status:"Proposal",assignedTo:SALES_USERS[0]?.id||"",createdDate:today(),lostReason:"",activityLog:[],remark:"",ranking:"Medium"};
   const [f,sF] = useState(initial?{...initial,activityLog:initial.activityLog||[]}:blank);
@@ -1689,7 +1729,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
           
         </>
       )}
-      {tab==="log"&&<ActivityLog logs={f.activityLog||[]} currentUser={user} onAdd={entry=>{const updated={...f,activityLog:[...(f.activityLog||[]),entry],jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""};sF(updated);onSave(updated);}} placeholder="Log a call, meeting, email…"/>}
+      {tab==="log"&&<ActivityLog logs={f.activityLog||[]} currentUser={user} onAdd={entry=>{const updated={...f,activityLog:[...(f.activityLog||[]),entry],jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""};sF(updated);onSave(updated);}} placeholder="Log a call, meeting, email…" users={userList}/>}
       {tab==="quotation"&&<QuotationPreview opp={f} customer={customers.find(c=>c.id===f.custId)} costSheets={costSheets||[]} onClose={onClose} onSaveQuotation={qd=>{const updated={...f,quotationData:qd,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""};onSave(updated);}}/>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
         {initial&&onDelete&&<Btn variant="danger" style={{marginRight:"auto"}} onClick={()=>setDelConfirm(true)}>Delete</Btn>}
@@ -1732,7 +1772,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
 };
 
 const OPP_HDR = ["OPP Code","Quote No.","CS Code","Job Code","Company","Service Code","Service Type","Sales Price","Total Cost","Margin%","Margin ฿","Status","Agent","Created","Lost Reason"];
-const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSaveDelivery,onDeleteDelivery,toast,costSheets,onGoToCS,initOppCode,onOppReady}) => {
+const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSaveDelivery,onDeleteDelivery,toast,costSheets,onGoToCS,initOppCode,onOppReady,userList=[]}) => {
   const [search,sS]=useState(""); const [fSt,setFSt]=useState([]); const [fAg,setFAg]=useState([]); const [fSvc,setFSvc]=useState([]);
   const [view,sView]=useState("kanban"); const [form,sF]=useState(false); const [edit,sE]=useState(null);
   const [logOpp,sLog]=useState(null); const [gs,sGS]=useState(false); const [quotationOpp,sQT]=useState(null);
@@ -1960,7 +2000,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
       )}
       {view==="kanban"&&kanbanView}
 
-      {form&&<OppForm initial={edit} customers={customers} opps={opps} user={user} onSave={handleSave} onClose={()=>{sF(false);sE(null);sQT(null);}} costSheets={costSheets} onGoToCS={onGoToCS} onDelete={o=>{
+      {form&&<OppForm initial={edit} customers={customers} opps={opps} user={user} onSave={handleSave} onClose={()=>{sF(false);sE(null);sQT(null);}} costSheets={costSheets} onGoToCS={onGoToCS} userList={userList} onDelete={o=>{
         onDelete(o.id);
         // Clean CS: remove saveLog entries + quoteOverrides matching this quoteNo/oppCode
         if(onSaveCS&&(o.quoteNo||o.oppCode)){
@@ -1984,7 +2024,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
             <SvcBadge code={logOpp.serviceCode}/>
             <Span s={12} w={700} c="#0f172a">฿{fmt(logOpp.salesPrice)}</Span>
           </div>
-          <ActivityLog logs={logOpp.activityLog||[]} currentUser={user} onAdd={entry=>{const up={...logOpp,activityLog:[...(logOpp.activityLog||[]),entry]};onSave(up);sLog(up);toast("Log added",logOpp.oppCode);}} placeholder="Log a call, meeting, or follow-up…"/>
+          <ActivityLog logs={logOpp.activityLog||[]} currentUser={user} onAdd={entry=>{const up={...logOpp,activityLog:[...(logOpp.activityLog||[]),entry]};onSave(up);sLog(up);toast("Log added",logOpp.oppCode);}} placeholder="Log a call, meeting, or follow-up…" users={userList}/>
           <div style={{display:"flex",justifyContent:"flex-end",marginTop:12}}><Btn onClick={()=>sLog(null)}>Done</Btn></div>
         </Modal>
       )}
@@ -2063,7 +2103,7 @@ const CostBreakdown = ({quoteNo,costSheets}) => {
   );
 };
 
-const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,initTab="detail"}) => {
+const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,initTab="detail",userList=[]}) => {
   const wonOpps=opps.filter(o=>o.status==="Won");
   const blank={id:`DLV-${uid()}`,custId:"",oppCode:"",quoteNo:"",jobCode:"",contractNo:"",contractDate:"",serviceCode:"",serviceType:"",totalContractValue:0,deliveryStatus:"In Progress",currentStep:DLV_STEPS[0],deliveryDate:"",assignedTo:SALES_USERS[0]?.id||"",workLog:[],installments:[],paymentTerm:"30 days",remark:""};
   const [f,sF] = useState(initial?{...initial,workLog:initial.workLog||[]}:blank);
@@ -2226,7 +2266,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
           <div style={{marginTop:20}}><FRow label="Current Step"><Sel value={f.currentStep} onChange={e=>set("currentStep",e.target.value)}>{DLV_STEPS.map(s=><option key={s}>{s}</option>)}</Sel></FRow></div>
         </div>
       )}
-      {tab==="log"&&<ActivityLog logs={f.workLog||[]} currentUser={user} onAdd={entry=>sF(p=>({...p,workLog:[...(p.workLog||[]),entry]}))} placeholder="Log work progress, milestones, issues…"/>}
+      {tab==="log"&&<ActivityLog logs={f.workLog||[]} currentUser={user} onAdd={entry=>sF(p=>({...p,workLog:[...(p.workLog||[]),entry]}))} placeholder="Log work progress, milestones, issues…" users={userList}/>}
       {tab==="cost"&&<CostBreakdown quoteNo={f.quoteNo} costSheets={costSheets}/>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
@@ -2516,7 +2556,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
 
 
 const DLV_HDR = ["Delivery ID","Customer","OPP Code","Quote No.","Job Code","Contract No.","Contract Date","Service Type","Contract Value","Status","Step","Delivery Date","Total Received","Balance"];
-const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,onGoToCS,onGoToCust,onGoToOpp}) => {
+const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,onGoToCS,onGoToCust,onGoToOpp,userList=[]}) => {
   const [search,sS]=useState(""); const [fDS,setFDS]=useState([]); const [fStep,setFStep]=useState([]);
   const [form,sF]=useState(false); const [edit,sE]=useState(null); const [gs,sGS]=useState(false);
   const [initTab,sInitTab]=useState("detail"); // which tab to open in DeliveryForm
@@ -2552,7 +2592,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
         })}
                 {list.length===0&&<Card style={{padding:40,textAlign:"center",color:"#94a3b8"}}>No delivery records found.</Card>}
       </div>
-      {form&&<DeliveryForm initial={edit} customers={customers} opps={opps} user={user} onSave={d=>{onSave(d);sF(false);sE(null);sInitTab("detail");toast("Delivery saved",d.jobCode||d.id);}} onClose={()=>{sF(false);sE(null);sInitTab("detail");}} costSheets={costSheets} initTab={initTab}/>}
+      {form&&<DeliveryForm initial={edit} customers={customers} opps={opps} user={user} onSave={d=>{onSave(d);sF(false);sE(null);sInitTab("detail");toast("Delivery saved",d.jobCode||d.id);}} onClose={()=>{sF(false);sE(null);sInitTab("detail");}} costSheets={costSheets} initTab={initTab} userList={userList}/>}
 
       {quotationOpp&&<QuotationPreview opp={quotationOpp} customer={customers.find(c=>c.id===quotationOpp.custId)} costSheets={costSheets||[]} onClose={()=>sQT(null)}/>}
     </div>
@@ -3194,7 +3234,8 @@ const NAV = [
 ];
 
 function App() {
-  const [user,sUser] = useState(()=>{ try { const s=localStorage.getItem("crm_user"); if(s){ const p=JSON.parse(s); return USERS.find(u=>u.id===p.id)||null; } } catch(e){} return null; });
+  // S3: Restore session from localStorage — checks expiry timestamp
+  const [user,sUser] = useState(()=>loadSession());
 
   // Hash-based routing — syncs with browser back/forward
   const getPageFromHash = () => { const h=location.hash.replace("#",""); return NAV.find(n=>n.key===h)?h:"dashboard"; };
@@ -3214,6 +3255,7 @@ function App() {
   const [initOppCode,sOppCode] = useState(null);
   const [kpiSplits,sKPI]     = useState({2026:DEFAULT_SPLIT.slice(),2027:DEFAULT_SPLIT.slice(),2028:DEFAULT_SPLIT.slice()});
   const [gsStatus,sGSStatus] = useState("idle"); // "idle"|"loading"|"synced"|"error"
+  const [userList,sUserList] = useState([]);      // S2: safe user list {id,name,role} loaded from GS
   const {toasts,show:toast}  = useToast();
 
   //  Load all data from Google Sheets on mount 
@@ -3225,10 +3267,19 @@ function App() {
       gsGet("deliveries"),
       gsGet("costsheets"),
       gsGet("kpi"),
-    ]).then(([c,o,d,cs,k])=>{
+      gsGet("users"),
+    ]).then(([c,o,d,cs,k,u])=>{
       if(c.length) sCusts(c.map(x=>({...x,id:String(x.id||"")})));
       if(o.length) sOpps(o.map(x=>({...x,id:String(x.id||""),custId:String(x.custId||"")})));
       if(d.length) sDlv(d.map(x=>({...x,id:String(x.id||""),custId:String(x.custId||"")})));
+      // S2: Populate module-level USERS arrays for all dropdowns/lookups throughout app
+      if(u.length){
+        const safe = u.map(x=>({id:String(x.id||""),email:String(x.email||""),name:String(x.name||""),role:String(x.role||"")}));
+        USERS       = safe;
+        SALES_USERS = safe.filter(x=>x.role==="sales");
+        OP_USERS    = safe.filter(x=>x.role==="operation");
+        sUserList(safe);
+      }
       // Merge loaded costSheets with defaults for any services not yet in Sheet
       // Always clear quoteOverrides on load — user must click Edit to re-open
       if(cs.length){
@@ -3326,7 +3377,7 @@ function App() {
     );
   };
 
-  if(!user) return <LoginPage onLogin={u=>{localStorage.setItem("crm_user",JSON.stringify({id:u.id}));sUser(u);sPage("dashboard");}}/>;
+  if(!user) return <LoginPage onLogin={u=>{ saveSession(u); sUser(u); sPage("dashboard"); }}/>;
 
   return (
     <div style={{minHeight:"100vh",background:"#f8fafc",fontFamily:"'DM Sans','Noto Sans Thai',system-ui,sans-serif",fontSize:15}}>
@@ -3345,15 +3396,15 @@ function App() {
               <div style={{fontSize:13,fontWeight:700,color:"#374151"}}>{user.name}</div>
               <div style={{fontSize:10,color:user.role==="md"?"#0ea5e9":user.role==="admin"?"#16a34a":user.role==="operation"?"#7c3aed":"#1e40af",textTransform:"uppercase",letterSpacing:"0.06em"}}>{user.role}</div>
             </div>
-            <button onClick={()=>{localStorage.removeItem("crm_user");sUser(null);window.location.reload();}} style={{padding:"6px 14px",border:"1px solid #e2e8f0",borderRadius:5,background:"#fff",cursor:"pointer",fontSize:13,color:"#64748b"}}>Sign Out</button>
+            <button onClick={()=>{ clearSession(); sUser(null); }} style={{padding:"6px 14px",border:"1px solid #e2e8f0",borderRadius:5,background:"#fff",cursor:"pointer",fontSize:13,color:"#64748b"}}>Sign Out</button>
           </div>
         </div>
       </div>
       <div style={{maxWidth:1440,margin:"0 auto",padding:24}}>
         {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI} toast={toast} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}}/>}
-        {page==="customers" && <CustomersPage user={user} customers={customers} opps={opps} onSave={saveItem(sCusts,"customers")} onDelete={deleteItem(sCusts,"customers")} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)}/>}
-        {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} onDelete={deleteItem(sOpps,"opportunities")} onSaveCS={saveCS} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} onDeleteDelivery={deleteItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)}/>}
-        {page==="delivery"  && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}}/>}
+        {page==="customers" && <CustomersPage user={user} customers={customers} opps={opps} onSave={saveItem(sCusts,"customers")} onDelete={deleteItem(sCusts,"customers")} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)} userList={userList}/>}
+        {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} onDelete={deleteItem(sOpps,"opportunities")} onSaveCS={saveCS} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} onDeleteDelivery={deleteItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)} userList={userList}/>}
+        {page==="delivery"  && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}} userList={userList}/>}
         {page==="costsheet" && <CostSheetPage costSheets={costSheets} onSave={saveCS} customers={customers} opps={opps} user={user} onSaveOpp={saveOpp} toast={toast} initSvcCode={initSvcCode} onSvcReady={()=>sSvcCode(null)}/>}
         {page==="setup"     && <SetupPage/>}
       </div>
