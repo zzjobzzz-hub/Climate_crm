@@ -196,7 +196,9 @@ const gsRequest = async (body) => {
       body: JSON.stringify({ ...body, token: GS_AUTH_TOKEN }),
     });
     const j = await r.json();
-    return j.ok ? { ok: true, data: j.data } : { ok: false, error: j.error || "Server error" };
+    // Return the full object so LoginPage can find result.user, 
+    // and others can find result.data if needed.
+    return j.ok ? j : { ok: false, error: j.error || "Server error" };
   } catch (e) {
     return { ok: false, error: "Network error" };
   }
