@@ -50,7 +50,7 @@ const INS_STATUSES = ["Pending","Invoiced","Received","Overdue"];
 const LOST_REASONS = ["Price Too High","Budget Frozen","Selected Competitor","Scope Mismatch",
                       "Project Postponed","No Response","Internal Policy","Other"];
 // In-House levels with standard day rates (THB/day)
-const IH_LEVELS = {Manager:1440, Senior:950, Junior:600};
+const IH_LEVELS = {Manager:1441, Senior:948, Junior:600};
 const IH_LEVEL_NAMES = Object.keys(IH_LEVELS);
 // Sales agent mobile numbers
 const SALES_MOBILE = {"songyot.kr":"062-197-4449","theerayut.c":"080-441-2295"};
