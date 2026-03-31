@@ -117,7 +117,7 @@ const SERVICES = [
 ];
 
 const ANNUAL_KPI    = 38000000;
-const DEFAULT_SPLIT = [0,0,0,0,0,0,0,0,0,0,0,0]; // Adjust & Save in Dashboard KPI tab
+const DEFAULT_SPLIT = [0,1,5,12,7,34,6,7,8,4,14,2]; // Adjust & Save in Dashboard KPI tab
 
 // 
 // UTILS
