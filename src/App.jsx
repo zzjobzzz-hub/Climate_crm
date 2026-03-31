@@ -3262,17 +3262,30 @@ function App() {
 const stripJsonSuffix = obj => {
   if (!obj || typeof obj !== "object") return obj;
   const out = {};
+  
   // First pass: copy all non-_json fields
   Object.keys(obj).forEach(k => {
     if (!k.endsWith("_json")) out[k] = obj[k];
   });
+  
   // Second pass: _json fields override only if value is non-empty
   Object.keys(obj).forEach(k => {
     if (k.endsWith("_json")) {
       const clean = k.slice(0, -5);
-      const v = obj[k];
+      let v = obj[k];
       const isEmpty = v === "" || v === null || v === undefined;
-      if (!isEmpty) out[clean] = v;
+      
+      if (!isEmpty) {
+        // Parse the JSON string back into a usable array/object
+        if (typeof v === "string") {
+          try {
+            v = JSON.parse(v);
+          } catch (e) {
+            // Failsafe in case of malformed JSON strings
+          }
+        }
+        out[clean] = v;
+      }
     }
   });
   return out;
