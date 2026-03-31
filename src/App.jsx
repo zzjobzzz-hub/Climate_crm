@@ -50,7 +50,7 @@ const INS_STATUSES = ["Pending","Invoiced","Received","Overdue"];
 const LOST_REASONS = ["Price Too High","Budget Frozen","Selected Competitor","Scope Mismatch",
                       "Project Postponed","No Response","Internal Policy","Other"];
 // In-House levels with standard day rates (THB/day)
-const IH_LEVELS = {Manager:1441, Senior:948, Junior:600};
+const IH_LEVELS = {Manager:1440, Senior:950, Junior:600};
 const IH_LEVEL_NAMES = Object.keys(IH_LEVELS);
 // Sales agent mobile numbers
 const SALES_MOBILE = {"songyot.kr":"062-197-4449","theerayut.c":"080-441-2295"};
@@ -117,7 +117,7 @@ const SERVICES = [
 ];
 
 const ANNUAL_KPI    = 38000000;
-const DEFAULT_SPLIT = [0,1,5,12,7,34,6,7,8,4,14,2]; // Adjust & Save in Dashboard KPI tab
+const DEFAULT_SPLIT = [0,0,0,0,0,0,0,0,0,0,0,0]; // Adjust & Save in Dashboard KPI tab
 
 // 
 // UTILS
@@ -1469,7 +1469,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
   <div>
     <div class="sig-lbl">Accepted by: ${custName}</div>
     <div class="sig-line"></div>
-    <div class="sig-detail">Name: ..........................................................................<br/>Title: ..........................................................................<br/>Date: ..........................................................................</div>
+    <div class="sig-detail">Name: .....................................<br/>Title: .....................................<br/>Date: .....................................</div>
   </div>
 </div>
 </div>
@@ -1706,12 +1706,20 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
             <div style={{gridColumn:"1/-1"}}>
               <FRow label="Note Log">
                 <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-                  {f.remark&&[...f.remark.split("\n").filter(Boolean)].reverse().map((line,i,arr)=>(
+                  {f.remark&&[...f.remark.split("\n").filter(Boolean)].reverse().map((line,i,arr)=>{
+                    const m=line.match(/^\[([^\]]+)\]\s*(.*)/);
+                    const meta=m?m[1]:""; const body=m?m[2]:line;
+                    const datePart=meta.split("·")[0].trim(); const authorPart=meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
+                    return(
                     <div key={i} style={{padding:"5px 8px 5px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"flex-start",gap:6}}>
-                      <span style={{flex:1,lineHeight:1.5}}>{line}</span>
+                      <div style={{flex:1,lineHeight:1.5}}>
+                        <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
+                        {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
+                        <span>{body}</span>
+                      </div>
                       <button onClick={()=>{const lines=f.remark.split("\n").filter(Boolean);const orig=arr[arr.length-1-i];const newRemark=lines.filter(l=>l!==orig).join("\n");set("remark",newRemark);}} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
                     </div>
-                  ))}
+                  );})}
                   <div style={{display:"flex",gap:0}}>
                     <Inp value={noteInput} onChange={e=>sNoteInput(e.target.value)} placeholder={`Add note… (${today()})`}
                       onKeyDown={e=>{if(e.key==="Enter"&&noteInput.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);sNoteInput("");}}}
@@ -2204,12 +2212,20 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
             <div style={{gridColumn:"1/-1"}}>
               <FRow label="Note Log">
                 <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-                  {f.remark&&[...f.remark.split("\n").filter(Boolean)].reverse().map((line,i)=>(
-                    <div key={i} style={{padding:"6px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa"}}>{line}</div>
-                  ))}
+                  {f.remark&&[...f.remark.split("\n").filter(Boolean)].reverse().map((line,i)=>{
+                    const m=line.match(/^\[([^\]]+)\]\s*(.*)/);
+                    const meta=m?m[1]:""; const body=m?m[2]:line;
+                    const datePart=meta.split("·")[0].trim(); const authorPart=meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
+                    return(
+                    <div key={i} style={{padding:"6px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa"}}>
+                      <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
+                      {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
+                      <span>{body}</span>
+                    </div>
+                  );})}
                   <div style={{display:"flex",gap:0}}>
                     <Inp value={noteInput} onChange={e=>sNoteInput(e.target.value)} placeholder={`Add note… (${today()})`}
-                      onKeyDown={e=>{if(e.key==="Enter"&&noteInput.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()}] ${noteInput.trim()}`);sNoteInput("");}}}
+                      onKeyDown={e=>{if(e.key==="Enter"&&noteInput.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);sNoteInput("");}}}
                       style={{borderRadius:0,background:"#fff",flex:1,border:"none",borderTop:"1px solid #f1f5f9"}}/>
                   </div>
                 </div>
@@ -3160,75 +3176,28 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           </div>
           {(editCS.quoteOverrides||[]).length===0&&(
             <div>
-              {(()=>{
-                // Primary source: saveLog entries with quoteSnapshot (may be empty if GS cell was truncated)
-                const fromLog = Object.values(
-                  [...(editCS.saveLog||[])].filter(l=>l.quoteSnapshot).reduce((acc,l)=>{
-                    const key=l.quoteSnapshot.quoteNo;
-                    if(!acc[key]||l.ts>acc[key].ts) acc[key]=l;
-                    return acc;
-                  },{})
-                ).sort((a,b)=>b.ts.localeCompare(a.ts));
-
-                // Fallback: reconstruct from opps when saveLog is missing/truncated
-                // (happens when saveLog_json cell exceeds Google Sheets 50k char limit)
-                const fromOpps = fromLog.length===0
-                  ? opps.filter(o=>o.serviceCode===editCS.serviceCode&&o.csCode)
-                      .sort((a,b)=>(b.createdDate||"").localeCompare(a.createdDate||""))
-                  : [];
-
-                const hasLog = fromLog.length>0;
-                const hasFallback = fromOpps.length>0;
-
-                if(!hasLog&&!hasFallback) return null;
-
-                return (
-                  <div style={{marginBottom:12}}>
-                    {!hasLog&&hasFallback&&(
-                      <div style={{fontSize:11,color:'#d97706',background:'#fef3c7',border:'1px solid #fde68a',borderRadius:5,padding:'6px 12px',marginBottom:8}}>
-                        ⚠ Quotation details could not be fully loaded from Google Sheets (saveLog may be truncated). Showing from Opportunities — use Edit to re-open and re-save.
-                      </div>
-                    )}
-                    {hasLog && fromLog.map(l=>(
-                      <div key={l.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:7,marginBottom:6}}>
-                        <span style={{fontSize:12,color:'#94a3b8',whiteSpace:'nowrap'}}>{l.ts}</span>
-                        <span style={{fontSize:12,fontWeight:700,fontFamily:'monospace',color:'#92400e',background:'#fef3c7',padding:'2px 8px',borderRadius:4,border:'1px solid #fde68a'}}>{l.quoteSnapshot.csCode}</span>
-                        <span style={{fontSize:12,color:'#374151',flex:1}}>{l.quoteSnapshot.quoteNo} {customers.find(c=>c.id===l.quoteSnapshot.custId)?.companyEN||l.quoteSnapshot.custId}</span>
-                        <Btn variant='ghost' style={{fontSize:13,padding:'4px 14px'}} onClick={()=>{
-                          const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} for editing`};
-                          sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid()}],saveLog:[...(p.saveLog||[]),logEntry]}));
-                        }}>Edit</Btn>
-                      </div>
-                    ))}
-                    {!hasLog && fromOpps.map(o=>{
-                      const cust=customers.find(c=>c.id===o.custId);
-                      const stub={
-                        id:uid(),csCode:o.csCode,oppCode:o.oppCode,quoteNo:o.quoteNo,custId:o.custId,
-                        salesAgent:o.assignedTo||"",contactPersonId:"",salesPrice:o.salesPrice||0,
-                        projectTitle:"",projectScope:"",projectMonths:editCS.projectMonths||3,
-                        notes:o.remark||"",
-                        internalCosts:[],externalCosts:[],tasks:[],
-                        installments:[{id:uid(),seq:1,label:"",pct:100,detail:"",recvMonth:1}],
-                        lineItems:[{id:uid(),description:"",qty:1,unit:"Job",unitPrice:o.salesPrice||0}],
-                        deliverables:[{id:uid(),item:""}],
-                      };
-                      return (
-                        <div key={o.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:7,marginBottom:6}}>
-                          <span style={{fontSize:12,color:'#94a3b8',whiteSpace:'nowrap'}}>{o.createdDate}</span>
-                          <span style={{fontSize:12,fontWeight:700,fontFamily:'monospace',color:'#92400e',background:'#fef3c7',padding:'2px 8px',borderRadius:4,border:'1px solid #fde68a'}}>{o.csCode}</span>
-                          <span style={{fontSize:12,color:'#374151',flex:1}}>{o.quoteNo} {cust?.companyEN||o.custId}</span>
-                          <span style={{fontSize:11,color:'#64748b',background:'#f1f5f9',padding:'2px 8px',borderRadius:4,border:'1px solid #e2e8f0'}}>{o.status}</span>
-                          <span style={{fontSize:12,fontWeight:700,color:'#0f172a'}}>฿{fmt(o.salesPrice)}</span>
-                          <Btn variant='ghost' style={{fontSize:13,padding:'4px 14px'}} onClick={()=>{
-                            const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${o.csCode} for editing (restored from Opportunities)`};
-                            sECS(p=>({...p,quoteOverrides:[stub],saveLog:[...(p.saveLog||[]),logEntry]}));
-                          }}>Edit</Btn>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
+              {(editCS.saveLog||[]).filter(l=>l.quoteSnapshot).length>0&&(
+                <div style={{marginBottom:12}}>
+                  {Object.values(
+                    [...(editCS.saveLog||[])].filter(l=>l.quoteSnapshot).reduce((acc,l)=>{
+                      const key=l.quoteSnapshot.quoteNo;
+                      if(!acc[key]||l.ts>acc[key].ts) acc[key]=l;
+                      return acc;
+                    },{})
+                  ).sort((a,b)=>b.ts.localeCompare(a.ts)).map(l=>(
+                    <div key={l.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:7,marginBottom:6}}>
+                      <span style={{fontSize:12,color:'#94a3b8',whiteSpace:'nowrap'}}>{l.ts}</span>
+                      <span style={{fontSize:12,fontWeight:700,fontFamily:'monospace',color:'#92400e',background:'#fef3c7',padding:'2px 8px',borderRadius:4,border:'1px solid #fde68a'}}>{l.quoteSnapshot.csCode}</span>
+                      <span style={{fontSize:12,color:'#374151',flex:1}}>{l.quoteSnapshot.quoteNo} {customers.find(c=>c.id===l.quoteSnapshot.custId)?.companyEN||l.quoteSnapshot.custId}</span>
+                      <Btn variant='ghost' style={{fontSize:13,padding:'4px 14px'}} onClick={()=>{
+                        sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid()}]}));
+                        const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} for editing`};
+                        sECS(p=>({...p,saveLog:[...(p.saveLog||[]),logEntry]}));
+                      }}>Edit</Btn>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {(editCS.quoteOverrides||[]).map((q)=>(
@@ -3328,7 +3297,7 @@ const stripJsonSuffix = obj => {
           try {
             v = JSON.parse(v);
           } catch (e) {
-            console.warn(`[CRM] Failed to parse field "${k}" (${v.length} chars) — likely truncated by Google Sheets 50k cell limit. Field will be ignored.`, e);
+            // Failsafe in case of malformed JSON strings
           }
         }
         out[clean] = v;
