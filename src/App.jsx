@@ -1469,7 +1469,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
   <div>
     <div class="sig-lbl">Accepted by: ${custName}</div>
     <div class="sig-line"></div>
-    <div class="sig-detail">Name: .....................................<br/>Title: .....................................<br/>Date: .....................................</div>
+    <div class="sig-detail">Name: ..........................................................................<br/>Title: ..........................................................................<br/>Date: ..........................................................................</div>
   </div>
 </div>
 </div>
