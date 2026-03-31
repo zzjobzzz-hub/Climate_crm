@@ -3259,15 +3259,24 @@ function App() {
   const {toasts,show:toast}  = useToast();
 
   // Strip _json suffix from GAS column names (e.g. saveLog_json → saveLog)
-  const stripJsonSuffix = obj => {
-    if (!obj || typeof obj !== "object") return obj;
-    const out = {};
-    Object.keys(obj).forEach(k => {
-      const clean = k.endsWith("_json") ? k.slice(0, -5) : k;
-      out[clean] = obj[k];
-    });
-    return out;
-  };
+const stripJsonSuffix = obj => {
+  if (!obj || typeof obj !== "object") return obj;
+  const out = {};
+  // First pass: copy all non-_json fields
+  Object.keys(obj).forEach(k => {
+    if (!k.endsWith("_json")) out[k] = obj[k];
+  });
+  // Second pass: _json fields override only if value is non-empty
+  Object.keys(obj).forEach(k => {
+    if (k.endsWith("_json")) {
+      const clean = k.slice(0, -5);
+      const v = obj[k];
+      const isEmpty = v === "" || v === null || v === undefined;
+      if (!isEmpty) out[clean] = v;
+    }
+  });
+  return out;
+};
 
   //  Load all data from Google Sheets on mount 
   useEffect(()=>{
