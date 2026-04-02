@@ -131,18 +131,16 @@ const today = () => new Date().toISOString().slice(0,10);
 const nowTS = () => { const d=new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
 const pad2  = n => String(n).padStart(2,"0");
 
-const calcIC   = rows => (rows||[]).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
-const calcEC   = (rows,coOnly) => (rows||[]).filter(r=>coOnly?!r.clientBorne:true).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
-const calcTask = tasks => (tasks||[]).reduce((s,t)=>s+(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior,0);
-const calcTotalCS = cs => calcIC(cs.internalCosts||[]) + calcEC(cs.externalCosts||[],true) + calcTask(cs.tasks||[]);
-// Legacy helpers kept for per-quotation overrides
+// Unified COGS calc — single costs array (replaces internalCosts + externalCosts)
+const calcCosts = rows => (rows||[]).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
+const calcTask  = tasks => (tasks||[]).reduce((s,t)=>s+(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior,0);
+const calcQCost = q => calcCosts(q.costs||[]) + calcTask(q.tasks||[]);
+// Legacy aliases — kept so Delivery CostBreakdown panel still compiles
+const calcIC  = calcCosts;
+const calcEC  = (rows) => calcCosts(rows);
 const calcIH  = rows => (rows||[]).reduce((s,r)=>s+(r.days||0)*(r.rate||IH_LEVELS[r.level]||0),0);
 const calcOS  = rows => (rows||[]).reduce((s,r)=>s+(r.amount||0),0);
 const calcTrv = (rows,co) => (rows||[]).filter(r=>co?!r.clientBorne:r.clientBorne).reduce((s,r)=>s+(r.amount||0),0);
-const calcQCost = q => {
-  const ic=calcIC(q.internalCosts||[]),ec=calcEC(q.externalCosts||[],true),opex=calcTask(q.tasks||[]);
-  return ic+ec+opex;
-};
 const margin     = (p,c) => p>0?((p-c)/p*100).toFixed(1):"0.0";
 const marginAmt  = (p,c) => Math.round((p||0)-(c||0));
 
@@ -161,18 +159,14 @@ const addDays = (dateStr, days) => {
   const d = new Date(dateStr); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10);
 };
 
-// COGS = Internal + External costs
-// OPEX = Man-day based labor by task
+// COGS = unified costs array (label, vendorName, unit, qty, rate, payMonth)
+// OPEX = man-hour tasks (manager, senior, junior days × rate)
 const buildDefaultCS = s => ({
   serviceCode: s.code, serviceType: s.name,
-  stdCost: s.stdCost, stdPrice: s.stdPrice,
-  minPrice: Math.round(s.stdPrice*.85), maxPrice: Math.round(s.stdPrice*1.3),
-  internalCosts: [],  // add via + Internal
-  externalCosts: [],  // add via + External
-  tasks: [],          // add via + Task
+  costs: [],      // unified COGS — replaces internalCosts + externalCosts
+  tasks: [],
   projectMonths: 3,
-  quoteOverrides: [],
-  saveLog: [],        // [{ts, author, note}] — recorded on Save
+  saveLog: [],    // slim only: [{id, ts, author, csCode, quoteNo, action, salesPrice, marginPct}]
 });
 
 //  Seed data — empty by default, add via UI 
@@ -185,7 +179,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // S4: All requests include GS_AUTH_TOKEN verified server-side
 // 
-const GS_URL = "https://script.google.com/macros/s/AKfycbywD_YAL8cVKFRxUqZjlGKlJhlI7JdmrCv9wKmNBFADKaoxl4Q9n_g9lWqYxvtEhW7_xw/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbwkngp7w5ZCegE3fwqOBjlcYF6F-K2lq7ixH0uHnfjbOKGsNEWg8Z5qQwuUCd2riOXQzA/exec";
 
 // S1: Server-side login — credentials validated in GAS, never in browser
 const gsLogin = async (email, password) => {
@@ -1163,18 +1157,14 @@ const WAVE_CO = {
   signerTitle:"Managing Director Climate Business",
 };
 
-const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation}) => {
+const QuotationPreview = ({opp, customer, costSheets, csQuotes, onClose, onSaveQuotation}) => {
   const cs = (costSheets||[]).find(c=>c.serviceCode===opp?.serviceCode);
-  // Try live quoteOverride first, then quoteSnapshot from saveLog
-  const qo = cs ? (cs.quoteOverrides||[]).find(q=>q.quoteNo===opp?.quoteNo) : null;
-  const qSnap = qo || (()=>{
-    const logEntry=(cs?.saveLog||[]).slice().reverse().find(l=>l.quoteSnapshot?.quoteNo===opp?.quoteNo);
-    return logEntry?.quoteSnapshot||null;
-  })();
-  const qPrice = qSnap?.salesPrice || opp?.salesPrice || 0;
+  // Look up quote from costsheet_quotes tab first, then fall back to quotationData on opp
+  const qo = (csQuotes||[]).find(q=>q.quoteNo===opp?.quoteNo) || null;
+  const qPrice = qo?.salesPrice || opp?.salesPrice || 0;
 
   const buildInstallments = () => {
-    if(qSnap?.installments?.length) return qSnap.installments.map(i=>({...i,id:i.id||uid()}));
+    if(qo?.installments?.length) return qo.installments.map(i=>({...i,id:i.id||uid()}));
     return [
       {id:uid(),seq:1,label:"งวดที่ 1 — ลงนามสัญญา",        pct:40, detail:"Upon contract signing"},
       {id:uid(),seq:2,label:"งวดที่ 2 — ก่อนการตรวจสอบ",     pct:40, detail:"Prior to verification"},
@@ -1183,8 +1173,8 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
   };
 
   const buildLineItems = () => {
-    const desc = qSnap?.projectTitle || opp?.serviceType || "";
-    if(qSnap?.lineItems?.length) return qSnap.lineItems.map(li=>({
+    const desc = qo?.projectTitle || opp?.serviceType || "";
+    if(qo?.lineItems?.length) return qo.lineItems.map(li=>({
       ...li, id:li.id||uid(),
       description: li.description || desc,
       unitPrice: qPrice,  // always override with current salesPrice
@@ -1193,20 +1183,20 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
   };
 
   const buildDeliverables = () => {
-    if(qSnap?.deliverables?.length) return qSnap.deliverables.map(d=>({...d,id:d.id||uid()}));
+    if(qo?.deliverables?.length) return qo.deliverables.map(d=>({...d,id:d.id||uid()}));
     return [{id:uid(),item:""}];
   };
 
   const initIssue = today();
   const savedQD = opp?.quotationData; // persisted from previous save
 
-  const defaultNotes = qSnap?.notes || "";
+  const defaultNotes = qo?.notes || "";
 
 
 
-  const qIssueDate = qSnap?.issueDate || initIssue;
-  const qDueDate   = qSnap?.dueDate   || addDays(qIssueDate, 30);
-  const qQuoteNo   = qSnap?.quoteNo   || opp?.quoteNo || "";
+  const qIssueDate = qo?.issueDate || initIssue;
+  const qDueDate   = qo?.dueDate   || addDays(qIssueDate, 30);
+  const qQuoteNo   = qo?.quoteNo   || opp?.quoteNo || "";
 
   const [f, sF] = useState(savedQD ? {
     ...savedQD,
@@ -1221,20 +1211,20 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
     quoteNo:       savedQD.quoteNo       || qQuoteNo,
     issueDate:     savedQD.issueDate     || qIssueDate,
     dueDate:       savedQD.dueDate       || qDueDate,
-    projectScope:  savedQD.projectScope  || qSnap?.projectScope  || "",
+    projectScope:  savedQD.projectScope  || qo?.projectScope  || "",
     notes:         savedQD.notes         || defaultNotes,
     salesPrice:    savedQD.salesPrice    || qPrice,
-    projectTitle:  savedQD.projectTitle  || qSnap?.projectTitle  || qSnap?.serviceType   || opp?.serviceType || cs?.serviceType || "",
-    projectDuration: savedQD.projectDuration || qSnap?.projectMonths || cs?.projectMonths || 3,
-    salesAgentId:  savedQD.salesAgentId  || qSnap?.salesAgent    || opp?.assignedTo   || SALES_USERS[0]?.id || "",
+    projectTitle:  savedQD.projectTitle  || qo?.projectTitle  || qo?.serviceType   || opp?.serviceType || cs?.serviceType || "",
+    projectDuration: savedQD.projectDuration || qo?.projectMonths || cs?.projectMonths || 3,
+    salesAgentId:  savedQD.salesAgentId  || qo?.salesAgent    || opp?.assignedTo   || SALES_USERS[0]?.id || "",
   } : {
     quoteNo:         qQuoteNo,
     issueDate:       qIssueDate,
     dueDate:         qDueDate,
-    salesAgentId:    qSnap?.salesAgent   || opp?.assignedTo || SALES_USERS[0]?.id||"",
-    projectTitle:    qSnap?.projectTitle || qSnap?.serviceType  || opp?.serviceType||cs?.serviceType||"",
-    projectScope:    qSnap?.projectScope || "",
-    projectDuration: qSnap?.projectMonths|| cs?.projectMonths||3,
+    salesAgentId:    qo?.salesAgent   || opp?.assignedTo || SALES_USERS[0]?.id||"",
+    projectTitle:    qo?.projectTitle || qo?.serviceType  || opp?.serviceType||cs?.serviceType||"",
+    projectScope:    qo?.projectScope || "",
+    projectDuration: qo?.projectMonths|| cs?.projectMonths||3,
     projectStartDate:"",
     deliverables: buildDeliverables(),
     salesPrice:   qPrice,
@@ -1662,7 +1652,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
   );
 };
 
-const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS,onDelete,initTab="detail",userList=[]}) => {
+const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,csQuotes,onGoToCS,onDelete,initTab="detail",userList=[]}) => {
   const newOppCode=genOppCode(opps); const newQtNo=genQuoteNo(opps);
   const blank={id:newOppCode,custId:customers[0]?.id||"",oppCode:newOppCode,quoteNo:newQtNo,jobCode:"",serviceCode:SERVICES[0].code,serviceType:SERVICES[0].name,salesPrice:SERVICES[0].stdPrice,totalCost:SERVICES[0].stdCost,status:"Proposal",assignedTo:SALES_USERS[0]?.id||"",createdDate:today(),lostReason:"",activityLog:[],remark:"",ranking:"Medium"};
   const [f,sF] = useState(initial?{...initial,activityLog:initial.activityLog||[]}:blank);
@@ -1738,7 +1728,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
         </>
       )}
       {tab==="log"&&<ActivityLog logs={f.activityLog||[]} currentUser={user} onAdd={entry=>{const updated={...f,activityLog:[...(f.activityLog||[]),entry],jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""};sF(updated);onSave(updated);}} placeholder="Log a call, meeting, email…" users={userList}/>}
-      {tab==="quotation"&&<QuotationPreview opp={f} customer={customers.find(c=>c.id===f.custId)} costSheets={costSheets||[]} onClose={onClose} onSaveQuotation={qd=>{const updated={...f,quotationData:qd,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""};onSave(updated);}}/>}
+      {tab==="quotation"&&<QuotationPreview opp={f} customer={customers.find(c=>c.id===f.custId)} costSheets={costSheets||[]} csQuotes={csQuotes||[]} onClose={onClose} onSaveQuotation={qd=>{const updated={...f,quotationData:qd,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""};onSave(updated);}}/>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
         {initial&&onDelete&&<Btn variant="danger" style={{marginRight:"auto"}} onClick={()=>setDelConfirm(true)}>Delete</Btn>}
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
@@ -1780,7 +1770,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
 };
 
 const OPP_HDR = ["OPP Code","Quote No.","CS Code","Job Code","Company","Service Code","Service Type","Sales Price","Total Cost","Margin%","Margin ฿","Status","Agent","Created","Lost Reason"];
-const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSaveDelivery,onDeleteDelivery,toast,costSheets,onGoToCS,initOppCode,onOppReady,userList=[]}) => {
+const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSaveDelivery,onDeleteDelivery,toast,costSheets,csQuotes,onDeleteCsQuote,onGoToCS,initOppCode,onOppReady,userList=[]}) => {
   const [search,sS]=useState(""); const [fSt,setFSt]=useState([]); const [fAg,setFAg]=useState([]); const [fSvc,setFSvc]=useState([]);
   const [view,sView]=useState("kanban"); const [form,sF]=useState(false); const [edit,sE]=useState(null);
   const [logOpp,sLog]=useState(null); const [gs,sGS]=useState(false); const [quotationOpp,sQT]=useState(null);
@@ -1823,7 +1813,15 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
       const exists=deliveries.find(d=>d.oppCode===o.oppCode);
       if(!exists){
         const buildInstFromSrc=(srcInst,cv)=>srcInst.map((ins,i)=>({id:uid(),seq:i+1,label:ins.label||`Installment ${i+1}`,pct:ins.pct||0,amount:Math.round((cv||0)*(ins.pct||0)/100),invoiceNo:"",invoiceDate:"",receiptNo:"",receiptDate:"",status:"Pending",recvMonth:ins.recvMonth||i+1}));
-        const autoInst=(()=>{const cs2=(costSheets||[]).find(c2=>(c2.quoteOverrides||[]).some(q=>q.quoteNo===o.quoteNo));const qo2=cs2?(cs2.quoteOverrides||[]).find(q=>q.quoteNo===o.quoteNo):null;if(qo2?.installments?.length>0)return buildInstFromSrc(qo2.installments,o.salesPrice);const qdInst=o?.quotationData?.installments||[];if(qdInst.length>0)return buildInstFromSrc(qdInst,o.salesPrice);return[];})();
+        const autoInst=(()=>{
+          // 1. Try costsheet_quotes installments first
+          const csQ=(csQuotes||[]).find(q=>q.quoteNo===o.quoteNo);
+          if(csQ?.installments?.length>0) return buildInstFromSrc(csQ.installments,o.salesPrice);
+          // 2. Fallback to quotationData on opp
+          const qdInst=o?.quotationData?.installments||[];
+          if(qdInst.length>0) return buildInstFromSrc(qdInst,o.salesPrice);
+          return[];
+        })();
         const dlv={id:`DLV-${o.oppCode.replace("OPP-","")}`,custId:o.custId,oppCode:o.oppCode,quoteNo:o.quoteNo,jobCode:o.jobCode,contractNo:"",contractDate:"",serviceCode:o.serviceCode,serviceType:o.serviceType,totalContractValue:o.salesPrice,deliveryStatus:"In Progress",currentStep:DLV_STEPS[0],deliveryDate:"",assignedTo:o.assignedTo,workLog:[{id:uid(),ts:nowTS(),author:user.id,note:`Auto-created from ${o.oppCode} — Won.`}],installments:autoInst,paymentTerm:"30 days",remark:""};
         onSaveDelivery(dlv);
         toast("Delivery auto-created",`${o.jobCode} added to Delivery tab`);
@@ -2008,22 +2006,14 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
       )}
       {view==="kanban"&&kanbanView}
 
-      {form&&<OppForm initial={edit} customers={customers} opps={opps} user={user} onSave={handleSave} onClose={()=>{sF(false);sE(null);sQT(null);}} costSheets={costSheets} onGoToCS={onGoToCS} userList={userList} onDelete={o=>{
+      {form&&<OppForm initial={edit} customers={customers} opps={opps} user={user} onSave={handleSave} onClose={()=>{sF(false);sE(null);sQT(null);}} costSheets={costSheets} csQuotes={csQuotes||[]} onGoToCS={onGoToCS} userList={userList} onDelete={o=>{
         onDelete(o.id);
-        // Clean CS: remove saveLog entries + quoteOverrides matching this quoteNo/oppCode
-        if(onSaveCS&&(o.quoteNo||o.oppCode)){
-          const cs=(costSheets||[]).find(c=>(c.quoteOverrides||[]).some(q=>q.quoteNo===o.quoteNo||q.oppCode===o.oppCode)||(c.saveLog||[]).some(l=>l.quoteSnapshot?.quoteNo===o.quoteNo));
-          if(cs){
-            onSaveCS({...cs,
-              quoteOverrides:(cs.quoteOverrides||[]).filter(q=>q.quoteNo!==o.quoteNo&&q.oppCode!==o.oppCode),
-              saveLog:(cs.saveLog||[]).filter(l=>!l.quoteSnapshot||(l.quoteSnapshot.quoteNo!==o.quoteNo&&l.quoteSnapshot.oppCode!==o.oppCode)),
-            });
-          }
-        }
+        // Remove linked costsheet_quote row if exists
+        if(onDeleteCsQuote && o.quoteNo) onDeleteCsQuote(o.quoteNo);
         sF(false);sE(null);sQT(null);
         toast("Opportunity deleted",o.oppCode,"error");
       }}/>}
-      {quotationOpp&&!form&&<QuotationPreview opp={quotationOpp} customer={customers.find(c=>c.id===quotationOpp.custId)} costSheets={costSheets||[]} onClose={()=>sQT(null)} onSaveQuotation={qd=>{onSave({...quotationOpp,quotationData:qd});sQT(null);}}/>}
+      {quotationOpp&&!form&&<QuotationPreview opp={quotationOpp} customer={customers.find(c=>c.id===quotationOpp.custId)} costSheets={costSheets||[]} csQuotes={csQuotes||[]} onClose={()=>sQT(null)} onSaveQuotation={qd=>{onSave({...quotationOpp,quotationData:qd});sQT(null);}}/>}
       {logOpp&&(
         <Modal title={`Activity Log — ${logOpp.oppCode}`} width={680} onClose={()=>sLog(null)}>
           <div style={{marginBottom:12,padding:"8px 14px",background:"#f8fafc",borderRadius:6,display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
@@ -2044,66 +2034,58 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
 // DELIVERY
 // 
 // Req 10: Cost breakdown panel from cost sheet
-const CostBreakdown = ({quoteNo,costSheets}) => {
-  const q = useMemo(()=>{
-    for(const cs of costSheets){
-      const found=(cs.quoteOverrides||[]).find(qo=>qo.quoteNo===quoteNo);
-      if(found)return{cs,q:found};
-    }
-    return null;
-  },[quoteNo,costSheets]);
-  if(!q)return<div style={{padding:12,color:"#94a3b8",fontSize:13}}>No per-quotation cost sheet found for {quoteNo}.</div>;
-  const {cs,q:qo}=q;
-  const qIH=calcIH(qo.inHouseCosts||[]);
-  const qOS=calcOS(qo.outsourceCosts||[]);
-  const qTV=calcTrv(qo.travelCosts||[],true);
-  const qTC=qIH+qOS+qTV;
-  const mg=margin(qo.salesPrice,qTC);
-  const csCode=qo.csCode||genCSCode(qo.quoteNo||"");
-  const salesAgentUser=USERS.find(u=>u.id===qo.salesAgent);
+const CostBreakdown = ({quoteNo, csQuotes}) => {
+  const qo = useMemo(()=>(csQuotes||[]).find(q=>q.quoteNo===quoteNo)||null,[quoteNo,csQuotes]);
+  if(!qo) return <div style={{padding:12,color:"#94a3b8",fontSize:13}}>No cost sheet found for {quoteNo}.</div>;
+  const qCOGS = calcCosts(qo.costs||[]);
+  const qOPEX = calcTask(qo.tasks||[]);
+  const qTC   = qCOGS + qOPEX;
+  const mg    = margin(qo.salesPrice, qTC);
+  const salesAgentUser = USERS.find(u=>u.id===qo.salesAgent);
   return (
     <div style={{padding:16}}>
-      {/* CS Code link header */}
       <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:14,padding:"10px 14px",background:"#fef3c7",border:"1px solid #fde68a",borderRadius:7,flexWrap:"wrap"}}>
-        <span style={{fontSize:15}}></span>
-        <div><Span s={10} c="#92400e" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block"}}>Cost Sheet & Pricing Code</Span><span style={{fontFamily:"monospace",fontWeight:900,fontSize:15,color:"#92400e"}}>{csCode}</span></div>
-        <div style={{marginLeft:8}}><Span s={10} c="#64748b" style={{textTransform:"uppercase",display:"block"}}>Linked to</Span><span style={{fontFamily:"monospace",fontSize:12,fontWeight:700,color:"#1e40af"}}>{qo.quoteNo}</span></div>
+        <div><Span s={10} c="#92400e" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block"}}>CS Code</Span><span style={{fontFamily:"monospace",fontWeight:900,fontSize:15,color:"#92400e"}}>{qo.csCode}</span></div>
+        <div style={{marginLeft:8}}><Span s={10} c="#64748b" style={{textTransform:"uppercase",display:"block"}}>Quote No.</Span><span style={{fontFamily:"monospace",fontSize:12,fontWeight:700,color:"#1e40af"}}>{qo.quoteNo}</span></div>
         <div style={{marginLeft:8}}><Span s={10} c="#64748b" style={{textTransform:"uppercase",display:"block"}}>OPP Code</Span><span style={{fontFamily:"monospace",fontSize:12,fontWeight:700,color:"#1e40af"}}>{qo.oppCode||"—"}</span></div>
-        <div style={{marginLeft:8}}><Span s={10} c="#64748b" style={{textTransform:"uppercase",display:"block"}}>Sales Agent</Span><span style={{fontSize:12,fontWeight:700,color:"#0f172a"}}>{salesAgentUser?.name||qo.salesAgent||"—"}</span></div>
+        <div style={{marginLeft:8}}><Span s={10} c="#64748b" style={{textTransform:"uppercase",display:"block"}}>Agent</Span><span style={{fontSize:12,fontWeight:700,color:"#0f172a"}}>{salesAgentUser?.name||qo.salesAgent||"—"}</span></div>
       </div>
       <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:14}}>
-        {[{l:"Sales Price",v:qo.salesPrice,c:"#0f172a"},{l:"In-House",v:qIH},{l:"Outsource",v:qOS},{l:"Travel (Co.)",v:qTV},{l:"Total Cost",v:qTC,bold:true},{l:"Margin",v:`${mg}%`,c:+mg>=30?"#16a34a":"#dc2626"}].map(x=>(
+        {[{l:"Sales Price",v:qo.salesPrice,c:"#0f172a"},{l:"COGS",v:qCOGS},{l:"OPEX",v:qOPEX},{l:"Total Cost",v:qTC,bold:true},{l:"Margin",v:`${mg}%`,c:+mg>=30?"#16a34a":"#dc2626"}].map(x=>(
           <div key={x.l} style={{textAlign:"center",padding:"9px 14px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:6}}>
             <Span s={10} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>{x.l}</Span>
             <div style={{fontWeight:x.bold?900:700,fontSize:15,color:x.c||"#374151"}}>{typeof x.v==="number"?`฿${fmt(x.v)}`:x.v}</div>
           </div>
         ))}
       </div>
-      {/* IH breakdown */}
-      {(qo.inHouseCosts||[]).length>0&&(
+      {(qo.costs||[]).length>0&&(
         <div style={{marginBottom:10}}>
-          <Span s={11} w={700} c="#64748b" style={{display:"block",marginBottom:5,textTransform:"uppercase"}}>In-House (Man-hours)</Span>
+          <Span s={11} w={700} c="#64748b" style={{display:"block",marginBottom:5,textTransform:"uppercase"}}>COGS</Span>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-            <TH cols={["Label","Level","Hours","Rate/hr","Total","Assigned To"]}/>
-            <tbody>{(qo.inHouseCosts||[]).map(r=>(
+            <TH cols={["Label","Vendor","Unit","Qty","Rate","Total","Pay M."]}/>
+            <tbody>{(qo.costs||[]).map(r=>(
               <TR key={r.id}>
-                <TD>{r.label}</TD><TD>{r.level}</TD><TD right>{r.hours}</TD><TD right>฿{fmt(r.ratePerHour)}</TD>
-                <TD right style={{fontWeight:700}}>฿{fmt(r.hours*r.ratePerHour)}</TD>
-                <TD>{USERS.find(u=>u.id===r.assignedAgent)?.name||r.assignedAgent||"—"}</TD>
+                <TD>{r.label}</TD><TD>{r.vendorName||"—"}</TD><TD>{r.unit}</TD>
+                <TD right>{r.qty}</TD><TD right>฿{fmt(r.rate)}</TD>
+                <TD right style={{fontWeight:700}}>฿{fmt((r.qty||0)*(r.rate||0))}</TD>
+                <TD>M{r.payMonth||1}</TD>
               </TR>
             ))}</tbody>
           </table>
         </div>
       )}
-      {/* OS breakdown */}
-      {(qo.outsourceCosts||[]).length>0&&(
+      {(qo.tasks||[]).length>0&&(
         <div>
-          <Span s={11} w={700} c="#64748b" style={{display:"block",marginBottom:5,textTransform:"uppercase"}}>Outsource Costs</Span>
+          <Span s={11} w={700} c="#64748b" style={{display:"block",marginBottom:5,textTransform:"uppercase"}}>OPEX — Man-hour Tasks</Span>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-            <TH cols={["Label","Vendor / Person","Amount"]}/>
-            <tbody>{(qo.outsourceCosts||[]).map(r=>(
-              <TR key={r.id}><TD>{r.label}</TD><TD>{r.vendorName||"—"}</TD><TD right style={{fontWeight:700}}>฿{fmt(r.amount)}</TD></TR>
-            ))}</tbody>
+            <TH cols={["Task","Manager","Senior","Junior","Total"]}/>
+            <tbody>{(qo.tasks||[]).map(t=>{const tc=(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior;return(
+              <TR key={t.id}>
+                <TD>{t.taskName||"—"}</TD><TD right>{t.manager||0}</TD><TD right>{t.senior||0}</TD><TD right>{t.junior||0}</TD>
+                <TD right style={{fontWeight:700}}>฿{fmt(tc)}</TD>
+              </TR>
+            );})}
+            </tbody>
           </table>
         </div>
       )}
@@ -2111,7 +2093,7 @@ const CostBreakdown = ({quoteNo,costSheets}) => {
   );
 };
 
-const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,initTab="detail",userList=[]}) => {
+const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,csQuotes,initTab="detail",userList=[]}) => {
   const wonOpps=opps.filter(o=>o.status==="Won");
   const blank={id:`DLV-${uid()}`,custId:"",oppCode:"",quoteNo:"",jobCode:"",contractNo:"",contractDate:"",serviceCode:"",serviceType:"",totalContractValue:0,deliveryStatus:"In Progress",currentStep:DLV_STEPS[0],deliveryDate:"",assignedTo:SALES_USERS[0]?.id||"",workLog:[],installments:[],paymentTerm:"30 days",remark:""};
   const [f,sF] = useState(initial?{...initial,workLog:initial.workLog||[]}:blank);
@@ -2140,14 +2122,12 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
   //   2. opp.quotationData.installments  (Payment Schedule saved in Quotation tab)
   //   returns [] if neither source has data — NO fallback single-payment row
   const resolveInstallments=(o,cv)=>{
-    // 1. Per-Q CS installments — search ALL costSheets for matching quoteNo
-    const cs=(costSheets||[]).find(c=>(c.quoteOverrides||[]).some(q=>q.quoteNo===o?.quoteNo));
-    const qo=cs?(cs.quoteOverrides||[]).find(q=>q.quoteNo===o?.quoteNo):null;
-    if(qo?.installments?.length>0) return buildInstFromSource(qo.installments,cv);
-    // 2. Quotation tab payment schedule (secondary)
+    // 1. From costsheet_quotes tab by quoteNo
+    const csQ=(csQuotes||[]).find(q=>q.quoteNo===o?.quoteNo);
+    if(csQ?.installments?.length>0) return buildInstFromSource(csQ.installments,cv);
+    // 2. Quotation tab payment schedule on opp
     const qdInst=o?.quotationData?.installments||[];
     if(qdInst.length>0) return buildInstFromSource(qdInst,cv);
-    // Nothing found — no fallback row, user fills manually
     return [];
   };
 
@@ -2174,10 +2154,9 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
       if(inst.length>0){sF(p=>({...p,installments:inst}));}
       return;
     }
-    const cs=(costSheets||[]).find(c=>(c.quoteOverrides||[]).some(q=>q.quoteNo===quoteNo));
-    const qo=cs?(cs.quoteOverrides||[]).find(q=>q.quoteNo===quoteNo):null;
-    if(qo?.installments?.length>0)
-      sF(p=>({...p,installments:buildInstFromSource(qo.installments,cv!=null?cv:f.totalContractValue||0)}));
+    const csQ=(csQuotes||[]).find(q=>q.quoteNo===quoteNo);
+    if(csQ?.installments?.length>0)
+      sF(p=>({...p,installments:buildInstFromSource(csQ.installments,cv!=null?cv:f.totalContractValue||0)}));
   };
   const cust=customers.find(c=>c.id===f.custId);
   const totalPct=(f.installments||[]).reduce((s,i)=>s+i.pct,0);
@@ -2283,7 +2262,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
         </div>
       )}
       {tab==="log"&&<ActivityLog logs={f.workLog||[]} currentUser={user} onAdd={entry=>sF(p=>({...p,workLog:[...(p.workLog||[]),entry]}))} placeholder="Log work progress, milestones, issues…" users={userList}/>}
-      {tab==="cost"&&<CostBreakdown quoteNo={f.quoteNo} costSheets={costSheets}/>}
+      {tab==="cost"&&<CostBreakdown quoteNo={f.quoteNo} csQuotes={csQuotes||[]}/>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
         <Btn onClick={()=>onSave(f)}>Save Delivery</Btn>
@@ -2293,7 +2272,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
 };
 
 //  DeliveryCard: proper component — collapsed summary + expandable edit mode 
-const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGoToCust, onGoToOpp, sQT, onGoToCS}) => {
+const DeliveryCard = ({d, opps, costSheets, csQuotes, customers, user, onSave, toast, onGoToCust, onGoToOpp, sQT, onGoToCS}) => {
   const [open, setOpen]       = useState(false);   // card expanded?
   const [dirty, setDirty]     = useState(false);   // unsaved changes?
   const [localD, setLocalD]   = useState(d);       // staged local copy
@@ -2338,13 +2317,8 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
   const syncInst = () => {
     const quoteNo = localD.quoteNo||d.quoteNo;
     if(!quoteNo) return;
-    let srcInst = [];
-    for(const cs of costSheets||[]){
-      const qo=(cs.quoteOverrides||[]).find(q=>q.quoteNo===quoteNo);
-      if(qo?.installments?.length>0){ srcInst=qo.installments; break; }
-      const snap=(cs.saveLog||[]).find(l=>l.quoteSnapshot?.quoteNo===quoteNo);
-      if(snap?.quoteSnapshot?.installments?.length>0){ srcInst=snap.quoteSnapshot.installments; break; }
-    }
+    const csQ=(csQuotes||[]).find(q=>q.quoteNo===quoteNo);
+    let srcInst=csQ?.installments||[];
     if(srcInst.length===0){
       const oq=opps.find(x=>x.quoteNo===quoteNo);
       srcInst=oq?.quotationData?.installments||[];
@@ -2357,7 +2331,6 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
       invoiceNo:"",invoiceDate:"",receiptNo:"",receiptDate:"",status:"Pending",recvMonth:ins.recvMonth||i+1,
     }));
     markDirty(null, inst);
-
   };
   useEffect(()=>{ if((d.installments||[]).length===0&&d.quoteNo) syncInst(); },[]);
 
@@ -2572,7 +2545,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
 
 
 const DLV_HDR = ["Delivery ID","Customer","OPP Code","Quote No.","Job Code","Contract No.","Contract Date","Service Type","Contract Value","Status","Step","Delivery Date","Total Received","Balance"];
-const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,onGoToCS,onGoToCust,onGoToOpp,userList=[]}) => {
+const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,csQuotes,onGoToCS,onGoToCust,onGoToOpp,userList=[]}) => {
   const [search,sS]=useState(""); const [fDS,setFDS]=useState([]); const [fStep,setFStep]=useState([]);
   const [form,sF]=useState(false); const [edit,sE]=useState(null); const [gs,sGS]=useState(false);
   const [initTab,sInitTab]=useState("detail"); // which tab to open in DeliveryForm
@@ -2601,16 +2574,16 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         {list.map(d => {
           return (
-            <DeliveryCard key={d.id} d={d} opps={opps} costSheets={costSheets} customers={customers} user={user}
+            <DeliveryCard key={d.id} d={d} opps={opps} costSheets={costSheets} csQuotes={csQuotes} customers={customers} user={user}
               onSave={upd=>onSave(upd)}
               toast={toast} onGoToCust={onGoToCust} onGoToOpp={onGoToOpp} sQT={sQT} onGoToCS={onGoToCS}/>
           );
         })}
                 {list.length===0&&<Card style={{padding:40,textAlign:"center",color:"#94a3b8"}}>No delivery records found.</Card>}
       </div>
-      {form&&<DeliveryForm initial={edit} customers={customers} opps={opps} user={user} onSave={d=>{onSave(d);sF(false);sE(null);sInitTab("detail");toast("Delivery saved",d.jobCode||d.id);}} onClose={()=>{sF(false);sE(null);sInitTab("detail");}} costSheets={costSheets} initTab={initTab} userList={userList}/>}
+      {form&&<DeliveryForm initial={edit} customers={customers} opps={opps} user={user} onSave={d=>{onSave(d);sF(false);sE(null);sInitTab("detail");toast("Delivery saved",d.jobCode||d.id);}} onClose={()=>{sF(false);sE(null);sInitTab("detail");}} costSheets={costSheets} csQuotes={csQuotes} initTab={initTab} userList={userList}/>}
 
-      {quotationOpp&&<QuotationPreview opp={quotationOpp} customer={customers.find(c=>c.id===quotationOpp.custId)} costSheets={costSheets||[]} onClose={()=>sQT(null)}/>}
+      {quotationOpp&&<QuotationPreview opp={quotationOpp} customer={customers.find(c=>c.id===quotationOpp.custId)} costSheets={costSheets||[]} csQuotes={csQuotes||[]} onClose={()=>sQT(null)}/>}
     </div>
   );
 };
@@ -2718,432 +2691,386 @@ const TaskTableWidget = ({tasks,onSet,onAdd,onDel,months}) => (
 // 
 // COST SHEET (COGS + OPEX + Cashflow)
 // 
-const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQInst,setQDlv,addQEC,addQTK,addQInst,addQDlv,delQIC,delQEC,delQTK,delQInst,delQO,updQO,handleSave}) => {
-  const qIC=calcIC(q.internalCosts||[]),qEC=calcEC(q.externalCosts||[],true),qOPEX=calcTask(q.tasks||[]);
-  const qTC=qIC+qEC+qOPEX,qMg=margin(q.salesPrice,qTC);
-  const months=q.projectMonths||editCS.projectMonths||3;
-  const instSum=(q.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
+const QuoteCard = ({q, editCS, customers, user, setQF, setQTK, setQCost, addQTK, addQCost, delQTK, delQCost, setQInst, addQInst, delQInst, setQDlv, addQDlv, delQDlv, delQO, updQO, handleSave}) => {
+  const qCOGS = calcCosts(q.costs||[]);
+  const qOPEX = calcTask(q.tasks||[]);
+  const qTC   = qCOGS + qOPEX;
+  const qMg   = margin(q.salesPrice, qTC);
+  const months = q.projectMonths || editCS.projectMonths || 3;
+  const instSum = (q.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
 
   return (
-              <Card key={q.id} style={{marginBottom:14,overflow:"hidden",position:"relative"}}>
-                {/* Header row — single line, no wrap */}
-                <div style={{padding:"10px 16px",background:+qMg>=30?"#f0fdf4":"#fffbeb",borderBottom:"1px solid #e2e8f0",display:"flex",gap:8,alignItems:"center",flexWrap:"nowrap",overflow:"hidden"}}>
-                  {/* CS Code */}
-                  <div style={{flexShrink:0}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>CS Code</Span>
-                    <div style={{fontFamily:"monospace",fontWeight:900,fontSize:12,color:"#1e40af",padding:"3px 0"}}>{q.csCode}</div>
-                  </div>
-                  <div style={{width:1,background:"#e2e8f0",alignSelf:"stretch",marginX:4,flexShrink:0}}/>
-                  {/* OPP Code */}
-                  <div style={{flex:"0 0 120px"}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>OPP Code</Span>
-                    <Inp value={q.oppCode||""} onChange={e=>setQF(q.id,"oppCode",e.target.value)} style={{fontSize:11,fontFamily:"monospace",fontWeight:700,padding:"3px 6px",color:"#1e40af"}}/>
-                  </div>
-                  {/* Quote No. */}
-                  <div style={{flex:"0 0 110px"}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Quote No.</Span>
-                    <Inp value={q.quoteNo||""} onChange={e=>setQF(q.id,"quoteNo",e.target.value)} style={{fontSize:11,fontFamily:"monospace",padding:"3px 6px"}}/>
-                  </div>
-                  {/* Customer */}
-                  <div style={{flex:"1 1 160px",minWidth:0}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Customer</Span>
-                    <Sel value={q.custId||""} onChange={e=>setQF(q.id,"custId",e.target.value)} style={{fontSize:11,padding:"3px 6px",width:"100%"}}>
-                      <option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.id}>{c.companyEN}</option>)}
+    <Card style={{marginBottom:14,overflow:"hidden",position:"relative"}}>
+      {/* Header row */}
+      <div style={{padding:"10px 16px",background:+qMg>=30?"#f0fdf4":"#fffbeb",borderBottom:"1px solid #e2e8f0",display:"flex",gap:8,alignItems:"center",flexWrap:"nowrap",overflow:"hidden"}}>
+        <div style={{flexShrink:0}}>
+          <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>CS Code</Span>
+          <div style={{fontFamily:"monospace",fontWeight:900,fontSize:12,color:"#1e40af",padding:"3px 0"}}>{q.csCode}</div>
+        </div>
+        <div style={{width:1,background:"#e2e8f0",alignSelf:"stretch",flexShrink:0}}/>
+        <div style={{flex:"0 0 120px"}}>
+          <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>OPP Code</Span>
+          <Inp value={q.oppCode||""} onChange={e=>setQF(q.id,"oppCode",e.target.value)} style={{fontSize:11,fontFamily:"monospace",fontWeight:700,padding:"3px 6px",color:"#1e40af"}}/>
+        </div>
+        <div style={{flex:"0 0 110px"}}>
+          <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Quote No.</Span>
+          <Inp value={q.quoteNo||""} onChange={e=>setQF(q.id,"quoteNo",e.target.value)} style={{fontSize:11,fontFamily:"monospace",padding:"3px 6px"}}/>
+        </div>
+        <div style={{flex:"1 1 160px",minWidth:0}}>
+          <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Customer</Span>
+          <Sel value={q.custId||""} onChange={e=>setQF(q.id,"custId",e.target.value)} style={{fontSize:11,padding:"3px 6px",width:"100%"}}>
+            <option value="">— Select —</option>
+            {customers.map(c=><option key={c.id} value={c.id}>{c.companyEN}</option>)}
+          </Sel>
+        </div>
+        <div style={{flex:"0 0 140px"}}>
+          <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Agent</Span>
+          <Sel value={q.salesAgent||""} onChange={e=>setQF(q.id,"salesAgent",e.target.value)} style={{fontSize:11,padding:"3px 6px"}}>
+            <option value="">— Select —</option>
+            {SALES_USERS.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+          </Sel>
+        </div>
+        <div style={{flex:"0 0 150px"}}>
+          <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Contact</Span>
+          <Sel value={q.contactPersonId||""} onChange={e=>setQF(q.id,"contactPersonId",e.target.value)} style={{fontSize:11,padding:"3px 6px"}}>
+            <option value="">— Select —</option>
+            {(customers.find(c=>c.id===q.custId)?.contacts||[]).filter(ct=>ct.active).map(ct=><option key={ct.id} value={ct.id}>{ct.name}</option>)}
+          </Sel>
+        </div>
+        <div style={{flex:"0 0 90px"}}>
+          <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Price</Span>
+          <NumInp value={q.salesPrice} onChange={v=>updQO(q.id,q=>({...q,salesPrice:v,lineItems:(q.lineItems||[]).map((li,i)=>i===0?{...li,unitPrice:v}:li)}))} style={{fontSize:12,fontWeight:700,padding:"3px 6px"}}/>
+        </div>
+        <div style={{flex:"0 0 52px"}}>
+          <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Mo.</Span>
+          <Inp type="number" value={months} onChange={e=>setQF(q.id,"projectMonths",+e.target.value)} style={{fontSize:11,padding:"3px 5px"}}/>
+        </div>
+        <div style={{flex:"0 0 72px",padding:"5px 8px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center",flexShrink:0}}>
+          <div style={{fontWeight:900,fontSize:15,color:+qMg>=30?"#16a34a":"#dc2626",lineHeight:1.2}}>{qMg}%</div>
+          <div style={{fontWeight:700,fontSize:13,color:+qMg>=30?"#16a34a":"#dc2626"}}>฿{fmt(marginAmt(q.salesPrice,qTC))}</div>
+        </div>
+      </div>
+
+      {/* Cost grids — COGS (unified) + OPEX */}
+      <div style={{padding:16,display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+        {/* COGS — unified costs table */}
+        <div>
+          <Span s={11} w={700} style={{display:"block",marginBottom:4}}>COGS</Span>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
+            <colgroup><col style={{width:"28%"}}/><col style={{width:"18%"}}/><col style={{width:"8%"}}/><col style={{width:"8%"}}/><col style={{width:"13%"}}/><col style={{width:"13%"}}/><col style={{width:"9%"}}/><col style={{width:"3%"}}/></colgroup>
+            <TH cols={["Label","Vendor","Unit","Qty","Rate","Total","Pay M.",""]}/>
+            <tbody>
+              {(q.costs||[]).map(r=>(
+                <tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
+                  <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQCost(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                  <td style={{padding:"3px 3px"}}><Inp value={r.vendorName||""} onChange={e=>setQCost(q.id,r.id,"vendorName",e.target.value)} placeholder="" style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                  <td style={{padding:"3px 3px"}}><Inp value={r.unit||""} onChange={e=>setQCost(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                  <td style={{padding:"3px 3px"}}><NumInp value={r.qty} onChange={v=>setQCost(q.id,r.id,"qty",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                  <td style={{padding:"3px 3px"}}><NumInp value={r.rate} onChange={v=>setQCost(q.id,r.id,"rate",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                  <td style={{padding:"3px 3px",fontWeight:700,fontSize:13}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
+                  <td style={{padding:"3px 3px"}}>
+                    <Sel value={r.payMonth||1} onChange={e=>setQCost(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:11,width:"100%"}}>
+                      {Array.from({length:(months||3)+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
                     </Sel>
-                  </div>
-                  {/* Sales Agent */}
-                  <div style={{flex:"0 0 140px"}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Agent</Span>
-                    <Sel value={q.salesAgent||""} onChange={e=>setQF(q.id,"salesAgent",e.target.value)} style={{fontSize:11,padding:"3px 6px"}}>
-                      <option value="">— Select —</option>{SALES_USERS.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+                  </td>
+                  <td><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQCost(q.id,r.id)}>×</Btn></td>
+                </tr>
+              ))}
+              <tr style={{borderTop:"1px solid #e2e8f0"}}>
+                <td colSpan={4} style={{padding:"5px 4px"}}>
+                  <button onClick={()=>addQCost(q.id)} style={{fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 12px",cursor:"pointer",fontWeight:600}}>+ Add</button>
+                </td>
+                <td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap",color:"#94a3b8",fontSize:11,fontWeight:600}}>Total COGS</td>
+                <td colSpan={2} style={{padding:"5px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a"}}>฿{fmt(qCOGS)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* OPEX — man-hour tasks */}
+        <div>
+          <Span s={12} w={700} style={{display:"block",marginBottom:6}}>OPEX — Man-hour Tasks</Span>
+          <TaskTableWidget tasks={q.tasks||[]} onSet={(tid,k,v)=>setQTK(q.id,tid,k,v)} onAdd={()=>addQTK(q.id)} onDel={tid=>delQTK(q.id,tid)} months={months}/>
+        </div>
+      </div>
+
+      {/* Installments + Cashflow */}
+      <div style={{padding:"0 16px 16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,borderTop:"1px solid #f1f5f9"}}>
+        {/* Installments */}
+        <div style={{paddingTop:14}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+            <Span s={12} w={700}>Installments</Span>
+            <span style={{fontSize:13,fontWeight:700,color:Math.abs(instSum-100)<0.1?"#16a34a":"#dc2626"}}>({instSum}% {Math.abs(instSum-100)<0.1?"":""})</span>
+          </div>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+            <thead><tr style={{background:"#f8fafc"}}>
+              <th style={{padding:"5px 4px",width:22,textAlign:"center",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}>#</th>
+              <th style={{padding:"5px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}>Label</th>
+              <th style={{padding:"5px 4px",width:46,textAlign:"right",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}>%</th>
+              <th style={{padding:"5px 4px",width:76,textAlign:"right",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}>Amount</th>
+              <th style={{padding:"5px 4px",width:54,textAlign:"left",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}>Recv M.</th>
+              <th style={{padding:"5px 4px",width:20,borderBottom:"1px solid #e2e8f0"}}/>
+            </tr></thead>
+            <tbody>
+              {(q.installments||[]).map((ins,idx)=>(
+                <tr key={ins.id} style={{borderBottom:"1px solid #f8fafc"}}>
+                  <td style={{padding:"4px 4px",textAlign:"center",color:"#94a3b8",fontWeight:700,fontSize:11,width:22}}>{idx+1}</td>
+                  <td style={{padding:"4px 4px"}}><Inp value={ins.label} onChange={e=>setQInst(q.id,ins.id,"label",e.target.value)} placeholder="" style={{padding:"2px 5px",fontSize:13,width:"100%",background:"#f8fafc"}}/></td>
+                  <td style={{padding:"4px 4px",width:46}}><Inp type="number" value={ins.pct} onChange={e=>setQInst(q.id,ins.id,"pct",+e.target.value)} style={{padding:"2px 4px",fontSize:13,width:38,textAlign:"right"}}/></td>
+                  <td style={{padding:"4px 4px",fontWeight:700,fontSize:13,textAlign:"right",whiteSpace:"nowrap",width:76}}>฿{fmt(Math.round(q.salesPrice*(ins.pct||0)/100))}</td>
+                  <td style={{padding:"4px 4px",width:66}}>
+                    <Sel value={ins.recvMonth||1} onChange={e=>setQInst(q.id,ins.id,"recvMonth",+e.target.value)} style={{padding:"2px 3px",fontSize:11,width:60}}>
+                      {Array.from({length:months+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
                     </Sel>
-                  </div>
-                  {/* Contact Person */}
-                  <div style={{flex:"0 0 150px"}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Contact</Span>
-                    <Sel value={q.contactPersonId||""} onChange={e=>setQF(q.id,"contactPersonId",e.target.value)} style={{fontSize:11,padding:"3px 6px"}}>
-                      <option value="">— Select —</option>
-                      {(customers.find(c=>c.id===q.custId)?.contacts||[]).filter(ct=>ct.active).map(ct=><option key={ct.id} value={ct.id}>{ct.name}</option>)}
-                    </Sel>
-                  </div>
-                  {/* Sales Price */}
-                  <div style={{flex:"0 0 90px"}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Price</Span>
-                    <NumInp value={q.salesPrice} onChange={v=>updQO(q.id,q=>({...q,salesPrice:v,lineItems:(q.lineItems||[]).map((li,i)=>i===0?{...li,unitPrice:v}:li)}))} style={{fontSize:12,fontWeight:700,padding:"3px 6px"}}/>
-                  </div>
-                  {/* Months */}
-                  <div style={{flex:"0 0 52px"}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Mo.</Span>
-                    <Inp type="number" value={months} onChange={e=>setQF(q.id,"projectMonths",+e.target.value)} style={{fontSize:11,padding:"3px 5px"}}/>
-                  </div>
-                  {/* Margin badge */}
-                  <div style={{flex:"0 0 72px",padding:"5px 8px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center",flexShrink:0}}>
-                    <div style={{fontWeight:900,fontSize:15,color:+qMg>=30?"#16a34a":"#dc2626",lineHeight:1.2}}>{qMg}%</div>
-                    <div style={{fontWeight:700,fontSize:13,color:+qMg>=30?"#16a34a":"#dc2626"}}>฿{fmt(marginAmt(q.salesPrice,qTC))}</div>
-                  </div>
-                  {/* Close button */}
+                  </td>
+                  <td style={{padding:"4px 4px",width:20}}><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQInst(q.id,ins.id)}>×</Btn></td>
+                </tr>
+              ))}
+              <tr><td colSpan={6} style={{padding:"6px 4px"}}>
+                <button onClick={()=>addQInst(q.id)} style={{fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 14px",cursor:"pointer",fontWeight:600}}>+ Installment</button>
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
 
-                </div>
-
-                {/* Cost grids */}
-                <div style={{padding:16,display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-                  <div>
-                    {/* Unified COGS table */}
-                    <div style={{marginBottom:4,display:"flex",alignItems:"center",gap:8}}>
-                      <Span s={11} w={700}>COGS</Span>
-                    </div>
-                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
-                      <colgroup><col style={{width:"27%"}}/><col style={{width:"13%"}}/><col style={{width:"8%"}}/><col style={{width:"7%"}}/><col style={{width:"13%"}}/><col style={{width:"12%"}}/><col style={{width:"8%"}}/><col style={{width:"4%"}}/></colgroup>
-                      <TH cols={["Label","Vendor","Unit","Qty","Rate","Total","Pay M.",""]}/>
-                      <tbody>
-                        {(q.internalCosts||[]).map(r=>(
-                          <tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
-                            <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQIC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px",fontSize:11,color:"#94a3b8",textAlign:"center"}}>—</td>
-                            <td style={{padding:"3px 3px"}}><Inp value={r.unit} onChange={e=>setQIC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><NumInp value={r.qty} onChange={v=>setQIC(q.id,r.id,"qty",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><NumInp value={r.rate} onChange={v=>setQIC(q.id,r.id,"rate",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px",fontWeight:700,fontSize:13}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
-                            <td style={{padding:"3px 3px"}}>
-                              <Sel value={r.payMonth||1} onChange={e=>setQIC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:11,width:"100%"}}>
-                                {Array.from({length:(months||3)+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
-                              </Sel>
-                            </td>
-                            <td><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQIC(q.id,r.id)}>×</Btn></td>
-                          </tr>
-                        ))}
-                        {(q.externalCosts||[]).map(r=>(
-                          <tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
-                            <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQEC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><Inp value={r.vendorName||""} onChange={e=>setQEC(q.id,r.id,"vendorName",e.target.value)} placeholder="Vendor" style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><Inp value={r.unit||""} onChange={e=>setQEC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><NumInp value={r.qty} onChange={v=>setQEC(q.id,r.id,"qty",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><NumInp value={r.rate} onChange={v=>setQEC(q.id,r.id,"rate",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px",fontWeight:700,fontSize:13}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
-                            <td style={{padding:"3px 3px"}}>
-                              <Sel value={r.payMonth||1} onChange={e=>setQEC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:11,width:"100%"}}>
-                                {Array.from({length:(months||3)+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
-                              </Sel>
-                            </td>
-                            <td><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQEC(q.id,r.id)}>×</Btn></td>
-                          </tr>
-                        ))}
-                        <tr style={{borderTop:"1px solid #e2e8f0"}}>
-                          <td colSpan={4} style={{padding:"5px 4px"}}>
-                            <button onClick={()=>addQEC(q.id)} style={{fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 12px",cursor:"pointer",fontWeight:600}}>+ Add</button>
-                          </td>
-                          <td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap",color:"#94a3b8",fontSize:11,fontWeight:600}}>Total COGS</td>
-                          <td colSpan={2} style={{padding:"5px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a"}}>฿{fmt(qIC+qEC)}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                  <div>
-                    <Span s={12} w={700} style={{display:"block",marginBottom:6}}>OPEX — Man-hour Tasks</Span>
-                    <TaskTableWidget tasks={q.tasks||[]} onSet={(tid,k,v)=>setQTK(q.id,tid,k,v)} onAdd={()=>addQTK(q.id)} onDel={tid=>delQTK(q.id,tid)} months={months}/>
-
-                  </div>
-                </div>
-
-                {/*  INSTALLMENTS (left) + CASHFLOW (right) — 2-col layout  */}
-                <div style={{padding:"0 16px 16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,borderTop:"1px solid #f1f5f9"}}>
-                  {/* Installments */}
-                  <div style={{paddingTop:14}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                      <Span s={12} w={700}>Installments</Span>
-                      <span style={{fontSize:13,fontWeight:700,color:Math.abs(instSum-100)<0.1?"#16a34a":"#dc2626"}}>({instSum}% {Math.abs(instSum-100)<0.1?"":""})</span>
-                    </div>
-                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-                      <thead><tr style={{background:"#f8fafc"}}>
-                        <th style={{padding:"5px 4px",width:22,textAlign:"center",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}>#</th>
-                        <th style={{padding:"5px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}>Label</th>
-                        <th style={{padding:"5px 4px",width:46,textAlign:"right",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}>%</th>
-                        <th style={{padding:"5px 4px",width:76,textAlign:"right",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}>Amount</th>
-                        <th style={{padding:"5px 4px",width:54,textAlign:"left",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}>Recv M.</th>
-                        <th style={{padding:"5px 4px",width:20,borderBottom:"1px solid #e2e8f0"}}/>
-                      </tr></thead>
-                      <tbody>
-                        {(q.installments||[]).map((ins,idx)=>(
-                          <tr key={ins.id} style={{borderBottom:"1px solid #f8fafc"}}>
-                            <td style={{padding:"4px 4px",textAlign:"center",color:"#94a3b8",fontWeight:700,fontSize:11,width:22}}>{idx+1}</td>
-                            <td style={{padding:"4px 4px"}}><Inp value={ins.label} onChange={e=>setQInst(q.id,ins.id,"label",e.target.value)} placeholder="" style={{padding:"2px 5px",fontSize:13,width:"100%",background:"#f8fafc"}}/></td>
-                            <td style={{padding:"4px 4px",width:46}}><Inp type="number" value={ins.pct} onChange={e=>setQInst(q.id,ins.id,"pct",+e.target.value)} style={{padding:"2px 4px",fontSize:13,width:38,textAlign:"right"}}/></td>
-                            <td style={{padding:"4px 4px",fontWeight:700,fontSize:13,textAlign:"right",whiteSpace:"nowrap",width:76}}>฿{fmt(Math.round(q.salesPrice*(ins.pct||0)/100))}</td>
-                            <td style={{padding:"4px 4px",width:66}}>
-                              <Sel value={ins.recvMonth||1} onChange={e=>setQInst(q.id,ins.id,"recvMonth",+e.target.value)} style={{padding:"2px 3px",fontSize:11,width:60}}>
-                                {Array.from({length:months+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
-                              </Sel>
-                            </td>
-                            <td style={{padding:"4px 4px",width:20}}><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQInst(q.id,ins.id)}>×</Btn></td>
-                          </tr>
-                        ))}
-                        <tr><td colSpan={6} style={{padding:"6px 4px"}}>
-                          <button onClick={()=>addQInst(q.id)} style={{fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 14px",cursor:"pointer",fontWeight:600}}>+ Installment</button>
-                        </td></tr>
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Cashflow */}
-                  {(()=>{
-                    const cfM=q.projectMonths||editCS.projectMonths||3;
-                    const allM=Array.from({length:cfM+1},(_,i)=>i+1);
-                    const cByM={};
-                    (q.tasks||[]).forEach(t=>{const m=t.payMonth||1;const tc=(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior;cByM[m]=(cByM[m]||0)+tc;});
-                    (q.internalCosts||[]).forEach(r=>{const m=r.payMonth||1;const amt=(r.qty||0)*(r.rate||0);cByM[m]=(cByM[m]||0)+amt;});
-                    (q.externalCosts||[]).filter(r=>!r.clientBorne).forEach(r=>{const m=r.payMonth||1;const amt=(r.qty||0)*(r.rate||0);cByM[m]=(cByM[m]||0)+amt;});
-                    const rByM={};
-                    (q.installments||[]).forEach(ins=>{const m=ins.recvMonth||1;rByM[m]=(rByM[m]||0)+Math.round(q.salesPrice*(ins.pct||0)/100);});
-                    let run=0;
-                    const cfRows=allM.map(m=>{const out=cByM[m]||0,inn=rByM[m]||0;run+=inn-out;return{m,out,inn,net:inn-out,run};});
-                    const hasNeg=cfRows.some(r=>r.run<0);
-                    const maxAbs=Math.max(...cfRows.map(r=>Math.abs(r.run)),1);
-                    return(
-                      <div style={{paddingTop:14}}>
-                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                          <Span s={12} w={700}>Cashflow</Span>
-                          <span style={{fontSize:11,color:"#94a3b8"}}>{cfM} months</span>
-                          <span style={{marginLeft:"auto",fontSize:13,fontWeight:700,color:hasNeg?"#dc2626":"#16a34a",background:hasNeg?"#fee2e2":"#dcfce7",padding:"1px 8px",borderRadius:10,whiteSpace:"nowrap"}}>
-                            {hasNeg?" Negative":" Positive"}
-                          </span>
-                        </div>
-                        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-                          <thead><tr>
-                            {["M","Cost Out","Revenue In","Net","Cumulative",""].map((h,i)=>(
-                              <th key={i} style={{padding:"2px 5px",textAlign:i>=1&&i<=4?"right":"left",fontWeight:700,color:"#94a3b8",fontSize:8,borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",letterSpacing:"0.04em"}}>{h}</th>
-                            ))}
-                          </tr></thead>
-                          <tbody>{cfRows.map(r=>(
-                            <tr key={r.m} style={{borderBottom:"1px solid #f8fafc",background:r.run<0?"#fff5f5":"transparent"}}>
-                              <td style={{padding:"2px 5px",fontWeight:700,color:"#374151"}}>M{r.m}</td>
-                              <td style={{padding:"2px 5px",color:"#dc2626",textAlign:"right"}}>{r.out>0?`฿${fmt(r.out)}`:"—"}</td>
-                              <td style={{padding:"2px 5px",color:"#16a34a",textAlign:"right"}}>{r.inn>0?`฿${fmt(r.inn)}`:"—"}</td>
-                              <td style={{padding:"2px 5px",textAlign:"right",fontWeight:600,color:r.net>=0?"#16a34a":"#dc2626"}}>{r.net!==0?`${r.net>0?"+":""}฿${fmt(r.net)}`:"—"}</td>
-                              <td style={{padding:"2px 5px",textAlign:"right",fontWeight:800,color:r.run>=0?"#16a34a":"#dc2626"}}>{r.run>=0?"+":""}฿{fmt(r.run)}</td>
-                              <td style={{padding:"2px 6px",width:64}}>
-                                <div style={{height:5,background:"#e2e8f0",borderRadius:3,overflow:"hidden"}}>
-                                  <div style={{height:"100%",width:`${Math.abs(r.run)/maxAbs*100}%`,background:r.run>=0?"#16a34a":"#dc2626",borderRadius:3}}/>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}</tbody>
-                        </table>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/*  PROJECT SCOPE (full width)  */}
-                <div style={{padding:"0 20px 16px",borderTop:"1px solid #f1f5f9"}}>
-                  <div style={{marginTop:14,marginBottom:12}}>
-                    <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Service Description</Span><Span s={11} c="#94a3b8">— Project title as it will appear in the Quotation</Span></div>
-                    <Inp value={q.projectTitle||""} onChange={e=>setQF(q.id,"projectTitle",e.target.value)} placeholder="" style={{fontSize:12}}/>
-                  </div>
-                  <div>
-                    <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Project Scope</Span><Span s={11} c="#94a3b8">— Scope details e.g. Project Address, Boundary, Base Year</Span></div>
-                    <Txta value={q.projectScope||""} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder="" style={{minHeight:80,fontSize:12}}/>
-                  </div>
-                </div>
-
-                {/*  DELIVERABLES (full width, editable list + preview)  */}
-                <div style={{padding:"0 20px 16px"}}>
-                  <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>Deliverables</Span>
-                  <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:6}}>
-                    {(q.deliverables||[]).map(d=>(
-                      <div key={d.id} style={{display:"flex",gap:6,alignItems:"center"}}>
-                        <span style={{color:"#06b6d4",fontWeight:900,fontSize:13,flexShrink:0}}></span>
-                        <Inp value={d.item} onChange={e=>setQDlv(q.id,d.id,e.target.value)} placeholder="" style={{padding:"3px 8px",fontSize:12,flex:1}}/>
-                        {(q.deliverables||[]).length>1&&<Btn variant="danger" style={{fontSize:13,padding:"1px 5px",flexShrink:0}} onClick={()=>delQDlv(q.id,d.id)}>×</Btn>}
-                      </div>
-                    ))}
-                    <button onClick={()=>addQDlv(q.id)} style={{alignSelf:"flex-start",marginTop:4,fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 10px",cursor:"pointer",fontWeight:600}}>+ Deliverable</button>
-                  </div>
-                </div>
-
-                {/*  NOTES & CONDITIONS (full width)  */}
-                <div style={{padding:"0 20px 16px"}}>
-                  <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Notes & Conditions</Span>
-                  <Txta value={q.notes||""} onChange={e=>setQF(q.id,"notes",e.target.value)} placeholder="" style={{minHeight:80,fontSize:12}}/>
-                </div>
-
-                {/* Cost + margin + Save/Cancel footer */}
-                <div style={{borderTop:"1px solid #e2e8f0",padding:"12px 20px",background:"#f8fafc",display:"flex",justifyContent:"flex-end",alignItems:"center",gap:16,flexWrap:"wrap"}}>
-                  {[{l:"COGS",v:qIC+qEC},{l:"OPEX",v:qOPEX},{l:"Total Cost",v:qTC,bold:true}].map(x=>(
-                    <div key={x.l} style={{textAlign:"center"}}>
-                      <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>{x.l}</Span>
-                      <Span s={13} w={x.bold?900:700}>฿{fmt(x.v)}</Span>
-                    </div>
+        {/* Cashflow */}
+        {(()=>{
+          const cfM = q.projectMonths||editCS.projectMonths||3;
+          const allM = Array.from({length:cfM+1},(_,i)=>i+1);
+          const cByM={}, rByM={};
+          (q.tasks||[]).forEach(t=>{const m=t.payMonth||1;const tc=(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior;cByM[m]=(cByM[m]||0)+tc;});
+          (q.costs||[]).forEach(r=>{const m=r.payMonth||1;const amt=(r.qty||0)*(r.rate||0);cByM[m]=(cByM[m]||0)+amt;});
+          (q.installments||[]).forEach(ins=>{const m=ins.recvMonth||1;rByM[m]=(rByM[m]||0)+Math.round(q.salesPrice*(ins.pct||0)/100);});
+          let run=0;
+          const cfRows=allM.map(m=>{const out=cByM[m]||0,inn=rByM[m]||0;run+=inn-out;return{m,out,inn,net:inn-out,run};});
+          const hasNeg=cfRows.some(r=>r.run<0);
+          const maxAbs=Math.max(...cfRows.map(r=>Math.abs(r.run)),1);
+          return(
+            <div style={{paddingTop:14}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                <Span s={12} w={700}>Cashflow</Span>
+                <span style={{fontSize:11,color:"#94a3b8"}}>{cfM} months</span>
+                <span style={{marginLeft:"auto",fontSize:13,fontWeight:700,color:hasNeg?"#dc2626":"#16a34a",background:hasNeg?"#fee2e2":"#dcfce7",padding:"1px 8px",borderRadius:10,whiteSpace:"nowrap"}}>
+                  {hasNeg?" Negative":" Positive"}
+                </span>
+              </div>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                <thead><tr>
+                  {["M","Cost Out","Revenue In","Net","Cumulative",""].map((h,i)=>(
+                    <th key={i} style={{padding:"2px 5px",textAlign:i>=1&&i<=4?"right":"left",fontWeight:700,color:"#94a3b8",fontSize:8,borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",letterSpacing:"0.04em"}}>{h}</th>
                   ))}
-                  <div style={{padding:"5px 12px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center"}}>
-                    <Span s={9} c={+qMg>=30?"#16a34a":"#dc2626"} style={{display:"block"}}>Margin</Span>
-                    <Span s={15} w={900} c={+qMg>=30?"#16a34a":"#dc2626"}>{qMg}%</Span>
-                  </div>
-                  <div style={{width:1,height:32,background:"#e2e8f0",flexShrink:0}}/>
-                  <Btn variant="ghost" onClick={()=>delQO(q.id)}>Cancel</Btn>
-                  <Btn onClick={handleSave} style={{padding:"8px 24px"}}>Save</Btn>
-                </div>
-              </Card>
+                </tr></thead>
+                <tbody>{cfRows.map(r=>(
+                  <tr key={r.m} style={{borderBottom:"1px solid #f8fafc",background:r.run<0?"#fff5f5":"transparent"}}>
+                    <td style={{padding:"2px 5px",fontWeight:700,color:"#374151"}}>M{r.m}</td>
+                    <td style={{padding:"2px 5px",color:"#dc2626",textAlign:"right"}}>{r.out>0?`฿${fmt(r.out)}`:"—"}</td>
+                    <td style={{padding:"2px 5px",color:"#16a34a",textAlign:"right"}}>{r.inn>0?`฿${fmt(r.inn)}`:"—"}</td>
+                    <td style={{padding:"2px 5px",textAlign:"right",fontWeight:600,color:r.net>=0?"#16a34a":"#dc2626"}}>{r.net!==0?`${r.net>0?"+":""}฿${fmt(r.net)}`:"—"}</td>
+                    <td style={{padding:"2px 5px",textAlign:"right",fontWeight:800,color:r.run>=0?"#16a34a":"#dc2626"}}>{r.run>=0?"+":""}฿{fmt(r.run)}</td>
+                    <td style={{padding:"2px 6px",width:64}}>
+                      <div style={{height:5,background:"#e2e8f0",borderRadius:3,overflow:"hidden"}}>
+                        <div style={{height:"100%",width:`${Math.abs(r.run)/maxAbs*100}%`,background:r.run>=0?"#16a34a":"#dc2626",borderRadius:3}}/>
+                      </div>
+                    </td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* Project Scope */}
+      <div style={{padding:"0 20px 16px",borderTop:"1px solid #f1f5f9"}}>
+        <div style={{marginTop:14,marginBottom:12}}>
+          <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Service Description</Span><Span s={11} c="#94a3b8">— Project title as it will appear in the Quotation</Span></div>
+          <Inp value={q.projectTitle||""} onChange={e=>setQF(q.id,"projectTitle",e.target.value)} placeholder="" style={{fontSize:12}}/>
+        </div>
+        <div>
+          <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Project Scope</Span><Span s={11} c="#94a3b8">— Address, Boundary, Base Year</Span></div>
+          <Txta value={q.projectScope||""} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder="" style={{minHeight:80,fontSize:12}}/>
+        </div>
+      </div>
+
+      {/* Deliverables */}
+      <div style={{padding:"0 20px 16px"}}>
+        <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>Deliverables</Span>
+        <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:6}}>
+          {(q.deliverables||[]).map(d=>(
+            <div key={d.id} style={{display:"flex",gap:6,alignItems:"center"}}>
+              <span style={{color:"#06b6d4",fontWeight:900,fontSize:13,flexShrink:0}}></span>
+              <Inp value={d.item} onChange={e=>setQDlv(q.id,d.id,e.target.value)} placeholder="" style={{padding:"3px 8px",fontSize:12,flex:1}}/>
+              {(q.deliverables||[]).length>1&&<Btn variant="danger" style={{fontSize:13,padding:"1px 5px",flexShrink:0}} onClick={()=>delQDlv(q.id,d.id)}>×</Btn>}
+            </div>
+          ))}
+          <button onClick={()=>addQDlv(q.id)} style={{alignSelf:"flex-start",marginTop:4,fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 10px",cursor:"pointer",fontWeight:600}}>+ Deliverable</button>
+        </div>
+      </div>
+
+      {/* Notes */}
+      <div style={{padding:"0 20px 16px"}}>
+        <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Notes & Conditions</Span>
+        <Txta value={q.notes||""} onChange={e=>setQF(q.id,"notes",e.target.value)} placeholder="" style={{minHeight:80,fontSize:12}}/>
+      </div>
+
+      {/* Footer */}
+      <div style={{borderTop:"1px solid #e2e8f0",padding:"12px 20px",background:"#f8fafc",display:"flex",justifyContent:"flex-end",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+        {[{l:"COGS",v:qCOGS},{l:"OPEX",v:qOPEX},{l:"Total Cost",v:qTC,bold:true}].map(x=>(
+          <div key={x.l} style={{textAlign:"center"}}>
+            <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>{x.l}</Span>
+            <Span s={13} w={x.bold?900:700}>฿{fmt(x.v)}</Span>
+          </div>
+        ))}
+        <div style={{padding:"5px 12px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center"}}>
+          <Span s={9} c={+qMg>=30?"#16a34a":"#dc2626"} style={{display:"block"}}>Margin</Span>
+          <Span s={15} w={900} c={+qMg>=30?"#16a34a":"#dc2626"}>{qMg}%</Span>
+        </div>
+        <div style={{width:1,height:32,background:"#e2e8f0",flexShrink:0}}/>
+        <Btn variant="ghost" onClick={()=>delQO(q.id)}>Cancel</Btn>
+        <Btn onClick={handleSave} style={{padding:"8px 24px"}}>Save</Btn>
+      </div>
+    </Card>
   );
 };
 
-const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,initSvcCode,onSvcReady}) => {
-  const [selCode,sCode] = useState(SERVICES[0].code);
-  useEffect(()=>{if(initSvcCode){sCode(initSvcCode);sView("quote");if(onSvcReady)onSvcReady();}},[initSvcCode]);
-  const [view,sView]    = useState("quote");
-  const [gs,sGS]        = useState(false);
+const CostSheetPage = ({costSheets, onSave, csQuotes, onSaveCsQuote, onDeleteCsQuote, customers, opps, user, onSaveOpp, toast, initSvcCode, onSvcReady}) => {
+  const [selCode, sCode] = useState(SERVICES[0].code);
+  useEffect(()=>{if(initSvcCode){sCode(initSvcCode);if(onSvcReady)onSvcReady();}},[initSvcCode]);
+
   const cs = useMemo(()=>costSheets.find(c=>c.serviceCode===selCode)||buildDefaultCS(SERVICES.find(s=>s.code===selCode)||SERVICES[0]),[costSheets,selCode]);
-  const [editCS,sECS] = useState(cs);
-  const [editPrice,sEP] = useState(0);
-  useEffect(()=>{const f=costSheets.find(c=>c.serviceCode===selCode)||buildDefaultCS(SERVICES.find(s=>s.code===selCode)||SERVICES[0]);sECS(f);sEP(f.stdPrice||0);},[selCode,costSheets]);
+  const [editCS, sECS] = useState(cs);
+  useEffect(()=>{
+    const f = costSheets.find(c=>c.serviceCode===selCode)||buildDefaultCS(SERVICES.find(s=>s.code===selCode)||SERVICES[0]);
+    sECS(f);
+    setActiveQuote(null);
+  },[selCode, costSheets]);
 
-  // COGS calcs
-  const totalIC = calcIC(editCS.internalCosts||[]);
-  const totalEC = calcEC(editCS.externalCosts||[],true); // co-borne only
-  const totalECClient = (editCS.externalCosts||[]).filter(r=>r.clientBorne).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
-  const totalCOGS = totalIC + totalEC;
-  // OPEX calcs
-  const totalOPEX = calcTask(editCS.tasks||[]);
-  const totalCost = totalCOGS + totalOPEX;
-  const mg = margin(editPrice, totalCost);
+  // activeQuote = the one QuoteCard currently open for editing (null = none)
+  const [activeQuote, setActiveQuote] = useState(null);
 
-  const setIC=(id,k,v)=>sECS(p=>({...p,internalCosts:(p.internalCosts||[]).map(r=>r.id===id?{...r,[k]:v}:r)}));
-  const addIC=()=>sECS(p=>({...p,internalCosts:[...(p.internalCosts||[]),{id:uid(),label:"",unit:"Unit",qty:0,rate:0}]}));
-  const delIC=id=>sECS(p=>({...p,internalCosts:(p.internalCosts||[]).filter(r=>r.id!==id)}));
-  const setEC=(id,k,v)=>sECS(p=>({...p,externalCosts:(p.externalCosts||[]).map(r=>r.id===id?{...r,[k]:v}:r)}));
-  const addEC=()=>sECS(p=>({...p,externalCosts:[...(p.externalCosts||[]),{id:uid(),label:"",unit:"Job",qty:0,rate:0,vendorName:"",clientBorne:false}]}));
-  const delEC=id=>sECS(p=>({...p,externalCosts:(p.externalCosts||[]).filter(r=>r.id!==id)}));
-  const setTK=(id,k,v)=>sECS(p=>({...p,tasks:(p.tasks||[]).map(t=>t.id===id?{...t,[k]:v}:t)}));
-  const addTK=()=>sECS(p=>({...p,tasks:[...(p.tasks||[]),{id:uid(),taskName:"",manager:0,senior:0,junior:0,payMonth:1,agents:[]}]}));
-  const delTK=id=>sECS(p=>({...p,tasks:(p.tasks||[]).filter(t=>t.id!==id)}));
+  // Quotes for this service from costsheet_quotes tab
+  const serviceQuotes = useMemo(()=>(csQuotes||[]).filter(q=>q.serviceCode===selCode).sort((a,b)=>b.savedAt.localeCompare(a.savedAt)),[csQuotes,selCode]);
 
-  // Per-quotation — only 1 CS per quote
-  const updQO=(qid,fn)=>sECS(p=>({...p,quoteOverrides:(p.quoteOverrides||[]).map(q=>q.id===qid?fn(q):q)}));
-  const setQF=(qid,k,v)=>updQO(qid,q=>({...q,[k]:v}));
-  const setQTK=(qid,tid,k,v)=>updQO(qid,q=>({...q,tasks:(q.tasks||[]).map(t=>t.id===tid?{...t,[k]:v}:t)}));
-  const addQTK=qid=>updQO(qid,q=>({...q,tasks:[...(q.tasks||[]),{id:uid(),taskName:"",manager:0,senior:0,junior:0,payMonth:1,agents:[]}]}));
-  const delQTK=(qid,tid)=>updQO(qid,q=>({...q,tasks:(q.tasks||[]).filter(t=>t.id!==tid)}));
+  // ── Active quote field setters ──
+  const updAQ  = fn => setActiveQuote(p=>p?fn(p):p);
+  const setQF  = (_,k,v) => updAQ(q=>({...q,[k]:v}));
+  const setQTK = (_,tid,k,v) => updAQ(q=>({...q,tasks:(q.tasks||[]).map(t=>t.id===tid?{...t,[k]:v}:t)}));
+  const addQTK = _ => updAQ(q=>({...q,tasks:[...(q.tasks||[]),{id:uid(),taskName:"",manager:0,senior:0,junior:0,payMonth:1,agents:[]}]}));
+  const delQTK = (_,tid) => updAQ(q=>({...q,tasks:(q.tasks||[]).filter(t=>t.id!==tid)}));
+  const setQCost = (_,rid,k,v) => updAQ(q=>({...q,costs:(q.costs||[]).map(r=>r.id===rid?{...r,[k]:v}:r)}));
+  const addQCost = _ => updAQ(q=>({...q,costs:[...(q.costs||[]),{id:uid(),label:"",vendorName:"",unit:"Job",qty:0,rate:0,payMonth:1}]}));
+  const delQCost = (_,rid) => updAQ(q=>({...q,costs:(q.costs||[]).filter(r=>r.id!==rid)}));
+  const setQInst = (_,iid,k,v) => updAQ(q=>({...q,installments:(q.installments||[]).map(i=>i.id===iid?{...i,[k]:v}:i)}));
+  const addQInst = _ => updAQ(q=>({...q,installments:[...(q.installments||[]),{id:uid(),seq:(activeQuote?.installments||[]).length+1,label:"",pct:0,detail:"",recvMonth:1}]}));
+  const delQInst = (_,iid) => updAQ(q=>({...q,installments:(q.installments||[]).filter(i=>i.id!==iid)}));
+  const setQDlv  = (_,did,v) => updAQ(q=>({...q,deliverables:(q.deliverables||[]).map(d=>d.id===did?{...d,item:v}:d)}));
+  const addQDlv  = _ => updAQ(q=>({...q,deliverables:[...(q.deliverables||[]),{id:uid(),item:""}]}));
+  const delQDlv  = (_,did) => updAQ(q=>({...q,deliverables:(q.deliverables||[]).filter(d=>d.id!==did)}));
+  const updQO    = (_,fn) => updAQ(fn);
+  const delQO    = _ => setActiveQuote(null);
 
-  const setQIC=(qid,rid,k,v)=>updQO(qid,q=>({...q,internalCosts:(q.internalCosts||[]).map(r=>r.id===rid?{...r,[k]:v}:r)}));
-  const addQIC=qid=>updQO(qid,q=>({...q,internalCosts:[...(q.internalCosts||[]),{id:uid(),label:"",unit:"Unit",qty:0,rate:0,payMonth:1}]}));
-  const delQIC=(qid,rid)=>updQO(qid,q=>({...q,internalCosts:(q.internalCosts||[]).filter(r=>r.id!==rid)}));
-  const setQEC=(qid,rid,k,v)=>updQO(qid,q=>({...q,externalCosts:(q.externalCosts||[]).map(r=>r.id===rid?{...r,[k]:v}:r)}));
-  const addQEC=qid=>updQO(qid,q=>({...q,externalCosts:[...(q.externalCosts||[]),{id:uid(),label:"",unit:"Job",qty:0,rate:0,vendorName:"",clientBorne:false,payMonth:1}]}));
-  const delQEC=(qid,rid)=>updQO(qid,q=>({...q,externalCosts:(q.externalCosts||[]).filter(r=>r.id!==rid)}));
-
-  const setQInst=(qid,iid,k,v)=>updQO(qid,q=>({...q,installments:(q.installments||[]).map(i=>i.id===iid?{...i,[k]:v}:i)}));
-  const addQInst=qid=>updQO(qid,q=>({...q,installments:[...(q.installments||[]),{id:uid(),seq:(q.installments||[]).length+1,label:"",pct:0,detail:"",recvMonth:1}]}));
-  const delQInst=(qid,iid)=>updQO(qid,q=>({...q,installments:(q.installments||[]).filter(i=>i.id!==iid)}));
-
-  // lineItems helpers
-  const setQLI=(qid,rid,k,v)=>updQO(qid,q=>({...q,lineItems:(q.lineItems||[]).map(r=>r.id===rid?{...r,[k]:v}:r)}));
-  const addQLI=qid=>updQO(qid,q=>({...q,lineItems:[...(q.lineItems||[]),{id:uid(),description:"",qty:1,unit:"Job",unitPrice:0}]}));
-  const delQLI=(qid,rid)=>updQO(qid,q=>({...q,lineItems:(q.lineItems||[]).filter(r=>r.id!==rid)}));
-  // deliverables helpers
-  const setQDlv=(qid,did,v)=>updQO(qid,q=>({...q,deliverables:(q.deliverables||[]).map(d=>d.id===did?{...d,item:v}:d)}));
-  const addQDlv=qid=>updQO(qid,q=>({...q,deliverables:[...(q.deliverables||[]),{id:uid(),item:""}]}));
-  const delQDlv=(qid,did)=>updQO(qid,q=>({...q,deliverables:(q.deliverables||[]).filter(d=>d.id!==did)}));
-
-
-  const addQO=()=>{
-    const existingQ = (editCS.quoteOverrides||[]);
-    if(existingQ.length>0){toast("One CS per Quote","Each Quote No. can only have 1 CS Code. Edit the existing one.","error");return;}
-    const quoteNo=genQuoteNo(opps);
-    const csCode=genCSCode(quoteNo);
-    const oppCode=genOppCode(opps);
-    sECS(p=>({...p,quoteOverrides:[{
-      id:uid(),csCode,oppCode,quoteNo,custId:"",salesAgent:"",contactPersonId:"",salesPrice:0,
-      projectTitle:"",
-      projectScope:"",
-      projectMonths:editCS.projectMonths||3,
-      internalCosts:(editCS.internalCosts||[]).map(r=>({...r,id:uid()})),
-      externalCosts:(editCS.externalCosts||[]).map(r=>({...r,id:uid()})),
-      tasks:(editCS.tasks||[]).map(t=>({...t,id:uid()})),
-      installments:[
+  // ── New Quotation ──
+  const addNewQuote = () => {
+    if(activeQuote){ toast("Save or cancel current quote first","","error"); return; }
+    const quoteNo = genQuoteNo(opps);
+    const csCode  = genCSCode(quoteNo);
+    const oppCode = genOppCode(opps);
+    setActiveQuote({
+      id: uid(), csCode, oppCode, quoteNo, custId:"", salesAgent:"",
+      contactPersonId:"", salesPrice:0,
+      projectTitle:"", projectScope:"", projectMonths: editCS.projectMonths||3,
+      costs:        (editCS.costs||[]).map(r=>({...r,id:uid()})),
+      tasks:        (editCS.tasks||[]).map(t=>({...t,id:uid()})),
+      installments: [
         {id:uid(),seq:1,label:"",pct:40,detail:"",recvMonth:1},
         {id:uid(),seq:2,label:"",pct:40,detail:"",recvMonth:2},
         {id:uid(),seq:3,label:"",pct:20,detail:"",recvMonth:3},
       ],
-      lineItems:[{id:uid(),description:"",qty:1,unit:"Job",unitPrice:0}],
-      deliverables:[
-        {id:uid(),item:""},
-      ],
+      lineItems:    [{id:uid(),description:"",qty:1,unit:"Job",unitPrice:0}],
+      deliverables: [{id:uid(),item:""}],
       notes:"",
-    }]}));
-  };
-  const delQO=id=>sECS(p=>({...p,quoteOverrides:(p.quoteOverrides||[]).filter(r=>r.id!==id)}));
-
-  const handleSave=()=>{
-    // Build detailed save log entries — one per completed quotation, plus a general entry
-    const newSaveEntries=[];
-    const savedQOIds=[];   // IDs of quoteOverrides that get committed → removed from screen
-
-    (editCS.quoteOverrides||[]).forEach(q=>{
-      // Commit any QO that has custId + oppCode (new OR re-opened re-edit)
-      if(q.custId&&q.oppCode){
-        const qIC=calcIC(q.internalCosts||[]),qEC=calcEC(q.externalCosts||[],true),qOPEX=calcTask(q.tasks||[]);
-        const qCost=qIC+qEC+qOPEX;
-        const csCode=q.csCode||genCSCode(q.quoteNo||"");
-        const qMg=margin(q.salesPrice,qCost);
-        const cust=customers.find(c=>c.id===q.custId);
-        const existingOpp=opps.find(o=>o.oppCode===q.oppCode);
-        const opp={
-          id:q.oppCode,custId:q.custId,oppCode:q.oppCode,quoteNo:q.quoteNo,csCode,jobCode:existingOpp?.jobCode||"",
-          serviceCode:editCS.serviceCode,serviceType:editCS.serviceType,salesPrice:q.salesPrice,totalCost:qCost,
-          status:existingOpp?.status||"Proposal",
-          assignedTo:q.salesAgent||cust?.assignedTo||SALES_USERS[0]?.id||user.id,
-          createdDate:existingOpp?.createdDate||today(),lostReason:existingOpp?.lostReason||"",
-          activityLog:[
-            ...(existingOpp?.activityLog||[]),
-            {id:uid(),ts:nowTS(),author:user.id,note:`${existingOpp?"Updated":"Created"} from Cost Sheet ${csCode} (${editCS.serviceCode}) · ${q.quoteNo} · Cost: ฿${fmt(qCost)} · Margin: ${qMg}%`},
-          ],
-          remark:q.notes||existingOpp?.remark||"",
-        };
-        onSaveOpp(opp);
-        savedQOIds.push(q.id);
-        newSaveEntries.push({
-          id:uid(),ts:nowTS(),author:user.id,
-          note:`Quotation ${existingOpp?"updated":"saved"} → ${csCode} · ${q.quoteNo} · ${cust?.companyEN||q.custId} · Price ฿${fmt(q.salesPrice)} · Cost ฿${fmt(qCost)} · Margin ${qMg}%`,
-          quoteSnapshot:{...q,csCode},  // stored for re-edit
-        });
-      }
     });
+  };
 
-    // General save entry (always)
-    newSaveEntries.push({id:uid(),ts:nowTS(),author:user.id,note:`Cost Sheet saved — ${selCode}`});
+  // ── Save ──
+  const handleSave = () => {
+    const q = activeQuote;
+    if(!q) return;
+    if(!q.custId || !q.oppCode){ toast("Fill Customer and OPP Code first","","error"); return; }
 
-    // Remove committed quotations from quoteOverrides; keep uncommitted ones
-    const remainingQOs=(editCS.quoteOverrides||[]).filter(q=>!savedQOIds.includes(q.id));
+    const qCost = calcCosts(q.costs||[]) + calcTask(q.tasks||[]);
+    const qMg   = margin(q.salesPrice, qCost);
+    const cust  = customers.find(c=>c.id===q.custId);
+    const existingOpp = opps.find(o=>o.oppCode===q.oppCode);
 
-    const saved={
-      ...editCS,
-      stdPrice:editPrice,
-      quoteOverrides:remainingQOs,
-      saveLog:[...(editCS.saveLog||[]),...newSaveEntries],
+    // 1. Save to costsheet_quotes (own row)
+    const quoteRow = {
+      csCode:          q.csCode,
+      serviceCode:     selCode,
+      quoteNo:         q.quoteNo,
+      oppCode:         q.oppCode,
+      custId:          q.custId,
+      salesAgent:      q.salesAgent,
+      contactPersonId: q.contactPersonId,
+      salesPrice:      q.salesPrice,
+      totalCost:       qCost,
+      marginPct:       qMg,
+      projectMonths:   q.projectMonths,
+      projectTitle:    q.projectTitle,
+      projectScope:    q.projectScope,
+      savedAt:         nowTS(),
+      savedBy:         user.name,
+      costs:           q.costs        || [],
+      tasks:           q.tasks        || [],
+      installments:    q.installments || [],
+      deliverables:    q.deliverables || [],
+      lineItems:       q.lineItems    || [],
+      notes:           q.notes        || "",
     };
-    onSave(saved);
-    // Sync local editCS to reflect cleared quotations
-    sECS(saved);
+    onSaveCsQuote(quoteRow);
 
-    const nOpps=savedQOIds.length;
-    toast(
-      "Cost Sheet saved",
-      nOpps>0
-        ? `${nOpps} Quotation${nOpps>1?"s":""} committed → OPP ${savedQOIds.length>0?"saved":"created"}. Cleared from Per-Quotation view.`
-        : "Cost structure updated"
-    );
+    // 2. Save slim log entry to costsheets
+    const slimEntry = {
+      id:uid(), ts:nowTS(), author:user.name,
+      csCode:q.csCode, quoteNo:q.quoteNo,
+      action: existingOpp?"updated":"saved",
+      salesPrice:q.salesPrice, marginPct:qMg,
+    };
+    const updatedCS = {...editCS, saveLog:[...(editCS.saveLog||[]), slimEntry]};
+    onSave(updatedCS);
+    sECS(updatedCS);
+
+    // 3. Create/update Opportunity
+    const opp = {
+      id:q.oppCode, custId:q.custId, oppCode:q.oppCode, quoteNo:q.quoteNo,
+      csCode:q.csCode, jobCode:existingOpp?.jobCode||"",
+      serviceCode:selCode, serviceType:cs.serviceType,
+      salesPrice:q.salesPrice, totalCost:qCost,
+      status:existingOpp?.status||"Proposal",
+      assignedTo:q.salesAgent||cust?.assignedTo||SALES_USERS[0]?.id||user.id,
+      createdDate:existingOpp?.createdDate||today(), lostReason:existingOpp?.lostReason||"",
+      activityLog:[
+        ...(existingOpp?.activityLog||[]),
+        {id:uid(),ts:nowTS(),author:user.id,note:`${existingOpp?"Updated":"Created"} from ${q.csCode} · ${q.quoteNo} · Cost:฿${fmt(qCost)} · Margin:${qMg}%`},
+      ],
+      remark:q.notes||existingOpp?.remark||"",
+    };
+    onSaveOpp(opp);
+
+    // 4. Clear active quote
+    setActiveQuote(null);
+    toast("Cost Sheet saved", `${q.csCode} · ${cust?.companyEN||q.custId} · Margin ${qMg}%`);
   };
 
   const curSvc = SERVICES.find(s=>s.code===selCode);
-
-
 
   return (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Cost Sheet & Pricing</Span>
-        <div></div>
       </div>
 
+      {/* Service selector tabs */}
       <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:14}}>
         {SERVICES.map(s=>(
           <button key={s.code} onClick={()=>sCode(s.code)} style={{padding:"5px 11px",borderRadius:5,border:"1px solid",borderColor:selCode===s.code?"#0f172a":"#e2e8f0",background:selCode===s.code?"#0f172a":"#fff",color:selCode===s.code?"#fff":"#374151",fontSize:11,fontWeight:selCode===s.code?700:400,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
@@ -3156,61 +3083,84 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
       <div style={{padding:"10px 16px",background:"#f1f5f9",borderRadius:7,marginBottom:12,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
         <SvcBadge code={selCode}/>
         <Span s={14} w={700} c="#0f172a">{curSvc?.name}</Span>
-        
-
       </div>
 
-
-
-
-      {/*  PER-QUOTATION VIEW  */}
+      {/* Per-Quotation section */}
       <div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <div>
-              <Span s={16} w={800} c="#0f172a" style={{display:"block",marginBottom:2}}>
-                Per-Quotation Cost Sheet{(editCS.quoteOverrides||[]).length>0?`: ${editCS.quoteOverrides[0].csCode}`:""}
-              </Span>
-              <Span s={12} c="#94a3b8">One CS Code per quotation — auto-generated. Save to create an Opportunity with actual cost automatically.</Span>
-            </div>
-            {(editCS.quoteOverrides||[]).length===0&&<Btn onClick={addQO}>+ New Quotation</Btn>}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div>
+            <Span s={16} w={800} c="#0f172a" style={{display:"block",marginBottom:2}}>
+              Per-Quotation Cost Sheet{activeQuote?`: ${activeQuote.csCode}`:""}
+            </Span>
+            <Span s={12} c="#94a3b8">One CS Code per quotation. Save to create an Opportunity automatically.</Span>
           </div>
-          {(editCS.quoteOverrides||[]).length===0&&(
-            <div>
-              {(editCS.saveLog||[]).filter(l=>l.quoteSnapshot).length>0&&(
-                <div style={{marginBottom:12}}>
-                  {Object.values(
-                    [...(editCS.saveLog||[])].filter(l=>l.quoteSnapshot).reduce((acc,l)=>{
-                      const key=l.quoteSnapshot.quoteNo;
-                      if(!acc[key]||l.ts>acc[key].ts) acc[key]=l;
-                      return acc;
-                    },{})
-                  ).sort((a,b)=>b.ts.localeCompare(a.ts)).map(l=>(
-                    <div key={l.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:7,marginBottom:6}}>
-                      <span style={{fontSize:12,color:'#94a3b8',whiteSpace:'nowrap'}}>{l.ts}</span>
-                      <span style={{fontSize:12,fontWeight:700,fontFamily:'monospace',color:'#92400e',background:'#fef3c7',padding:'2px 8px',borderRadius:4,border:'1px solid #fde68a'}}>{l.quoteSnapshot.csCode}</span>
-                      <span style={{fontSize:12,color:'#374151',flex:1}}>{l.quoteSnapshot.quoteNo} {customers.find(c=>c.id===l.quoteSnapshot.custId)?.companyEN||l.quoteSnapshot.custId}</span>
-                      <Btn variant='ghost' style={{fontSize:13,padding:'4px 14px'}} onClick={()=>{
-                        sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid()}]}));
-                        const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} for editing`};
-                        sECS(p=>({...p,saveLog:[...(p.saveLog||[]),logEntry]}));
-                      }}>Edit</Btn>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          {(editCS.quoteOverrides||[]).map((q)=>(
-            <QuoteCard key={q.id} q={q} editCS={editCS} customers={customers} opps={opps} user={user}
-              setQF={setQF} setQIC={setQIC} setQEC={setQEC} setQTK={setQTK} setQInst={setQInst} setQDlv={setQDlv}
-              addQEC={addQEC} addQTK={addQTK} addQInst={addQInst} addQDlv={addQDlv}
-              delQIC={delQIC} delQEC={delQEC} delQTK={delQTK} delQInst={delQInst} delQO={delQO}
-              updQO={updQO} handleSave={handleSave}
-            />
-          ))}
+          {!activeQuote && <Btn onClick={addNewQuote}>+ New Quotation</Btn>}
         </div>
 
+        {/* Active QuoteCard */}
+        {activeQuote && (
+          <QuoteCard
+            q={activeQuote} editCS={editCS} customers={customers} opps={opps} user={user}
+            setQF={setQF} setQCost={setQCost} setQTK={setQTK} setQInst={setQInst} setQDlv={setQDlv}
+            addQCost={addQCost} addQTK={addQTK} addQInst={addQInst} addQDlv={addQDlv}
+            delQCost={delQCost} delQTK={delQTK} delQInst={delQInst} delQDlv={delQDlv}
+            delQO={delQO} updQO={updQO} handleSave={handleSave}
+          />
+        )}
 
+        {/* Past quotes history — from costsheet_quotes tab */}
+        {!activeQuote && (
+          <div>
+            {serviceQuotes.length === 0 && (
+              <div style={{padding:32,textAlign:"center",color:"#94a3b8",fontSize:13,background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0"}}>
+                No quotations saved yet for {selCode}. Click + New Quotation to start.
+              </div>
+            )}
+            {serviceQuotes.map(q=>{
+              const cust = customers.find(c=>c.id===q.custId);
+              return (
+                <div key={q.csCode} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px",background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,marginBottom:8}}>
+                  <span style={{fontSize:12,color:"#94a3b8",whiteSpace:"nowrap",minWidth:130}}>{q.savedAt}</span>
+                  <span style={{fontSize:12,fontWeight:700,fontFamily:"monospace",color:"#92400e",background:"#fef3c7",padding:"2px 8px",borderRadius:4,border:"1px solid #fde68a",whiteSpace:"nowrap"}}>{q.csCode}</span>
+                  <span style={{fontSize:12,fontFamily:"monospace",color:"#64748b",whiteSpace:"nowrap"}}>{q.quoteNo}</span>
+                  <span style={{fontSize:12,fontWeight:600,color:"#0f172a",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cust?.companyEN||q.custId}</span>
+                  <span style={{fontSize:12,fontWeight:700,color:"#0f172a",whiteSpace:"nowrap"}}>฿{fmt(q.salesPrice)}</span>
+                  <span style={{fontSize:11,fontWeight:700,color:+q.marginPct>=30?"#16a34a":"#dc2626",background:+q.marginPct>=30?"#dcfce7":"#fee2e2",padding:"2px 8px",borderRadius:10,whiteSpace:"nowrap"}}>{q.marginPct}%</span>
+                  <span style={{fontSize:11,color:"#94a3b8",whiteSpace:"nowrap"}}>{q.savedBy}</span>
+                  <Btn variant="ghost" style={{fontSize:12,padding:"4px 14px",flexShrink:0}} onClick={()=>{
+                    // Restore quote into activeQuote for editing
+                    setActiveQuote({...q, id:uid()});
+                    const logEntry={id:uid(),ts:nowTS(),author:user.name,csCode:q.csCode,quoteNo:q.quoteNo,action:"re-opened",salesPrice:q.salesPrice,marginPct:q.marginPct};
+                    const updatedCS={...editCS,saveLog:[...(editCS.saveLog||[]),logEntry]};
+                    onSave(updatedCS);
+                    sECS(updatedCS);
+                  }}>Edit</Btn>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Slim save log */}
+        {(editCS.saveLog||[]).length>0&&(
+          <div style={{marginTop:16,padding:14,background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8}}>
+            <Span s={11} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:8}}>Save Log</Span>
+            <div style={{maxHeight:140,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
+              {[...(editCS.saveLog||[])].sort((a,b)=>b.ts.localeCompare(a.ts)).map(l=>(
+                <div key={l.id} style={{display:"flex",gap:10,fontSize:11,padding:"4px 0",borderBottom:"1px solid #f1f5f9",flexWrap:"wrap"}}>
+                  <span style={{color:"#94a3b8",whiteSpace:"nowrap",minWidth:130}}>{l.ts}</span>
+                  <span style={{color:"#1e40af",fontWeight:700,minWidth:60}}>{l.author}</span>
+                  {l.csCode&&<span style={{fontFamily:"monospace",color:"#92400e",fontWeight:700}}>{l.csCode}</span>}
+                  {l.quoteNo&&<span style={{fontFamily:"monospace",color:"#64748b"}}>{l.quoteNo}</span>}
+                  <span style={{color:"#374151",fontWeight:600,textTransform:"capitalize"}}>{l.action}</span>
+                  {l.salesPrice>0&&<span style={{color:"#0f172a",fontWeight:700}}>฿{fmt(l.salesPrice)}</span>}
+                  {l.marginPct&&<span style={{color:+l.marginPct>=30?"#16a34a":"#dc2626",fontWeight:700}}>{l.marginPct}%</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -3266,6 +3216,7 @@ function App() {
   const [opps,sOpps]         = useState(SEED_OPPS);
   const [deliveries,sDlv]    = useState(SEED_DELIVERIES);
   const [costSheets,sCS]     = useState(SEED_COST_SHEETS);
+  const [csQuotes,sCSQ]      = useState([]); // costsheet_quotes — one row per committed quote
   const [initSvcCode,sSvcCode] = useState(null);
   const [initCustId,sCustId]   = useState(null);
   const [initOppCode,sOppCode] = useState(null);
@@ -3278,33 +3229,66 @@ function App() {
 const stripJsonSuffix = obj => {
   if (!obj || typeof obj !== "object") return obj;
   const out = {};
-  
-  // First pass: copy all non-_json fields
-  Object.keys(obj).forEach(k => {
-    if (!k.endsWith("_json")) out[k] = obj[k];
-  });
-  
-  // Second pass: _json fields override only if value is non-empty
+  Object.keys(obj).forEach(k => { if (!k.endsWith("_json")) out[k] = obj[k]; });
   Object.keys(obj).forEach(k => {
     if (k.endsWith("_json")) {
       const clean = k.slice(0, -5);
       let v = obj[k];
-      const isEmpty = v === "" || v === null || v === undefined;
-      
-      if (!isEmpty) {
-        // Parse the JSON string back into a usable array/object
-        if (typeof v === "string") {
-          try {
-            v = JSON.parse(v);
-          } catch (e) {
-            // Failsafe in case of malformed JSON strings
-          }
-        }
-        out[clean] = v;
-      }
+      if (v === "" || v === null || v === undefined) return;
+      if (typeof v === "string") { try { v = JSON.parse(v); } catch(e) {} }
+      out[clean] = v;
     }
   });
   return out;
+};
+
+// ── Migration: extract quoteSnapshots from old saveLog → costsheet_quotes rows ──
+// Runs once on first load if costsheet_quotes tab is empty.
+// Picks the LATEST snapshot per csCode (handles multiple re-saves of same CS).
+const migrateSnapshotsToQuotes = (allCS) => {
+  const quotes = [];
+  allCS.forEach(cs => {
+    const snapMap = {}; // csCode → latest entry
+    (cs.saveLog || []).forEach(l => {
+      if (!l.quoteSnapshot) return;
+      const snap = l.quoteSnapshot;
+      const key  = snap.csCode || snap.quoteNo;
+      if (!snapMap[key] || l.ts > snapMap[key].ts) snapMap[key] = { ...l, snap };
+    });
+    Object.values(snapMap).forEach(({ ts, snap }) => {
+      // Merge internalCosts + externalCosts → costs (drop clientBorne)
+      const costs = [
+        ...(snap.internalCosts || []).map(r => ({ id:r.id, label:r.label, vendorName:"", unit:r.unit||"Job", qty:r.qty||0, rate:r.rate||0, payMonth:r.payMonth||1 })),
+        ...(snap.externalCosts || []).map(r => ({ id:r.id, label:r.label, vendorName:r.vendorName||"", unit:r.unit||"Job", qty:r.qty||0, rate:r.rate||0, payMonth:r.payMonth||1 })),
+      ];
+      const totalCost = calcCosts(costs) + calcTask(snap.tasks || []);
+      const mg = margin(snap.salesPrice || 0, totalCost);
+      quotes.push({
+        csCode:          snap.csCode || genCSCode(snap.quoteNo || ""),
+        serviceCode:     cs.serviceCode,
+        quoteNo:         snap.quoteNo || "",
+        oppCode:         snap.oppCode || "",
+        custId:          snap.custId  || "",
+        salesAgent:      snap.salesAgent || "",
+        contactPersonId: snap.contactPersonId || "",
+        salesPrice:      snap.salesPrice || 0,
+        totalCost,
+        marginPct:       mg,
+        projectMonths:   snap.projectMonths || 3,
+        projectTitle:    snap.projectTitle  || "",
+        projectScope:    snap.projectScope  || "",
+        savedAt:         ts || "",
+        savedBy:         snap.salesAgent    || "",
+        costs,
+        tasks:           snap.tasks        || [],
+        installments:    snap.installments || [],
+        deliverables:    snap.deliverables || [],
+        lineItems:       snap.lineItems    || [],
+        notes:           snap.notes        || "",
+      });
+    });
+  });
+  return quotes;
 };
 
   //  Load all data from Google Sheets on mount 
@@ -3316,9 +3300,10 @@ const stripJsonSuffix = obj => {
       gsGet("opportunities"),
       gsGet("deliveries"),
       gsGet("costsheets"),
+      gsGet("costsheet_quotes"),
       gsGet("kpi"),
       gsGet("users"),
-    ]).then(([c,o,d,cs,k,u])=>{
+    ]).then(([c,o,d,cs,csq,k,u])=>{
       if(c.length) sCusts(c.map(x=>stripJsonSuffix({...x,id:String(x.id||"")})));
       if(o.length) sOpps(o.map(x=>stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")})));
       if(d.length) sDlv(d.map(x=>stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")})));
@@ -3330,19 +3315,54 @@ const stripJsonSuffix = obj => {
         OP_USERS    = safe.filter(x=>x.role==="operation");
         sUserList(safe);
       }
-      // Merge loaded costSheets with defaults for any services not yet in Sheet
-      // Always clear quoteOverrides on load — user must click Edit to re-open
+      // Load costsheets — new slim format (no quoteOverrides, no stdCost/stdPrice)
+      let mergedCS = SEED_COST_SHEETS;
       if(cs.length){
-        const merged = SEED_COST_SHEETS.map(def=>{
+        mergedCS = SEED_COST_SHEETS.map(def=>{
           const fromGS = cs.find(x=>x.serviceCode===def.serviceCode);
-          return fromGS ? {...def,...stripJsonSuffix(fromGS), quoteOverrides:[]} : def;
+          if(!fromGS) return def;
+          const parsed = stripJsonSuffix(fromGS);
+          return {
+            ...def,
+            ...parsed,
+            costs:    Array.isArray(parsed.costs)    ? parsed.costs    : [],
+            tasks:    Array.isArray(parsed.tasks)    ? parsed.tasks    : [],
+            saveLog:  Array.isArray(parsed.saveLog)  ? parsed.saveLog  : [],
+          };
         });
-        sCS(merged);
+        sCS(mergedCS);
+      }
+      // Load costsheet_quotes — migrate from old saveLog snapshots if tab is empty
+      if(csq.length){
+        sCSQ(csq.map(x=>stripJsonSuffix(x)));
+      } else if(cs.length){
+        // One-time migration: extract quoteSnapshots from old saveLog → costsheet_quotes
+        const migrated = migrateSnapshotsToQuotes(
+          cs.map(x=>stripJsonSuffix(x))
+        );
+        if(migrated.length){
+          sCSQ(migrated);
+          // Push each migrated quote to GS costsheet_quotes tab
+          migrated.forEach(q=>gsSave("costsheet_quotes", q));
+          // Also push slim saveLog back to costsheets (strips quoteSnapshot bloat)
+          mergedCS.forEach(mcs=>{
+            const slimLog = (mcs.saveLog||[]).map(l=>({
+              id:l.id, ts:l.ts, author:l.author,
+              csCode:l.quoteSnapshot?.csCode||"",
+              quoteNo:l.quoteSnapshot?.quoteNo||"",
+              action: l.note?.includes("Re-opened")?"re-opened":l.note?.includes("saved")?"saved":"note",
+              salesPrice:l.quoteSnapshot?.salesPrice||0,
+              marginPct: l.quoteSnapshot ? margin(l.quoteSnapshot.salesPrice||0, calcCosts([...(l.quoteSnapshot.internalCosts||[]),...(l.quoteSnapshot.externalCosts||[])]) + calcTask(l.quoteSnapshot.tasks||[])) : "",
+            })).filter(l=>l.action!=="note"||!l.quoteSnapshot);
+            gsSave("costsheets", {...mcs, saveLog:slimLog});
+          });
+        }
       }
       if(k.length){
         const kpiObj={};
         k.forEach(r=>{ if(r.year) kpiObj[r.year]=r.splits||DEFAULT_SPLIT.slice(); });
         if(Object.keys(kpiObj).length) sKPI(p=>({...p,...kpiObj}));
+      }
       }
       sGSStatus("synced");
     }).catch(()=>sGSStatus("error"));
@@ -3399,15 +3419,37 @@ const stripJsonSuffix = obj => {
     gsSave("opportunities", norm);
   };
 
-  //  saveCS: update local + push entire costsheets collection 
+  //  saveCS: update local costsheets + push slim record to GS 
   const saveCS = cs => {
-    sCS(p => {
-      const next = p.find(x=>x.serviceCode===cs.serviceCode)
-        ? p.map(x=>x.serviceCode===cs.serviceCode?cs:x)
-        : [...p,cs];
-      gsSave("costsheets", cs); // upsert single cost sheet record
-      return next;
-    });
+    // Strip any legacy fields before saving
+    const slim = {
+      serviceCode:  cs.serviceCode,
+      serviceType:  cs.serviceType,
+      projectMonths:cs.projectMonths,
+      costs:        cs.costs   || [],
+      tasks:        cs.tasks   || [],
+      saveLog:      cs.saveLog || [],
+    };
+    sCS(p => p.find(x=>x.serviceCode===slim.serviceCode)
+      ? p.map(x=>x.serviceCode===slim.serviceCode ? slim : x)
+      : [...p, slim]
+    );
+    gsSave("costsheets", slim);
+  };
+
+  //  saveCsQuote: upsert one row in costsheet_quotes 
+  const saveCsQuote = q => {
+    sCSQ(p => p.find(x=>x.csCode===q.csCode)
+      ? p.map(x=>x.csCode===q.csCode ? q : x)
+      : [...p, q]
+    );
+    gsSave("costsheet_quotes", q);
+  };
+
+  //  deleteCsQuote: remove from local + GS 
+  const deleteCsQuote = csCode => {
+    sCSQ(p => p.filter(x=>x.csCode!==csCode));
+    gsDelete("costsheet_quotes", csCode);
   };
 
   //  Sync status badge 
@@ -3453,9 +3495,9 @@ const stripJsonSuffix = obj => {
       <div style={{maxWidth:1440,margin:"0 auto",padding:24}}>
         {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI} toast={toast} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}}/>}
         {page==="customers" && <CustomersPage user={user} customers={customers} opps={opps} onSave={saveItem(sCusts,"customers")} onDelete={deleteItem(sCusts,"customers")} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)} userList={userList}/>}
-        {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} onDelete={deleteItem(sOpps,"opportunities")} onSaveCS={saveCS} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} onDeleteDelivery={deleteItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)} userList={userList}/>}
-        {page==="delivery"  && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}} userList={userList}/>}
-        {page==="costsheet" && <CostSheetPage costSheets={costSheets} onSave={saveCS} customers={customers} opps={opps} user={user} onSaveOpp={saveOpp} toast={toast} initSvcCode={initSvcCode} onSvcReady={()=>sSvcCode(null)}/>}
+        {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} onDelete={deleteItem(sOpps,"opportunities")} onSaveCS={saveCS} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} onDeleteDelivery={deleteItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} csQuotes={csQuotes} onDeleteCsQuote={deleteCsQuote} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)} userList={userList}/>}
+        {page==="delivery"  && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} csQuotes={csQuotes} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}} userList={userList}/>}
+        {page==="costsheet" && <CostSheetPage costSheets={costSheets} onSave={saveCS} csQuotes={csQuotes} onSaveCsQuote={saveCsQuote} onDeleteCsQuote={deleteCsQuote} customers={customers} opps={opps} user={user} onSaveOpp={saveOpp} toast={toast} initSvcCode={initSvcCode} onSvcReady={()=>sSvcCode(null)}/>}
         {page==="setup"     && <SetupPage/>}
       </div>
       <Toast toasts={toasts}/>
