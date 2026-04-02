@@ -483,7 +483,8 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const totalWon    = wonOpps.reduce((s,o)=>s+o.salesPrice,0);
   const pipeline    = filteredOpps.filter(o=>o.status!=="Lost").reduce((s,o)=>s+o.salesPrice,0);
   const kpiPct      = Math.min((totalWon/annual)*100,100);
-  const splits      = Array.isArray(kpiSplits[year]) ? kpiSplits[year] : DEFAULT_SPLIT.slice();
+  const rawSplits   = kpiSplits[year] ?? kpiSplits[String(year)];
+  const splits      = Array.isArray(rawSplits) ? rawSplits : DEFAULT_SPLIT.slice();
   const totalSplit  = splits.reduce((s,v)=>s+v,0);
 
   const monthData = MONTHS.map((m,i) => {
@@ -498,10 +499,10 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     return{m,ms,fc,bl,rec,ach:fc>0?((bl/fc)*100).toFixed(0):"0",blItems,recItems};
   });
 
-  const upSplit=(i,v)=>setKpiSplits(p=>({...p,[year]:splits.map((x,j)=>j===i?+v:x)}));
+  const upSplit=(i,v)=>setKpiSplits(p=>({...p,[+year]:splits.map((x,j)=>j===i?+v:x)}));
   const saveKpi=()=>{
     const entry={id:uid(),ts:nowTS(),author:user.id,note:`KPI saved — ${year} · Annual ฿${fmtM(annual)} · Split total ${totalSplit.toFixed(1)}%`};
-    setKpiSplits(p=>({...p,[year+"_log"]:[...(p[year+"_log"]||[]),entry]}));
+    setKpiSplits(p=>({...p,[+year+"_log"]:[...(p[+year+"_log"]||[]),entry]}));
     toast("KPI & Forecast saved",`${year} splits saved by ${user.name}`);
   };
   const BAR_H=160;
@@ -796,11 +797,11 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
               </TR>
             ))}</tbody>
           </table></div></Card>
-          {(kpiSplits[year+"_log"]||[]).length>0&&(
+          {(kpiSplits[+year+"_log"]||[]).length>0&&(
             <Card style={{padding:14,marginTop:12}}>
               <Span s={12} w={700} style={{display:"block",marginBottom:8}}>Save Log</Span>
               <div style={{maxHeight:120,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
-                {[...(kpiSplits[year+"_log"]||[])].reverse().map(l=>(
+                {[...(kpiSplits[+year+"_log"]||[])].reverse().map(l=>(
                   <div key={l.id} style={{fontSize:10,padding:"4px 8px",background:"#f8fafc",borderRadius:4,border:"1px solid #e2e8f0",display:"flex",gap:10}}>
                     <span style={{color:"#64748b",whiteSpace:"nowrap"}}>{l.ts}</span>
                     <span style={{color:"#1e40af",fontWeight:700}}>{USERS.find(u=>u.id===l.author)?.name.split(" ")[0]||l.author}</span>
@@ -3370,13 +3371,15 @@ function App() {
         const kpiObj={};
         k.forEach(r=>{
           if(!r.year) return;
-          let splits = r.splits||DEFAULT_SPLIT.slice();
-          // Force parse if still a string (GAS returned raw JSON string)
+          const yr = +r.year; // normalize to number
+          let splits = r.splits;
+          // Parse if string
           if(typeof splits === "string"){
-            try { splits = JSON.parse(splits); } catch(_){ splits = DEFAULT_SPLIT.slice(); }
+            try { splits = JSON.parse(splits); } catch(_){ splits = null; }
           }
+          // Validate array of 12 numbers
           if(!Array.isArray(splits)||splits.length!==12) splits = DEFAULT_SPLIT.slice();
-          kpiObj[r.year] = splits.map(v=>+v||0);
+          kpiObj[yr] = splits.map(v=>+v||0);
         });
         if(Object.keys(kpiObj).length) sKPI(p=>({...p,...kpiObj}));
       }
