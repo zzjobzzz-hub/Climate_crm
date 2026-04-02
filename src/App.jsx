@@ -179,7 +179,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // S4: All requests include GS_AUTH_TOKEN verified server-side
 // 
-const GS_URL = "https://script.google.com/macros/s/AKfycbwjwAQSG1RJEjjMgOTjaTtrEP4zWSfK19dAoJKzfl-QPfAed1L4BkiBkNUP3sK3MiiYYA/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbwkngp7w5ZCegE3fwqOBjlcYF6F-K2lq7ixH0uHnfjbOKGsNEWg8Z5qQwuUCd2riOXQzA/exec";
 
 // S1: Server-side login — credentials validated in GAS, never in browser
 const gsLogin = async (email, password) => {
@@ -483,7 +483,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const totalWon    = wonOpps.reduce((s,o)=>s+o.salesPrice,0);
   const pipeline    = filteredOpps.filter(o=>o.status!=="Lost").reduce((s,o)=>s+o.salesPrice,0);
   const kpiPct      = Math.min((totalWon/annual)*100,100);
-  const splits      = kpiSplits[year]||DEFAULT_SPLIT.slice();
+  const splits      = Array.isArray(kpiSplits[year]) ? kpiSplits[year] : DEFAULT_SPLIT.slice();
   const totalSplit  = splits.reduce((s,v)=>s+v,0);
 
   const monthData = MONTHS.map((m,i) => {
@@ -3368,7 +3368,16 @@ function App() {
       }
       if(k.length){
         const kpiObj={};
-        k.forEach(r=>{ if(r.year) kpiObj[r.year]=r.splits||DEFAULT_SPLIT.slice(); });
+        k.forEach(r=>{
+          if(!r.year) return;
+          let splits = r.splits||DEFAULT_SPLIT.slice();
+          // Force parse if still a string (GAS returned raw JSON string)
+          if(typeof splits === "string"){
+            try { splits = JSON.parse(splits); } catch(_){ splits = DEFAULT_SPLIT.slice(); }
+          }
+          if(!Array.isArray(splits)||splits.length!==12) splits = DEFAULT_SPLIT.slice();
+          kpiObj[r.year] = splits.map(v=>+v||0);
+        });
         if(Object.keys(kpiObj).length) sKPI(p=>({...p,...kpiObj}));
       }
       sGSStatus("synced");
