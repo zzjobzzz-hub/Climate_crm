@@ -3199,6 +3199,74 @@ const NAV = [
   {key:"setup",label:"Setup"},
 ];
 
+// Strip _json suffix from GAS column names (e.g. saveLog_json → saveLog)
+const stripJsonSuffix = obj => {
+if (!obj || typeof obj !== "object") return obj;
+const out = {};
+Object.keys(obj).forEach(k => { if (!k.endsWith("_json")) out[k] = obj[k]; });
+Object.keys(obj).forEach(k => {
+if (k.endsWith("_json")) {
+const clean = k.slice(0, -5);
+let v = obj[k];
+if (v === "" || v === null || v === undefined) return;
+if (typeof v === "string") { try { v = JSON.parse(v); } catch(e) {} }
+out[clean] = v;
+}
+});
+return out;
+};
+
+// ── Migration: extract quoteSnapshots from old saveLog → costsheet_quotes rows ──
+// Runs once on first load if costsheet_quotes tab is empty.
+// Picks the LATEST snapshot per csCode (handles multiple re-saves of same CS).
+
+const migrateSnapshotsToQuotes = (allCS) => {
+const quotes = [];
+allCS.forEach(cs => {
+const snapMap = {}; // csCode → latest entry
+(cs.saveLog || []).forEach(l => {
+if (!l.quoteSnapshot) return;
+const snap = l.quoteSnapshot;
+const key  = snap.csCode || snap.quoteNo;
+if (!snapMap[key] || l.ts > snapMap[key].ts) snapMap[key] = { ...l, snap };
+});
+Object.values(snapMap).forEach(({ ts, snap }) => {
+// Merge internalCosts + externalCosts → costs (drop clientBorne)
+const costs = [
+...(snap.internalCosts || []).map(r => ({ id:r.id, label:r.label, vendorName:"", unit:r.unit||"Job", qty:r.qty||0, rate:r.rate||0, payMonth:r.payMonth||1 })),
+...(snap.externalCosts || []).map(r => ({ id:r.id, label:r.label, vendorName:r.vendorName||"", unit:r.unit||"Job", qty:r.qty||0, rate:r.rate||0, payMonth:r.payMonth||1 })),
+];
+const totalCost = calcCosts(costs) + calcTask(snap.tasks || []);
+const mg = margin(snap.salesPrice || 0, totalCost);
+quotes.push({
+csCode:          snap.csCode || genCSCode(snap.quoteNo || ""),
+serviceCode:     cs.serviceCode,
+quoteNo:         snap.quoteNo || "",
+oppCode:         snap.oppCode || "",
+custId:          snap.custId  || "",
+salesAgent:      snap.salesAgent || "",
+contactPersonId: snap.contactPersonId || "",
+salesPrice:      snap.salesPrice || 0,
+totalCost,
+marginPct:       mg,
+projectMonths:   snap.projectMonths || 3,
+projectTitle:    snap.projectTitle  || "",
+projectScope:    snap.projectScope  || "",
+savedAt:         ts || "",
+savedBy:         snap.salesAgent    || "",
+costs,
+tasks:           snap.tasks        || [],
+installments:    snap.installments || [],
+deliverables:    snap.deliverables || [],
+lineItems:       snap.lineItems    || [],
+notes:           snap.notes        || "",
+});
+});
+});
+return quotes;
+};
+
+
 function App() {
   // S3: Restore session from localStorage — checks expiry timestamp
   const [user,sUser] = useState(()=>loadSession());
@@ -3225,71 +3293,6 @@ function App() {
   const [userList,sUserList] = useState([]);      // S2: safe user list {id,name,role} loaded from GS
   const {toasts,show:toast}  = useToast();
 
-  // Strip _json suffix from GAS column names (e.g. saveLog_json → saveLog)
-const stripJsonSuffix = obj => {
-  if (!obj || typeof obj !== "object") return obj;
-  const out = {};
-  Object.keys(obj).forEach(k => { if (!k.endsWith("_json")) out[k] = obj[k]; });
-  Object.keys(obj).forEach(k => {
-    if (k.endsWith("_json")) {
-      const clean = k.slice(0, -5);
-      let v = obj[k];
-      if (v === "" || v === null || v === undefined) return;
-      if (typeof v === "string") { try { v = JSON.parse(v); } catch(e) {} }
-      out[clean] = v;
-    }
-  });
-  return out;
-};
-
-// ── Migration: extract quoteSnapshots from old saveLog → costsheet_quotes rows ──
-// Runs once on first load if costsheet_quotes tab is empty.
-// Picks the LATEST snapshot per csCode (handles multiple re-saves of same CS).
-const migrateSnapshotsToQuotes = (allCS) => {
-  const quotes = [];
-  allCS.forEach(cs => {
-    const snapMap = {}; // csCode → latest entry
-    (cs.saveLog || []).forEach(l => {
-      if (!l.quoteSnapshot) return;
-      const snap = l.quoteSnapshot;
-      const key  = snap.csCode || snap.quoteNo;
-      if (!snapMap[key] || l.ts > snapMap[key].ts) snapMap[key] = { ...l, snap };
-    });
-    Object.values(snapMap).forEach(({ ts, snap }) => {
-      // Merge internalCosts + externalCosts → costs (drop clientBorne)
-      const costs = [
-        ...(snap.internalCosts || []).map(r => ({ id:r.id, label:r.label, vendorName:"", unit:r.unit||"Job", qty:r.qty||0, rate:r.rate||0, payMonth:r.payMonth||1 })),
-        ...(snap.externalCosts || []).map(r => ({ id:r.id, label:r.label, vendorName:r.vendorName||"", unit:r.unit||"Job", qty:r.qty||0, rate:r.rate||0, payMonth:r.payMonth||1 })),
-      ];
-      const totalCost = calcCosts(costs) + calcTask(snap.tasks || []);
-      const mg = margin(snap.salesPrice || 0, totalCost);
-      quotes.push({
-        csCode:          snap.csCode || genCSCode(snap.quoteNo || ""),
-        serviceCode:     cs.serviceCode,
-        quoteNo:         snap.quoteNo || "",
-        oppCode:         snap.oppCode || "",
-        custId:          snap.custId  || "",
-        salesAgent:      snap.salesAgent || "",
-        contactPersonId: snap.contactPersonId || "",
-        salesPrice:      snap.salesPrice || 0,
-        totalCost,
-        marginPct:       mg,
-        projectMonths:   snap.projectMonths || 3,
-        projectTitle:    snap.projectTitle  || "",
-        projectScope:    snap.projectScope  || "",
-        savedAt:         ts || "",
-        savedBy:         snap.salesAgent    || "",
-        costs,
-        tasks:           snap.tasks        || [],
-        installments:    snap.installments || [],
-        deliverables:    snap.deliverables || [],
-        lineItems:       snap.lineItems    || [],
-        notes:           snap.notes        || "",
-      });
-    });
-  });
-  return quotes;
-};
 
   //  Load all data from Google Sheets on mount 
   useEffect(()=>{
