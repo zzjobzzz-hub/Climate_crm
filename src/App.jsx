@@ -3335,29 +3335,34 @@ function App() {
         });
         sCS(mergedCS);
       }
-      // Load costsheet_quotes — migrate from old saveLog snapshots if tab is empty
+      // Load costsheet_quotes
       if(csq.length){
         sCSQ(csq.map(x=>stripJsonSuffix(x)));
       } else if(cs.length){
-        // One-time migration: extract quoteSnapshots from old saveLog → costsheet_quotes
-        const migrated = migrateSnapshotsToQuotes(
-          cs.map(x=>stripJsonSuffix(x))
-        );
+        // One-time migration from old saveLog snapshots
+        const rawCS = cs.map(x=>stripJsonSuffix(x));
+        const migrated = migrateSnapshotsToQuotes(rawCS);
         if(migrated.length){
           sCSQ(migrated);
-          // Push each migrated quote to GS costsheet_quotes tab
           migrated.forEach(q=>gsSave("costsheet_quotes", q));
-          // Also push slim saveLog back to costsheets (strips quoteSnapshot bloat)
+          // Slim down saveLog — remove quoteSnapshot bloat
           mergedCS.forEach(mcs=>{
-            const slimLog = (mcs.saveLog||[]).map(l=>({
-              id:l.id, ts:l.ts, author:l.author,
-              csCode:l.quoteSnapshot?.csCode||"",
-              quoteNo:l.quoteSnapshot?.quoteNo||"",
-              action: l.note?.includes("Re-opened")?"re-opened":l.note?.includes("saved")?"saved":"note",
-              salesPrice:l.quoteSnapshot?.salesPrice||0,
-              marginPct: l.quoteSnapshot ? margin(l.quoteSnapshot.salesPrice||0, calcCosts([...(l.quoteSnapshot.internalCosts||[]),...(l.quoteSnapshot.externalCosts||[])]) + calcTask(l.quoteSnapshot.tasks||[])) : "",
-            })).filter(l=>l.action!=="note"||!l.quoteSnapshot);
-            gsSave("costsheets", {...mcs, saveLog:slimLog});
+            const slim = (mcs.saveLog||[]).map(l=>{
+              const snap = l.quoteSnapshot;
+              const tc = snap ? calcCosts([
+                ...(snap.internalCosts||[]),
+                ...(snap.externalCosts||[])
+              ]) + calcTask(snap.tasks||[]) : 0;
+              return {
+                id:l.id, ts:l.ts, author:l.author,
+                csCode:snap?snap.csCode:"",
+                quoteNo:snap?snap.quoteNo:"",
+                action:l.note&&l.note.includes("Re-opened")?"re-opened":"saved",
+                salesPrice:snap?snap.salesPrice:0,
+                marginPct:snap?margin(snap.salesPrice||0,tc):"",
+              };
+            }).filter(l=>l.csCode||l.quoteNo);
+            gsSave("costsheets", {...mcs, saveLog:slim});
           });
         }
       }
