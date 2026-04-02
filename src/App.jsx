@@ -3363,7 +3363,6 @@ const migrateSnapshotsToQuotes = (allCS) => {
         k.forEach(r=>{ if(r.year) kpiObj[r.year]=r.splits||DEFAULT_SPLIT.slice(); });
         if(Object.keys(kpiObj).length) sKPI(p=>({...p,...kpiObj}));
       }
-      }
       sGSStatus("synced");
     }).catch(()=>sGSStatus("error"));
   },[user]);
