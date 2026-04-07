@@ -941,8 +941,10 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
     if(active) return active.status;
     return "Lost";
   };
+  // safeArr: handles JSON string from GS or real array
+  const safeArr = v => { if(Array.isArray(v)) return v; if(typeof v==="string"&&v.trim().startsWith("[")) { try{return JSON.parse(v);}catch(_){} } return []; };
   const getLastContact = (custId) => {
-    const dlvLogs = (deliveries||[]).filter(d=>d.custId===custId).flatMap(d=>(d.workLog||[]).map(w=>w.ts));
+    const dlvLogs = (deliveries||[]).filter(d=>d.custId===custId).flatMap(d=>safeArr(d.workLog).map(w=>w.ts));
     const latest = dlvLogs.sort().slice(-1)[0];
     const cust = customers.find(c=>c.id===custId);
     if(!latest) return cust?.lastContact||"";
@@ -1055,7 +1057,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
               <TD style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{USERS.find(u=>u.id===c.assignedTo)?.name.split(" ")[0]||"-"}</TD>
               <TD style={{color:getLastContact(c.id)?"#374151":"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{getLastContact(c.id)||"—"}</TD>
               <TD style={{color:"#64748b",fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.remark||"—"}</TD>
-              <TD><button onClick={e=>{e.stopPropagation();sLog(c);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11}}> {(c.workLog||[]).length}</button></TD>
+              <TD><button onClick={e=>{e.stopPropagation();sLog(c);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11}}> {safeArr(c.workLog).length}</button></TD>
               <TD style={{overflow:"visible",whiteSpace:"nowrap"}}>
                 <Btn variant="ghost" style={{fontSize:11,padding:"3px 8px"}} onClick={e=>{e.stopPropagation();sE(c);sF(true);}}>Edit</Btn>
               </TD>
@@ -1108,11 +1110,11 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
                 {getLastContact(logCust.id)||"—"}
               </span>
             </div>
-            <Span s={11} c="#94a3b8">Customer Work Log: {(logCust.workLog||[]).length} entries</Span>
+            <Span s={11} c="#94a3b8">Customer Work Log: {safeArr(logCust.workLog).length} entries</Span>
           </div>
           {/* Delivery-linked logs (read-only) */}
           {(()=>{
-            const dlvLogs=(deliveries||[]).filter(d=>d.custId===logCust.id).flatMap(d=>(d.workLog||[]).map(w=>({...w,_dlvJob:d.jobCode||d.oppCode||d.id,_dlvSvc:d.serviceType||d.serviceCode})));
+            const dlvLogs=(deliveries||[]).filter(d=>d.custId===logCust.id).flatMap(d=>safeArr(d.workLog).map(w=>({...w,_dlvJob:d.jobCode||d.oppCode||d.id,_dlvSvc:d.serviceType||d.serviceCode})));
             if(dlvLogs.length===0) return null;
             return (
               <div style={{marginBottom:12}}>
@@ -1134,8 +1136,8 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
           })()}
           {/* Customer Work Log (editable) */}
           <Span s={11} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:6}}>Customer Activity Log</Span>
-          <ActivityLog logs={logCust.workLog||[]} currentUser={user}
-            onAdd={entry=>{const up={...logCust,workLog:[...(logCust.workLog||[]),entry],lastContact:today()};onSave(up);sLog(up);toast("Log added",logCust.companyEN);}}
+          <ActivityLog logs={safeArr(logCust.workLog)} currentUser={user}
+            onAdd={entry=>{const up={...logCust,workLog:[...safeArr(logCust.workLog),entry],lastContact:today()};onSave(up);sLog(up);toast("Log added",logCust.companyEN);}}
             placeholder="Log a call, meeting, site visit…" users={userList}/>
           <div style={{display:"flex",justifyContent:"flex-end",marginTop:12}}><Btn onClick={()=>sLog(null)}>Done</Btn></div>
         </Modal>
@@ -2379,7 +2381,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
     if(!newNote.trim()) return;
     const entry={id:uid(),ts:nowTS(),author:user.id,note:newNote.trim()};
     const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Work log: ${newNote.trim().slice(0,60)}`};
-    const committed={...d,workLog:[...(d.workLog||[]),entry],saveLog:[...(d.saveLog||[]),logEntry]};
+    const committed={...d,workLog:[...safeArr(d.workLog),entry],saveLog:[...safeArr(d.saveLog),logEntry]};
     onSave(committed);
     setLocalD(committed);
     setNewNote("");
@@ -2499,13 +2501,13 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
           <div style={{padding:"9px 14px",borderBottom:"1px solid #f1f5f9"}}><Span s={12} w={700}>Work Log</Span></div>
             <div style={{padding:"12px 14px"}}>
               <div style={{maxHeight:180,overflow:"auto",display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
-                {[...(d.workLog||[])].reverse().map(l=>{const u=USERS.find(x=>x.id===l.author);return(
+                {[...safeArr(d.workLog)].reverse().map(l=>{const u=USERS.find(x=>x.id===l.author);return(
                   <div key={l.id} style={{padding:"7px 10px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:5,display:"flex",gap:8}}>
                     <div style={{width:24,height:24,background:"#0f172a",color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:11,flexShrink:0}}>{(u?.name||"?")[0]}</div>
                     <div><div style={{display:"flex",gap:6,marginBottom:1,flexWrap:"wrap"}}><Span s={11} w={700} c="#0f172a">{u?.name||l.author}</Span><span style={{background:"#f1f5f9",color:"#64748b",fontSize:9,padding:"1px 5px",borderRadius:3,fontFamily:"monospace"}}>{l.ts}</span></div><Span s={12}>{l.note}</Span></div>
                   </div>
                 );})}
-                {(d.workLog||[]).length===0&&<Span s={12} c="#94a3b8">No entries yet.</Span>}
+                {safeArr(d.workLog).length===0&&<Span s={12} c="#94a3b8">No entries yet.</Span>}
               </div>
               <div style={{display:"flex",gap:8}}>
                 <input value={newNote} onChange={e=>setNewNote(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){addLog();e.preventDefault();}}} placeholder="Add entry… (Enter to save)" style={{flex:1,padding:"6px 10px",fontSize:12,border:"1px solid #e2e8f0",borderRadius:5}}/>
@@ -2583,11 +2585,11 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
   // Req 9: expandable sections per delivery card
 
   const list=deliveries
-    .filter(d=>{const c=customers.find(x=>x.id===d.custId);const q=search.toLowerCase();return(!search||d.jobCode.toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||d.contractNo.toLowerCase().includes(q)||d.oppCode.toLowerCase().includes(q))&&(fDS.length===0||fDS.includes(d.deliveryStatus))&&(fStep.length===0||fStep.includes(d.currentStep));})
+    .filter(d=>{const c=customers.find(x=>x.id===d.custId);const q=search.toLowerCase();return(!search||(d.jobCode||"").toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||(d.contractNo||"").toLowerCase().includes(q)||(d.oppCode||"").toLowerCase().includes(q))&&(fDS.length===0||fDS.includes(d.deliveryStatus))&&(fStep.length===0||fStep.includes(d.currentStep));})
     .sort((a,b)=>{
       const ta=[...(a.saveLog||[])].sort((x,y)=>(y.ts||"").localeCompare(x.ts||""))[0]?.ts||"";
       const tb=[...(b.saveLog||[])].sort((x,y)=>(y.ts||"").localeCompare(x.ts||""))[0]?.ts||"";
-      return tb.localeCompare(ta);
+      return (tb||"").localeCompare(ta||"");
     });
 
   return (
