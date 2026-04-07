@@ -1118,7 +1118,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
               <div style={{marginBottom:12}}>
                 <Span s={11} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:6}}>Delivery Work Logs (linked)</Span>
                 <div style={{maxHeight:140,overflowY:"auto",display:"flex",flexDirection:"column",gap:6}}>
-                  {[...dlvLogs].sort((a,b)=>b.ts.localeCompare(a.ts)).map(w=>(
+                  {[...dlvLogs].sort((a,b)=>(b.ts||"").localeCompare(a.ts||"")).map(w=>(
                     <div key={w.id} style={{padding:"7px 12px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:6,fontSize:12}}>
                       <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:3,flexWrap:"wrap"}}>
                         <span style={{fontFamily:"monospace",fontSize:10,color:"#1e40af",fontWeight:700,background:"#dbeafe",padding:"1px 6px",borderRadius:3}}>{w._dlvJob}</span>
@@ -2312,7 +2312,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
   const cust  = customers.find(c=>c.id===d.custId);
   const agent = USERS.find(u=>u.id===(d.assignedTo||opp?.assignedTo));
   const totalRec = (d.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);
-  const lastLog = [...(d.saveLog||[])].sort((a,b)=>b.ts.localeCompare(a.ts))[0];
+  const lastLog = [...(d.saveLog||[])].sort((a,b)=>(b.ts||"").localeCompare(a.ts||""))[0];
 
   //  Helpers 
   const markDirty = (updD, updInst) => {
@@ -2551,7 +2551,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
           <div style={{padding:"10px 16px",borderTop:"1px solid #f1f5f9",background:"#fafafa"}}>
             <Span s={10} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:6}}>Save Log</Span>
             <div style={{maxHeight:120,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
-              {[...(d.saveLog||[])].sort((a,b)=>b.ts.localeCompare(a.ts)).map(l=>(
+              {[...(d.saveLog||[])].sort((a,b)=>(b.ts||"").localeCompare(a.ts||"")).map(l=>(
                 <div key={l.id} style={{display:"flex",gap:8,fontSize:10,padding:"3px 0",borderBottom:"1px solid #f1f5f9"}}>
                   <span style={{color:"#94a3b8",whiteSpace:"nowrap",minWidth:130}}>{l.ts}</span>
                   <span style={{color:"#1e40af",fontWeight:700,minWidth:60}}>{USERS.find(u=>u.id===l.author)?.name.split(" ")[0]||l.author}</span>
@@ -2585,8 +2585,8 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
   const list=deliveries
     .filter(d=>{const c=customers.find(x=>x.id===d.custId);const q=search.toLowerCase();return(!search||d.jobCode.toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||d.contractNo.toLowerCase().includes(q)||d.oppCode.toLowerCase().includes(q))&&(fDS.length===0||fDS.includes(d.deliveryStatus))&&(fStep.length===0||fStep.includes(d.currentStep));})
     .sort((a,b)=>{
-      const ta=[...(a.saveLog||[])].sort((x,y)=>y.ts.localeCompare(x.ts))[0]?.ts||"";
-      const tb=[...(b.saveLog||[])].sort((x,y)=>y.ts.localeCompare(x.ts))[0]?.ts||"";
+      const ta=[...(a.saveLog||[])].sort((x,y)=>(y.ts||"").localeCompare(x.ts||""))[0]?.ts||"";
+      const tb=[...(b.saveLog||[])].sort((x,y)=>(y.ts||"").localeCompare(x.ts||""))[0]?.ts||"";
       return tb.localeCompare(ta);
     });
 
@@ -3187,7 +3187,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                       if(!acc[key]||l.ts>acc[key].ts) acc[key]=l;
                       return acc;
                     },{})
-                  ).sort((a,b)=>b.ts.localeCompare(a.ts)).map(l=>(
+                  ).sort((a,b)=>(b.ts||"").localeCompare(a.ts||"")).map(l=>(
                     <div key={l.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:7,marginBottom:6}}>
                       <span style={{fontSize:12,color:'#94a3b8',whiteSpace:'nowrap'}}>{l.ts}</span>
                       <span style={{fontSize:12,fontWeight:700,fontFamily:'monospace',color:'#92400e',background:'#fef3c7',padding:'2px 8px',borderRadius:4,border:'1px solid #fde68a'}}>{l.quoteSnapshot.csCode}</span>
