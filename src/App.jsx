@@ -485,9 +485,11 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     (fAg.length===0||fAg.includes(o.assignedTo))
   ),[opps,fSt,fSvc,fAg]);
 
-  const wonOpps     = filteredOpps.filter(o=>o.status==="Won");
-  const totalWon    = wonOpps.reduce((s,o)=>s+o.salesPrice,0);
-  const pipeline    = filteredOpps.filter(o=>o.status!=="Lost").reduce((s,o)=>s+o.salesPrice,0);
+  const wonOpps       = filteredOpps.filter(o=>o.status==="Won");
+  const totalWon      = wonOpps.reduce((s,o)=>s+o.salesPrice,0);
+  const pipeline      = filteredOpps.filter(o=>o.status!=="Lost").reduce((s,o)=>s+o.salesPrice,0);
+  const oppsPipeline  = filteredOpps.filter(o=>o.status==="Proposal"||o.status==="Negotiation").reduce((s,o)=>s+o.salesPrice,0);
+  const oppsPipelineCount = filteredOpps.filter(o=>o.status==="Proposal"||o.status==="Negotiation").length;
   const kpiPct      = Math.min((totalWon/annual)*100,100);
   const splits      = kpiSplits[year]||DEFAULT_SPLIT.slice();
   const totalSplit  = splits.reduce((s,v)=>s+v,0);
@@ -534,15 +536,17 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
       const ms=`${year}-${String(MONTHS.indexOf(pMonth)+1).padStart(2,"0")}`;
       return o.createdDate?.startsWith(ms);
     });
-    const byStage = OPP_STATUSES.map(st => {
+    const PIPELINE_STAGE_ORDER = ["Proposal","Negotiation","Won","Lost"];
+    const byStage = PIPELINE_STAGE_ORDER.map(st => {
       const items=monthOpps.filter(o=>o.status===st);
       const total=items.reduce((s,o)=>s+o.salesPrice,0);
       const bySvc={};
       items.forEach(o=>{if(!bySvc[o.serviceCode])bySvc[o.serviceCode]=0;bySvc[o.serviceCode]+=o.salesPrice;});
       return{stage:st,count:items.length,total,bySvc};
     });
-    const sorted=[...byStage].sort((a,b)=>pSort==="desc"?b.total-a.total:a.total-b.total);
+    const sorted=byStage;
     const maxTotal=Math.max(...sorted.map(s=>s.total),1);
+    const allStagesTotal=sorted.reduce((s,x)=>s+x.total,0);
     // service type count per stage
     const allSvcs=[...new Set(monthOpps.map(o=>o.serviceCode))];
 
@@ -560,9 +564,6 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
               <Sel value={pMonth} onChange={e=>setPMonth(e.target.value)} style={{width:90,padding:"4px 6px",fontSize:12}}>
                 <option>All</option>{MONTHS.map(m=><option key={m}>{m}</option>)}
               </Sel>
-              <button onClick={()=>setPSort(s=>s==="desc"?"asc":"desc")} style={{padding:"4px 10px",border:"1px solid #e2e8f0",borderRadius:5,background:"#fff",cursor:"pointer",fontSize:11,color:"#64748b"}}>
-                {pSort==="desc"?"↓ High→Low":"↑ Low→High"}
-              </button>
             </div>
           </div>
           {sorted.map((s,i) => (
@@ -572,6 +573,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
                 <div style={{textAlign:"right"}}>
                   <Span s={13} w={700} c="#0f172a">฿{fmtM(s.total)}</Span>
                   <Span s={11} c="#94a3b8" style={{marginLeft:6}}>{s.count} deals</Span>
+                  <Span s={11} c="#94a3b8" style={{marginLeft:6}}>({allStagesTotal>0?((s.total/allStagesTotal)*100).toFixed(1):0}%)</Span>
                 </div>
               </div>
               <div style={{background:"#f1f5f9",borderRadius:4,height:10,overflow:"hidden"}}>
@@ -676,9 +678,10 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
 
       {tab==="dash"&&(
         <>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:14}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12,marginBottom:14}}>
             <SC label="Customers"      val={customers.length}       sub={`${customers.filter(c=>c.ranking==="High").length} High Priority`}/>
             <SC label="Won YTD"        val={`฿${fmtM(totalWon)}`}  sub={`${wonOpps.length} deals closed`}   c="#16a34a"/>
+            <SC label="Opportunities"  val={`฿${fmtM(oppsPipeline)}`} sub={`${oppsPipelineCount} deals active`} c="#a78bfa"/>
             <SC label="Pipeline"       val={`฿${fmtM(pipeline)}`}  sub={`${filteredOpps.filter(o=>!["Won","Lost"].includes(o.status)).length} active`}/>
             <SC label="KPI Achievement" val={`${kpiPct.toFixed(1)}%`} sub={`Target ฿${fmtM(annual)}`} c={kpiPct>=75?"#16a34a":kpiPct>=50?"#d97706":"#dc2626"}/>
           </div>
