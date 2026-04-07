@@ -185,7 +185,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // S4: All requests include GS_AUTH_TOKEN verified server-side
 // 
-const GS_URL = "https://script.google.com/macros/s/AKfycbzQoqLUZBg_YBPMOeoHLoWkAPhcBmfc48R5vy9pKCjavIhj4loI_0UWrMkBvfqEd0zftQ/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbwSeHh6yeZUX7Rn6s06q5K9_Rg5ELhGobtCBKGDsEjgFQxSUb1SWESi6a59M45lOgHRRA/exec";
 
 // S1: Server-side login — credentials validated in GAS, never in browser
 const gsLogin = async (email, password) => {
@@ -207,12 +207,29 @@ const gsGet = async (collection) => {
   } catch(e) { return []; }
 };
 
+// Normalize a record before saving — moves plain JSON fields into _json twins
+// This ensures the sheet never has data split across both "contacts" and "contacts_json"
+const GS_JSON_FIELDS = ["contacts","workLog","saveLog","activityLog","internalCosts","externalCosts","tasks","quoteOverrides","quotationData","installments","splits"];
+const normalizeForGS = record => {
+  const out = {...record};
+  GS_JSON_FIELDS.forEach(field => {
+    const plain = record[field];
+    const json  = record[field+"_json"];
+    const val   = (plain !== undefined && plain !== null && plain !== "") ? plain
+                : (json  !== undefined && json  !== null && json  !== "") ? json
+                : [];
+    out[field+"_json"] = val;
+    out[field] = "";  // always blank the plain twin
+  });
+  return out;
+};
+
 // Save (upsert) a single record — fire-and-forget, non-blocking (S4: token in body)
 const gsSave = (collection, record, userId="", summary="") => {
   fetch(GS_URL, {
     method:"POST", redirect:"follow",
     headers:{"Content-Type":"text/plain"},
-    body: JSON.stringify({action:"save", collection, record, userId, summary, token:GS_AUTH_TOKEN}),
+    body: JSON.stringify({action:"save", collection, record:normalizeForGS(record), userId, summary, token:GS_AUTH_TOKEN}),
   }).catch(()=>{});
 };
 
