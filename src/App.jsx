@@ -130,6 +130,7 @@ const uid   = () => `${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
 const today = () => new Date().toISOString().slice(0,10);
 const nowTS = () => { const d=new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
 const pad2  = n => String(n).padStart(2,"0");
+const safeArr = v => { if(Array.isArray(v)) return v; if(typeof v==="string"&&v.trim().startsWith("[")) { try{return JSON.parse(v);}catch(_){} } return []; };
 
 const calcIC   = rows => (rows||[]).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
 const calcEC   = (rows,coOnly) => (rows||[]).filter(r=>coOnly?!r.clientBorne:true).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
@@ -185,7 +186,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // S4: All requests include GS_AUTH_TOKEN verified server-side
 // 
-const GS_URL = "https://script.google.com/macros/s/AKfycbxWZ_n_Kt6J0mINHWBACm3rCExC1Kpqoz1xJZdX9PbISoMwUUDalsTGuqAO4_tVBAH9Lw/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbw8TouL3EBqfSR5LeK-vINm6ChiZkDc3efl_B1HYwq0tzUT3NxuqRLcUmfujDSYlfdQpA/exec";
 
 // S1: Server-side login — credentials validated in GAS, never in browser
 const gsLogin = async (email, password) => {
@@ -958,8 +959,6 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
     if(active) return active.status;
     return "Lost";
   };
-  // safeArr: handles JSON string from GS or real array
-  const safeArr = v => { if(Array.isArray(v)) return v; if(typeof v==="string"&&v.trim().startsWith("[")) { try{return JSON.parse(v);}catch(_){} } return []; };
   const getLastContact = (custId) => {
     const dlvLogs = (deliveries||[]).filter(d=>d.custId===custId).flatMap(d=>safeArr(d.workLog).map(w=>w.ts));
     const latest = dlvLogs.sort().slice(-1)[0];
