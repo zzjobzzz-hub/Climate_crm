@@ -185,7 +185,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // S4: All requests include GS_AUTH_TOKEN verified server-side
 // 
-const GS_URL = "https://script.google.com/macros/s/AKfycbwSeHh6yeZUX7Rn6s06q5K9_Rg5ELhGobtCBKGDsEjgFQxSUb1SWESi6a59M45lOgHRRA/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbxWZ_n_Kt6J0mINHWBACm3rCExC1Kpqoz1xJZdX9PbISoMwUUDalsTGuqAO4_tVBAH9Lw/exec";
 
 // S1: Server-side login — credentials validated in GAS, never in browser
 const gsLogin = async (email, password) => {
@@ -3370,13 +3370,17 @@ const stripJsonSuffix = obj => {
     }).catch(()=>sGSStatus("error"));
   },[user]);
 
+  // Fields to never persist to the customers sheet
+  const CUST_STRIP = ["status","createdDate","workLog","workLog_json"];
+  const stripCust  = c => { const o={...c}; CUST_STRIP.forEach(k=>delete o[k]); return o; };
+
   //  saveItem: update local state + push to Google Sheets 
   const saveItem = (setter, collection) => item => {
     const norm = (item.custId!==undefined)
       ? {...item,id:String(item.id||""),custId:String(item.custId||"")}
       : {...item,id:String(item.id||"")};
     setter(p => p.find(x=>x.id===norm.id) ? p.map(x=>x.id===norm.id?norm:x) : [...p,norm]);
-    if(collection) gsSave(collection, norm);
+    if(collection) gsSave(collection, collection==="customers" ? stripCust(norm) : norm);
   };
   //  deleteItem: remove from local state + delete from Google Sheets 
   const deleteItem = (setter, collection) => id => {
@@ -3402,16 +3406,14 @@ const stripJsonSuffix = obj => {
       const next = prev.find(x=>x.id===norm.id)
         ? prev.map(x=>x.id===norm.id ? norm : x)
         : [...prev, norm];
-      // Derive customer status from the fully updated opps list
+      // Derive customer status from opps (UI only — not persisted to sheet)
       if(norm.custId) {
         const newStatus = deriveOppStatus(norm.custId, next);
         if(newStatus) {
           sCusts(cList => cList.map(c => {
             if(c.id !== norm.custId) return c;
-            if(c.status === newStatus) return c; // already correct, no GS call needed
-            const updated = {...c, status: newStatus};
-            gsSave("customers", updated); // push to GS
-            return updated;
+            if(c.status === newStatus) return c;
+            return {...c, status: newStatus}; // update UI state only, no GS save
           }));
         }
       }
