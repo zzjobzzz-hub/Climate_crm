@@ -1513,6 +1513,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
   </div>
 </div>
 </div>
+<div style="position:fixed;bottom:6mm;right:10mm;font-size:6.5px;color:#94a3b8;font-family:'Inter',sans-serif;letter-spacing:0.02em">FR-BD-01-02 Rev.00 Issue date 01/04/2569</div>
 </body></html>`);
     w.document.close();
     setTimeout(()=>w.print(),600);
