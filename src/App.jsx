@@ -2349,7 +2349,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
   const cust  = customers.find(c=>c.id===d.custId);
   const agent = USERS.find(u=>u.id===(d.assignedTo||opp?.assignedTo));
   const totalRec = (d.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);
-  const lastLog = [...(d.saveLog||[])].sort((a,b)=>(b.ts||"").localeCompare(a.ts||""))[0];
+  const lastLog = [...(d.saveLog||[]),...(d.workLog||[])].sort((a,b)=>(b.ts||"").localeCompare(a.ts||""))[0];
 
   //  Helpers 
   const markDirty = (updD, updInst) => {
@@ -2427,7 +2427,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
 
   //  COLLAPSED VIEW 
   if(!open) return (
-    <Card style={{overflow:"hidden"}}>
+    <Card style={{overflow:"hidden",cursor:"pointer"}} onClick={()=>setOpen(true)}>
       <div style={{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,background:"#fff"}}>
         <div style={{display:"flex",alignItems:"center",gap:12,flex:1,minWidth:280,flexWrap:"wrap"}}>
           <span style={{fontSize:18,fontWeight:900,color:"#0f172a",fontFamily:"monospace",letterSpacing:"-0.02em"}}>{d.jobCode||d.id}</span>
@@ -2445,10 +2445,10 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
               <span style={{fontSize:13,fontWeight:900,color:x.c}}>฿{fmt(x.v)}</span>
             </div>
           ))}
-          <Btn variant="ghost" onClick={()=>setOpen(true)} style={{fontSize:12,padding:"5px 14px"}}>Edit</Btn>
+          <span style={{fontSize:18,color:"#94a3b8",padding:"0 4px"}}>›</span>
         </div>
       </div>
-      {(d.saveLog||[]).length>0&&(
+      {lastLog&&(
         <div style={{padding:"5px 20px",borderTop:"1px solid #f1f5f9",background:"#fafafa",display:"flex",gap:10,alignItems:"center",fontSize:10}}>
           <span style={{color:"#94a3b8",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em"}}>Latest:</span>
           <span style={{color:"#64748b",whiteSpace:"nowrap"}}>{lastLog?.ts}</span>
@@ -2462,15 +2462,15 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
   //  EXPANDED / EDIT VIEW 
   return (
     <Card style={{overflow:"hidden",border:dirty?"2px solid #f59e0b":"1px solid #e2e8f0"}}>
-      {/* Card header bar */}
-      <div style={{padding:"12px 20px",background:dirty?"#fffbeb":"#f8fafc",borderBottom:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+      {/* Card header bar — click to collapse */}
+      <div style={{padding:"12px 20px",background:dirty?"#fffbeb":"#f8fafc",borderBottom:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",cursor:"pointer"}} onClick={()=>setOpen(false)}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:18,fontWeight:900,color:"#0f172a",fontFamily:"monospace"}}>{localD.jobCode||d.id}</span>
           <Badge value={localD.deliveryStatus} colorMap={Object.fromEntries(DLV_STATUSES.map(s=>[s,{c:STATUS_CLR[s]}]))}/>
           <SvcBadge code={d.serviceCode}/>
           {dirty&&<span style={{fontSize:11,fontWeight:700,color:"#d97706",background:"#fef3c7",padding:"2px 8px",borderRadius:10}}> Unsaved changes</span>}
         </div>
-
+        <span style={{fontSize:18,color:"#94a3b8",transform:"rotate(90deg)",display:"inline-block",lineHeight:1}}>›</span>
       </div>
 
       {/* Meta fields */}
@@ -2617,14 +2617,30 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
   const [form,sF]=useState(false); const [edit,sE]=useState(null); const [gs,sGS]=useState(false);
   const [initTab,sInitTab]=useState("detail"); // which tab to open in DeliveryForm
   const [quotationOpp,sQT]=useState(null); // for inline Quotation Preview modal
+  const [sortBy,sSortBy]=useState("recent"); // recent | oldest | contractDate | contractValue
   // Req 9: expandable sections per delivery card
 
   const list=deliveries
     .filter(d=>{const c=customers.find(x=>x.id===d.custId);const q=search.toLowerCase();return(!search||(d.jobCode||"").toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||(d.contractNo||"").toLowerCase().includes(q)||(d.oppCode||"").toLowerCase().includes(q))&&(fDS.length===0||fDS.includes(d.deliveryStatus))&&(fStep.length===0||fStep.includes(d.currentStep));})
     .sort((a,b)=>{
-      const ta=[...(a.saveLog||[])].sort((x,y)=>(y.ts||"").localeCompare(x.ts||""))[0]?.ts||"";
-      const tb=[...(b.saveLog||[])].sort((x,y)=>(y.ts||"").localeCompare(x.ts||""))[0]?.ts||"";
-      return (tb||"").localeCompare(ta||"");
+      if(sortBy==="oldest"){
+        const ta=a.contractDate||a.workLog?.[0]?.ts||"";
+        const tb=b.contractDate||b.workLog?.[0]?.ts||"";
+        return (ta||"").localeCompare(tb||"");
+      }
+      if(sortBy==="contractDate"){
+        return (b.contractDate||"").localeCompare(a.contractDate||"");
+      }
+      if(sortBy==="contractValue"){
+        return (b.totalContractValue||0)-(a.totalContractValue||0);
+      }
+      // default: recent — by latest saveLog/workLog ts
+      const getLatest=d=>{
+        const sl=[...(d.saveLog||[])].sort((x,y)=>(y.ts||"").localeCompare(x.ts||""))[0]?.ts||"";
+        const wl=[...(d.workLog||[])].sort((x,y)=>(y.ts||"").localeCompare(x.ts||""))[0]?.ts||"";
+        return sl>wl?sl:wl;
+      };
+      return (getLatest(b)||"").localeCompare(getLatest(a)||"");
     });
 
   return (
@@ -2637,6 +2653,12 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
         <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search Job Code / Company…" style={{maxWidth:240}}/>
         <MultiSelect label="Status" options={DLV_STATUSES.map(s=>({value:s,label:s}))} selected={fDS}   onChange={setFDS}   width={180}/>
         <MultiSelect label="Step"   options={DLV_STEPS.map(s=>({value:s,label:s}))}    selected={fStep} onChange={setFStep} width={195}/>
+        <Sel value={sortBy} onChange={e=>sSortBy(e.target.value)} style={{width:170,fontSize:13}}>
+          <option value="recent">↓ Recently Updated</option>
+          <option value="oldest">↑ Oldest First</option>
+          <option value="contractDate">↓ Contract Date</option>
+          <option value="contractValue">↓ Contract Value</option>
+        </Sel>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         {list.map(d => {
