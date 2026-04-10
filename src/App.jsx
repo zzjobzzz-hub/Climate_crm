@@ -517,8 +517,8 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const monthData = MONTHS.map((m,i) => {
     const ms=`${year}-${String(i+1).padStart(2,"0")}`;
     const fc=Math.round(annual*splits[i]/100);
-    // Backlog = Won opps by createdDate month (auto-synced from Opportunities Won status)
-    const blItems=filteredOpps.filter(o=>o.status==="Won"&&o.createdDate?.startsWith(ms)).map(o=>({company:customers.find(c=>c.id===o.custId)?.companyEN||o.custId,amount:o.salesPrice||0}));
+    // Backlog = Won opps by wonDate month (falls back to createdDate for legacy records)
+    const blItems=filteredOpps.filter(o=>o.status==="Won"&&(o.wonDate||o.createdDate)?.startsWith(ms)).map(o=>({company:customers.find(c=>c.id===o.custId)?.companyEN||o.custId,amount:o.salesPrice||0}));
     // Received = Delivery installments status=Received by receiptDate month (auto-synced from Delivery)
     const recItems=deliveries.flatMap(d=>(d.installments||[]).filter(ins=>ins.receiptDate?.startsWith(ms)&&ins.status==="Received").map(ins=>({company:customers.find(c=>c.id===d.custId)?.companyEN||d.custId,amount:ins.amount||0})));
     const bl=blItems.reduce((s,it)=>s+it.amount,0);
@@ -3400,7 +3400,14 @@ const stripJsonSuffix = obj => {
     return "Lost";
   };
   const saveOpp = opp => {
-    const norm = {...opp, id:String(opp.id||""), custId:String(opp.custId||"")};
+    const prev = opps.find(x => x.id === opp.id);
+    const justWon = opp.status === "Won" && prev?.status !== "Won";
+    const norm = {
+      ...opp,
+      id: String(opp.id||""),
+      custId: String(opp.custId||""),
+      wonDate: justWon ? nowTS() : (opp.wonDate || ""),
+    };
     // 1. Single sOpps call — build merged list, then sync customer inside same updater
     sOpps(prev => {
       // Build new opps list with this opp upserted
