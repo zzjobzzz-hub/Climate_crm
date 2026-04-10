@@ -514,11 +514,18 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const splits      = kpiSplits[year]||DEFAULT_SPLIT.slice();
   const totalSplit  = splits.reduce((s,v)=>s+v,0);
 
+  // Won date = ts of first workLog entry mentioning "Won", fallback to createdDate
+  const getWonDate = opp => {
+    const logs = safeArr(opp.workLog_json || opp.workLog);
+    const wonLog = logs.find(l => l.note?.includes("Won"));
+    return wonLog?.ts || opp.createdDate;
+  };
+
   const monthData = MONTHS.map((m,i) => {
     const ms=`${year}-${String(i+1).padStart(2,"0")}`;
     const fc=Math.round(annual*splits[i]/100);
-    // Backlog = Won opps by wonDate month (falls back to createdDate for legacy records)
-    const blItems=filteredOpps.filter(o=>o.status==="Won"&&(o.wonDate||o.createdDate)?.startsWith(ms)).map(o=>({company:customers.find(c=>c.id===o.custId)?.companyEN||o.custId,amount:o.salesPrice||0}));
+    // Backlog = Won opps by wonDate from workLog (falls back to createdDate for legacy records)
+    const blItems=filteredOpps.filter(o=>o.status==="Won"&&getWonDate(o)?.startsWith(ms)).map(o=>({company:customers.find(c=>c.id===o.custId)?.companyEN||o.custId,amount:o.salesPrice||0}));
     // Received = Delivery installments status=Received by receiptDate month (auto-synced from Delivery)
     const recItems=deliveries.flatMap(d=>(d.installments||[]).filter(ins=>ins.receiptDate?.startsWith(ms)&&ins.status==="Received").map(ins=>({company:customers.find(c=>c.id===d.custId)?.companyEN||d.custId,amount:ins.amount||0})));
     const bl=blItems.reduce((s,it)=>s+it.amount,0);
