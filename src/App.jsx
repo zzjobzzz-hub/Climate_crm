@@ -1200,7 +1200,7 @@ const WAVE_CO = {
   tel:        "02-665-6705 #1015",
   email:      "service@wavebcg.com",
   signer:     "Korakoj Sanguanpiyapan",
-  signerTitle:"Managing Director Climate Business",
+  signerTitle:"Chief Executive Officer",
 };
 
 const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation}) => {
