@@ -149,7 +149,7 @@ const calcQCost = q => {
 const margin     = (p,c) => p>0?((p-c)/p*100).toFixed(1):"0.0";
 const marginAmt  = (p,c) => Math.round((p||0)-(c||0));
 
-const YEAR   = new Date().getFullYear();
+const YEAR   = new Date().getFullYear() + 543; // Thai Buddhist Era (พ.ศ.)
 const padNum = n => String(n).padStart(3,"0");
 const nextNum = (items,field) => { const ns=items.map(x=>{const m=String(x[field]||"").match(/-(\d{3,})$/);return m?parseInt(m[1]):0;}); return Math.max(0,...ns)+1; };
 const genOppCode = opps => `OPP-${YEAR}-${padNum(nextNum(opps,"oppCode"))}`;
