@@ -2427,10 +2427,10 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
 
   //  COLLAPSED VIEW 
   if(!open) return (
-    <Card style={{overflow:"hidden",cursor:"pointer"}} onClick={()=>setOpen(true)}>
+    <Card style={{overflow:"hidden"}}>
       <div style={{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,background:"#fff"}}>
         <div style={{display:"flex",alignItems:"center",gap:12,flex:1,minWidth:280,flexWrap:"wrap"}}>
-          <span style={{fontSize:18,fontWeight:900,color:"#0f172a",fontFamily:"monospace",letterSpacing:"-0.02em"}}>{d.jobCode||d.id}</span>
+          <span onClick={()=>setOpen(true)} style={{fontSize:18,fontWeight:900,color:"#0f172a",fontFamily:"monospace",letterSpacing:"-0.02em",cursor:"pointer",textDecoration:"underline dotted",textUnderlineOffset:3}}>{d.jobCode||d.id}</span>
           <Badge value={d.deliveryStatus} colorMap={Object.fromEntries(DLV_STATUSES.map(s=>[s,{c:STATUS_CLR[s]}]))}/>
           <SvcBadge code={d.serviceCode}/>
           <span style={{fontSize:12,color:"#64748b"}}>{cust?.companyEN||d.custId}</span>
@@ -2445,7 +2445,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
               <span style={{fontSize:13,fontWeight:900,color:x.c}}>฿{fmt(x.v)}</span>
             </div>
           ))}
-          <span style={{fontSize:18,color:"#94a3b8",padding:"0 4px"}}>›</span>
+          <span onClick={()=>setOpen(true)} style={{fontSize:18,color:"#94a3b8",padding:"0 8px",cursor:"pointer"}}>›</span>
         </div>
       </div>
       {lastLog&&(
@@ -2464,7 +2464,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
     <Card style={{overflow:"hidden",border:dirty?"2px solid #f59e0b":"1px solid #e2e8f0"}}>
       {/* Card header bar — click to collapse */}
       <div style={{padding:"12px 20px",background:dirty?"#fffbeb":"#f8fafc",borderBottom:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",cursor:"pointer"}} onClick={()=>setOpen(false)}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <div onClick={e=>e.stopPropagation()} style={{display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:18,fontWeight:900,color:"#0f172a",fontFamily:"monospace"}}>{localD.jobCode||d.id}</span>
           <Badge value={localD.deliveryStatus} colorMap={Object.fromEntries(DLV_STATUSES.map(s=>[s,{c:STATUS_CLR[s]}]))}/>
           <SvcBadge code={d.serviceCode}/>
