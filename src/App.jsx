@@ -2428,9 +2428,9 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
   //  COLLAPSED VIEW 
   if(!open) return (
     <Card style={{overflow:"hidden"}}>
-      <div style={{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,background:"#fff"}}>
-        <div style={{display:"flex",alignItems:"center",gap:12,flex:1,minWidth:280,flexWrap:"wrap"}}>
-          <span onClick={()=>setOpen(true)} style={{fontSize:18,fontWeight:900,color:"#0f172a",fontFamily:"monospace",letterSpacing:"-0.02em",cursor:"pointer",textDecoration:"underline dotted",textUnderlineOffset:3}}>{d.jobCode||d.id}</span>
+      <div onClick={()=>setOpen(true)} style={{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,background:"#fff",cursor:"pointer",userSelect:"none"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,flex:1,minWidth:280,flexWrap:"wrap",pointerEvents:"none"}}>
+          <span style={{fontSize:18,fontWeight:900,color:"#0f172a",fontFamily:"monospace",letterSpacing:"-0.02em"}}>{d.jobCode||d.id}</span>
           <Badge value={d.deliveryStatus} colorMap={Object.fromEntries(DLV_STATUSES.map(s=>[s,{c:STATUS_CLR[s]}]))}/>
           <SvcBadge code={d.serviceCode}/>
           <span style={{fontSize:12,color:"#64748b"}}>{cust?.companyEN||d.custId}</span>
@@ -2438,14 +2438,14 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
           {d.currentStep&&<span style={{fontSize:10,background:"#f1f5f9",color:"#374151",padding:"2px 8px",borderRadius:10,fontWeight:600}}>{d.currentStep}</span>}
           {lastLog&&<span style={{fontSize:10,color:"#94a3b8"}}>Last saved: {lastLog.ts}</span>}
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",pointerEvents:"none"}}>
           {[{l:"Contract",v:d.totalContractValue,c:"#0f172a"},{l:"Received",v:totalRec,c:"#16a34a"},{l:"Balance",v:d.totalContractValue-totalRec,c:"#d97706"}].map(x=>(
             <div key={x.l} style={{textAlign:"center",minWidth:80}}>
               <Span s={9} c="#94a3b8" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.06em"}}>{x.l}</Span>
               <span style={{fontSize:13,fontWeight:900,color:x.c}}>฿{fmt(x.v)}</span>
             </div>
           ))}
-          <span onClick={()=>setOpen(true)} style={{fontSize:18,color:"#94a3b8",padding:"0 8px",cursor:"pointer"}}>›</span>
+          <span style={{fontSize:18,color:"#94a3b8",padding:"0 8px"}}>›</span>
         </div>
       </div>
       {lastLog&&(
@@ -2462,15 +2462,15 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
   //  EXPANDED / EDIT VIEW 
   return (
     <Card style={{overflow:"hidden",border:dirty?"2px solid #f59e0b":"1px solid #e2e8f0"}}>
-      {/* Card header bar — click to collapse */}
-      <div style={{padding:"12px 20px",background:dirty?"#fffbeb":"#f8fafc",borderBottom:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",cursor:"pointer"}} onClick={()=>setOpen(false)}>
-        <div onClick={e=>e.stopPropagation()} style={{display:"flex",alignItems:"center",gap:10}}>
+      {/* Card header bar */}
+      <div style={{padding:"12px 20px",background:dirty?"#fffbeb":"#f8fafc",borderBottom:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:18,fontWeight:900,color:"#0f172a",fontFamily:"monospace"}}>{localD.jobCode||d.id}</span>
           <Badge value={localD.deliveryStatus} colorMap={Object.fromEntries(DLV_STATUSES.map(s=>[s,{c:STATUS_CLR[s]}]))}/>
           <SvcBadge code={d.serviceCode}/>
           {dirty&&<span style={{fontSize:11,fontWeight:700,color:"#d97706",background:"#fef3c7",padding:"2px 8px",borderRadius:10}}> Unsaved changes</span>}
         </div>
-        <span style={{fontSize:18,color:"#94a3b8",transform:"rotate(90deg)",display:"inline-block",lineHeight:1}}>›</span>
+        <button onClick={()=>setOpen(false)} style={{border:"none",background:"none",fontSize:22,color:"#94a3b8",cursor:"pointer",padding:"0 4px",lineHeight:1,transform:"rotate(90deg)",display:"inline-block"}}>›</button>
       </div>
 
       {/* Meta fields */}
