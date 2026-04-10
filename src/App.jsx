@@ -514,11 +514,16 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const splits      = kpiSplits[year]||DEFAULT_SPLIT.slice();
   const totalSplit  = splits.reduce((s,v)=>s+v,0);
 
-  // Won date = ts of first workLog entry mentioning "Won", fallback to createdDate
+  // Won date = ts of LAST activityLog entry where status changed TO Won
+  // Covers: "Status → Won", "Status changed from X to Won ..."
   const getWonDate = opp => {
-    const logs = safeArr(opp.workLog_json || opp.workLog);
-    const wonLog = logs.find(l => l.note?.includes("Won"));
-    return wonLog?.ts || opp.createdDate;
+    const logs = safeArr(opp.activityLog_json || opp.activityLog);
+    const wonLogs = logs.filter(l => {
+      const n = l.note || "";
+      return /Status.*→ Won|Status changed.*to Won/i.test(n);
+    });
+    if (wonLogs.length) return wonLogs[wonLogs.length - 1].ts;
+    return opp.createdDate;
   };
 
   const monthData = MONTHS.map((m,i) => {
