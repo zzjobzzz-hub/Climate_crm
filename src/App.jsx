@@ -514,14 +514,19 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const splits      = kpiSplits[year]||DEFAULT_SPLIT.slice();
   const totalSplit  = splits.reduce((s,v)=>s+v,0);
 
-  // Won date = ts of LAST activityLog entry where status changed TO Won
-  // Covers: "Status → Won", "Status changed from X to Won ..."
+  // Won date priority:
+  // 1. delivery.workLog_json — "Auto-created from OPP-xxx — Won." ts (most reliable)
+  // 2. activityLog_json — last "Status → Won" entry
+  // 3. createdDate fallback
   const getWonDate = opp => {
+    const dlv = deliveries.find(d => d.oppCode === opp.oppCode);
+    if (dlv) {
+      const dlvLogs = safeArr(dlv.workLog_json || dlv.workLog);
+      const dlvWon = dlvLogs.find(l => /Auto-created.*Won/i.test(l.note || ""));
+      if (dlvWon?.ts) return dlvWon.ts;
+    }
     const logs = safeArr(opp.activityLog_json || opp.activityLog);
-    const wonLogs = logs.filter(l => {
-      const n = l.note || "";
-      return /Status.*→ Won|Status changed.*to Won/i.test(n);
-    });
+    const wonLogs = logs.filter(l => /Status.*→ Won|Status changed.*to Won/i.test(l.note || ""));
     if (wonLogs.length) return wonLogs[wonLogs.length - 1].ts;
     return opp.createdDate;
   };
