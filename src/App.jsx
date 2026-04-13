@@ -1,5 +1,5 @@
 // React, useState, useMemo, useRef, useEffect, useCallback — globals from CDN
-const { useState, useMemo, useRef, useEffect, useCallback } = React;
+var { useState, useMemo, useRef, useEffect, useCallback } = React;
 
 // 
 // SECURITY CONFIG
@@ -196,7 +196,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // S4: All requests include GS_AUTH_TOKEN verified server-side
 // 
-const GS_URL = "https://script.google.com/macros/s/AKfycbwurfFzkX-M6RxjOBCyGD_oPHc0Sroz3UmE9vewdU7N_A9TCsSk3sdUaqS9pV1H8fkF5Q/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbw8TouL3EBqfSR5LeK-vINm6ChiZkDc3efl_B1HYwq0tzUT3NxuqRLcUmfujDSYlfdQpA/exec";
 
 // S1: Server-side login — credentials validated in GAS, never in browser
 const gsLogin = async (email, password) => {
@@ -3447,5 +3447,5 @@ const stripJsonSuffix = obj => {
   );
 }
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
+var root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<App />);
