@@ -3016,7 +3016,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                       <div key={d.id} style={{display:"flex",gap:6,alignItems:"center"}}>
                         <span style={{color:"#06b6d4",fontWeight:900,fontSize:13,flexShrink:0}}></span>
                         <Inp value={d.item} onChange={e=>setQDlv(q.id,d.id,e.target.value)} placeholder="" style={{padding:"3px 8px",fontSize:12,flex:1}}/>
-                        {(q.deliverables||[]).length>1&&<Btn variant="danger" style={{fontSize:13,padding:"1px 5px",flexShrink:0}} onClick={()=>delQDlv(q.id,d.id)}>×</Btn>}
+                        <Btn variant="danger" style={{fontSize:13,padding:"1px 5px",flexShrink:0}} onClick={()=>delQDlv(q.id,d.id)}>×</Btn>
                       </div>
                     ))}
                     <button onClick={()=>addQDlv(q.id)} style={{alignSelf:"flex-start",marginTop:4,fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 10px",cursor:"pointer",fontWeight:600}}>+ Deliverable</button>
