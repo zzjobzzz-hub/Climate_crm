@@ -2781,14 +2781,14 @@ const TaskTableWidget = ({tasks,onSet,onAdd,onDel,months}) => (
 // 
 // COST SHEET (COGS + OPEX + Cashflow)
 // 
-const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQInst,setQDlv,addQEC,addQTK,addQInst,addQDlv,delQIC,delQEC,delQTK,delQInst,delQO,updQO,handleSave}) => {
+const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQInst,setQDlv,addQEC,addQTK,addQInst,addQDlv,delQIC,delQEC,delQTK,delQInst,delQO,delQDlv,updQO,handleSave}) => {
   const qIC=calcIC(q.internalCosts||[]),qEC=calcEC(q.externalCosts||[],true),qOPEX=calcTask(q.tasks||[]);
   const qTC=qIC+qEC+qOPEX,qMg=margin(q.salesPrice,qTC);
   const months=q.projectMonths||editCS.projectMonths||3;
   const instSum=(q.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
 
   return (
-              <Card key={q.id} style={{marginBottom:14,position:"relative"}}>
+              <Card key={q.id} style={{marginBottom:14,overflow:"hidden",position:"relative"}}>
                 {/* Header row — single line, no wrap */}
                 <div style={{padding:"10px 16px",background:+qMg>=30?"#f0fdf4":"#fffbeb",borderBottom:"1px solid #e2e8f0",display:"flex",gap:8,alignItems:"center",flexWrap:"nowrap",overflow:"hidden"}}>
                   {/* CS Code */}
@@ -3016,7 +3016,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                       <div key={d.id} style={{display:"flex",gap:6,alignItems:"center"}}>
                         <span style={{color:"#06b6d4",fontWeight:900,fontSize:13,flexShrink:0}}></span>
                         <Inp value={d.item} onChange={e=>setQDlv(q.id,d.id,e.target.value)} placeholder="" style={{padding:"3px 8px",fontSize:12,flex:1}}/>
-                        {(q.deliverables||[]).length>1&&<Btn variant="danger" style={{fontSize:13,padding:"1px 5px",flexShrink:0}} onClick={()=>delQDlv(q.id,d.id)}>×</Btn>}
+                        <Btn variant="danger" style={{fontSize:13,padding:"1px 5px",flexShrink:0}} onClick={()=>delQDlv(q.id,d.id)}>×</Btn>
                       </div>
                     ))}
                     <button onClick={()=>addQDlv(q.id)} style={{alignSelf:"flex-start",marginTop:4,fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 10px",cursor:"pointer",fontWeight:600}}>+ Deliverable</button>
@@ -3267,7 +3267,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
             <QuoteCard key={q.id} q={q} editCS={editCS} customers={customers} opps={opps} user={user}
               setQF={setQF} setQIC={setQIC} setQEC={setQEC} setQTK={setQTK} setQInst={setQInst} setQDlv={setQDlv}
               addQEC={addQEC} addQTK={addQTK} addQInst={addQInst} addQDlv={addQDlv}
-              delQIC={delQIC} delQEC={delQEC} delQTK={delQTK} delQInst={delQInst} delQO={delQO}
+              delQIC={delQIC} delQEC={delQEC} delQTK={delQTK} delQInst={delQInst} delQO={delQO} delQDlv={delQDlv}
               updQO={updQO} handleSave={handleSave}
             />
           ))}
