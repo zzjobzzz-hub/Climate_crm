@@ -188,7 +188,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // S4: All requests include GS_AUTH_TOKEN verified server-side
 // 
-const GS_URL = "https://script.google.com/macros/s/AKfycbw8TouL3EBqfSR5LeK-vINm6ChiZkDc3efl_B1HYwq0tzUT3NxuqRLcUmfujDSYlfdQpA/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbztdtQ2MfyWiS5In5RIUJmhl0aMPSUHF_rNK9ku6_UCbByvH6XSL7VWbK9Sh7z3Wk125g/exec";
 
 // S1: Server-side login — credentials validated in GAS, never in browser
 const gsLogin = async (email, password) => {
@@ -2788,7 +2788,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
   const instSum=(q.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
 
   return (
-              <Card key={q.id} style={{marginBottom:14,overflow:"hidden",position:"relative"}}>
+              <Card key={q.id} style={{marginBottom:14,position:"relative"}}>
                 {/* Header row — single line, no wrap */}
                 <div style={{padding:"10px 16px",background:+qMg>=30?"#f0fdf4":"#fffbeb",borderBottom:"1px solid #e2e8f0",display:"flex",gap:8,alignItems:"center",flexWrap:"nowrap",overflow:"hidden"}}>
                   {/* CS Code */}
@@ -3393,11 +3393,13 @@ const stripJsonSuffix = obj => {
         OP_USERS    = safe.filter(x=>x.role==="operation");
         sUserList(safe);
       }
-      // Merge loaded costSheets with defaults for any services not yet in Sheet
-      // Always clear quoteOverrides on load — user must click Edit to re-open
+      // Merge loaded costSheets — use LAST row per serviceCode (most recent wins)
+      // Always clear quoteOverrides on load
       if(cs.length){
+        const csMap={};
+        cs.forEach(x=>{ if(x.serviceCode) csMap[x.serviceCode]=x; });
         const merged = SEED_COST_SHEETS.map(def=>{
-          const fromGS = cs.find(x=>x.serviceCode===def.serviceCode);
+          const fromGS = csMap[def.serviceCode];
           return fromGS ? {...def,...stripJsonSuffix(fromGS), quoteOverrides:[]} : def;
         });
         sCS(merged);
@@ -3471,13 +3473,15 @@ const stripJsonSuffix = obj => {
     gsSave("opportunities", norm);
   };
 
-  //  saveCS: update local + push entire costsheets collection 
+  //  saveCS: update local + push to GS (key = serviceCode, strip quoteOverrides before save)
   const saveCS = cs => {
     sCS(p => {
       const next = p.find(x=>x.serviceCode===cs.serviceCode)
         ? p.map(x=>x.serviceCode===cs.serviceCode?cs:x)
         : [...p,cs];
-      gsSave("costsheets", cs); // upsert single cost sheet record
+      // Strip live quoteOverrides before persisting — they are committed into saveLog already
+      const toSave = {...cs, quoteOverrides:[]};
+      gsSave("costsheets", toSave);
       return next;
     });
   };
