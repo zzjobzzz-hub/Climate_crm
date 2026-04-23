@@ -2811,7 +2811,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                   <div style={{flex:"1 1 160px",minWidth:0}}>
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Customer</Span>
                     <Sel value={q.custId||""} onChange={e=>setQF(q.id,"custId",e.target.value)} style={{fontSize:11,padding:"3px 6px",width:"100%"}}>
-                      <option value="">— Select —</option>{customers.map(c=><option key={c.id} value={c.id}>{c.companyEN}</option>)}
+                      <option value="">— Select —</option>{[...customers].sort((a,b)=>(a.companyEN||"").localeCompare(b.companyEN||"")).map(c=><option key={c.id} value={c.id}>{c.companyEN}</option>)}
                     </Sel>
                   </div>
                   {/* Sales Agent */}
