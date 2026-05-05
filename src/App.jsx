@@ -760,7 +760,6 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
                         {/* Backlog */}
                         <div style={{flex:1,position:"relative",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:"100%"}}>
                           {d.bl>0&&<span style={{position:"absolute",top:-20,fontSize:9,color:"#1e40af",fontWeight:700,whiteSpace:"nowrap",letterSpacing:"-0.03em"}}>{fmtK(d.bl)}</span>}
-                          {d.bl>0&&<span style={{position:"absolute",top:-32,fontSize:9,color:+d.ach>=100?"#16a34a":+d.ach>=80?"#d97706":"#ef4444",fontWeight:700,whiteSpace:"nowrap"}}>{d.ach}%</span>}
                           <div style={{width:"100%",background:"#1e40af",borderRadius:"3px 3px 0 0",height:`${blH}px`,minHeight:d.bl>0?2:0,cursor:"pointer"}} onMouseEnter={e=>hBar(e,{label:`${d.m} Backlog`,items:d.blItems,total:d.bl})} onMouseMove={moveBar} onMouseLeave={leaveBar}/>
                         </div>
                         {/* Received */}
@@ -770,6 +769,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
                         </div>
                       </div>
                       <span style={{fontSize:10,color:"#94a3b8",marginTop:5,fontWeight:500}}>{d.m}</span>
+                      {d.bl>0&&<span style={{fontSize:9,color:+d.ach>=100?"#16a34a":+d.ach>=80?"#d97706":"#ef4444",fontWeight:700,marginTop:1}}>{d.ach}%</span>}
                     </div>
                   );
                 })}
@@ -1751,6 +1751,8 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                     const m=line.match(/^\[([^\]]+)\]\s*(.*)/);
                     const meta=m?m[1]:""; const body=m?m[2]:line;
                     const datePart=meta.split("·")[0].trim(); const authorPart=meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
+                    // origIdx = position in the original (non-reversed) lines array
+                    const origIdx = arr.length - 1 - i;
                     return(
                     <div key={i} style={{padding:"5px 8px 5px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"flex-start",gap:6}}>
                       <div style={{flex:1,lineHeight:1.5}}>
@@ -1758,7 +1760,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                         {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
                         <span>{body}</span>
                       </div>
-                      <button onClick={()=>{const lines=f.remark.split("\n").filter(Boolean);const orig=arr[arr.length-1-i];const newRemark=lines.filter(l=>l!==orig).join("\n");set("remark",newRemark);}} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
+                      <button onClick={()=>{const lines=f.remark.split("\n").filter(Boolean);const newRemark=lines.filter((_,idx)=>idx!==origIdx).join("\n");set("remark",newRemark);}} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
                     </div>
                   );})}
                   <div style={{display:"flex",gap:0}}>
