@@ -188,7 +188,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // S4: All requests include GS_AUTH_TOKEN verified server-side
 // 
-const GS_URL = "https://script.google.com/macros/s/AKfycbztdtQ2MfyWiS5In5RIUJmhl0aMPSUHF_rNK9ku6_UCbByvH6XSL7VWbK9Sh7z3Wk125g/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbzphkBUXz2V3wxaynZz8Teg7BeINPA4bTaYI6mWtdpP4Fx-Vify26sOXh3ucEVYS5ysPQ/exec";
 
 // S1: Server-side login — credentials validated in GAS, never in browser
 const gsLogin = async (email, password) => {
@@ -398,7 +398,7 @@ const ActivityLog = ({logs,currentUser,onAdd,placeholder="Add a note…",users=[
         );})}
       </div>
 
-      <Txta value={note} onChange={e=>sN(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&note.trim()){onAdd({id:uid(),ts:nowTS(),author:currentUser.id,note:note.trim()});sN("");e.preventDefault();}}} placeholder={placeholder} style={{minHeight:44,fontSize:13,marginBottom:4}}/>
+      {onAdd&&<Txta value={note} onChange={e=>sN(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&note.trim()){onAdd({id:uid(),ts:nowTS(),author:currentUser.id,note:note.trim()});sN("");e.preventDefault();}}} placeholder={placeholder} style={{minHeight:44,fontSize:13,marginBottom:4}}/>}
     </div>
   );
 };
@@ -760,6 +760,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
                         {/* Backlog */}
                         <div style={{flex:1,position:"relative",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:"100%"}}>
                           {d.bl>0&&<span style={{position:"absolute",top:-20,fontSize:9,color:"#1e40af",fontWeight:700,whiteSpace:"nowrap",letterSpacing:"-0.03em"}}>{fmtK(d.bl)}</span>}
+                          {d.bl>0&&<span style={{position:"absolute",top:-32,fontSize:9,color:+d.ach>=100?"#16a34a":+d.ach>=80?"#d97706":"#ef4444",fontWeight:700,whiteSpace:"nowrap"}}>{d.ach}%</span>}
                           <div style={{width:"100%",background:"#1e40af",borderRadius:"3px 3px 0 0",height:`${blH}px`,minHeight:d.bl>0?2:0,cursor:"pointer"}} onMouseEnter={e=>hBar(e,{label:`${d.m} Backlog`,items:d.blItems,total:d.bl})} onMouseMove={moveBar} onMouseLeave={leaveBar}/>
                         </div>
                         {/* Received */}
@@ -769,7 +770,6 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
                         </div>
                       </div>
                       <span style={{fontSize:10,color:"#94a3b8",marginTop:5,fontWeight:500}}>{d.m}</span>
-                      {d.bl>0&&<span style={{fontSize:9,color:+d.ach>=100?"#16a34a":+d.ach>=80?"#d97706":"#ef4444",fontWeight:700,marginTop:1}}>{d.ach}%</span>}
                     </div>
                   );
                 })}
@@ -1208,7 +1208,7 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
   // Try live quoteOverride first, then quoteSnapshot from saveLog
   const qo = cs ? (cs.quoteOverrides||[]).find(q=>q.quoteNo===opp?.quoteNo) : null;
   const qSnap = qo || (()=>{
-    const logEntry=safeArr(cs?.saveLog).slice().reverse().find(l=>l.quoteSnapshot?.quoteNo===opp?.quoteNo);
+    const logEntry=(cs?.saveLog||[]).slice().reverse().find(l=>l.quoteSnapshot?.quoteNo===opp?.quoteNo);
     return logEntry?.quoteSnapshot||null;
   })();
   const qPrice = qSnap?.salesPrice || opp?.salesPrice || 0;
@@ -1747,21 +1747,24 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
             <div style={{gridColumn:"1/-1"}}>
               <FRow label="Note Log">
                 <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-                  {f.remark&&[...f.remark.split("\n").filter(Boolean)].reverse().map((line,i,arr)=>{
-                    const m=line.match(/^\[([^\]]+)\]\s*(.*)/);
-                    const meta=m?m[1]:""; const body=m?m[2]:line;
-                    const datePart=meta.split("·")[0].trim(); const authorPart=meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
-                    return(
-                    <div key={i} style={{padding:"5px 8px 5px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"flex-start",gap:6}}>
-                      <div style={{flex:1,lineHeight:1.5}}>
-                        <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
-                        {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
-                        <span>{body}</span>
+                  {f.remark&&(()=>{
+                    const lines=f.remark.split("\n").filter(Boolean);
+                    return [...lines].reverse().map((line,i)=>{
+                      const origIdx=lines.length-1-i;
+                      const m=line.match(/^\[([^\]]+)\]\s*(.*)/);
+                      const meta=m?m[1]:""; const body=m?m[2]:line;
+                      const datePart=meta.split("·")[0].trim(); const authorPart=meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
+                      return(
+                      <div key={origIdx} style={{padding:"5px 8px 5px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"flex-start",gap:6}}>
+                        <div style={{flex:1,lineHeight:1.5}}>
+                          <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
+                          {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
+                          <span>{body}</span>
+                        </div>
+                        <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
                       </div>
-                      <button onClick={()=>{const lines=f.remark.split("\n").filter(Boolean);const orig=arr[arr.length-1-i];const newRemark=lines.filter(l=>l!==orig).join("\n");set("remark",newRemark);}} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
-                    </div>
-                  );})}
-                  <div style={{display:"flex",gap:0}}>
+                    );});
+                  })()}                  <div style={{display:"flex",gap:0}}>
                     <Inp value={noteInput} onChange={e=>sNoteInput(e.target.value)} placeholder={`Add note… (${today()})`}
                       onKeyDown={e=>{if(e.key==="Enter"&&noteInput.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);sNoteInput("");}}}
                       style={{borderRadius:0,background:"#fff",flex:1,border:"none",borderTop:"1px solid #f1f5f9"}}/>
@@ -1778,7 +1781,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
           
         </>
       )}
-      {tab==="log"&&<ActivityLog logs={f.activityLog||[]} currentUser={user} onAdd={entry=>{const updated={...f,activityLog:[...(f.activityLog||[]),entry],jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""};sF(updated);onSave(updated);}} placeholder="Log a call, meeting, email…" users={userList}/>}
+      {tab==="log"&&<ActivityLog logs={f.activityLog||[]} currentUser={user} users={userList}/>}
       {tab==="quotation"&&<QuotationPreview opp={f} customer={customers.find(c=>c.id===f.custId)} costSheets={costSheets||[]} onClose={onClose} onSaveQuotation={qd=>{const updated={...f,quotationData:qd,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""};onSave(updated);}}/>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
         {initial&&onDelete&&<Btn variant="danger" style={{marginRight:"auto"}} onClick={()=>setDelConfirm(true)}>Delete</Btn>}
@@ -2057,7 +2060,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
           if(cs){
             onSaveCS({...cs,
               quoteOverrides:(cs.quoteOverrides||[]).filter(q=>q.quoteNo!==o.quoteNo&&q.oppCode!==o.oppCode),
-              saveLog:safeArr(cs.saveLog).filter(l=>!l.quoteSnapshot||(l.quoteSnapshot.quoteNo!==o.quoteNo&&l.quoteSnapshot.oppCode!==o.oppCode)),
+              saveLog:(cs.saveLog||[]).filter(l=>!l.quoteSnapshot||(l.quoteSnapshot.quoteNo!==o.quoteNo&&l.quoteSnapshot.oppCode!==o.oppCode)),
             });
           }
         }
@@ -2383,7 +2386,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
     for(const cs of costSheets||[]){
       const qo=(cs.quoteOverrides||[]).find(q=>q.quoteNo===quoteNo);
       if(qo?.installments?.length>0){ srcInst=qo.installments; break; }
-      const snap=safeArr(cs.saveLog).find(l=>l.quoteSnapshot?.quoteNo===quoteNo);
+      const snap=(cs.saveLog||[]).find(l=>l.quoteSnapshot?.quoteNo===quoteNo);
       if(snap?.quoteSnapshot?.installments?.length>0){ srcInst=snap.quoteSnapshot.installments; break; }
     }
     if(srcInst.length===0){
@@ -3239,10 +3242,10 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           </div>
           {(editCS.quoteOverrides||[]).length===0&&(
             <div>
-              {safeArr(editCS.saveLog).filter(l=>l.quoteSnapshot).length>0&&(
+              {(editCS.saveLog||[]).filter(l=>l.quoteSnapshot).length>0&&(
                 <div style={{marginBottom:12}}>
                   {Object.values(
-                    safeArr(editCS.saveLog).filter(l=>l.quoteSnapshot).reduce((acc,l)=>{
+                    [...(editCS.saveLog||[])].filter(l=>l.quoteSnapshot).reduce((acc,l)=>{
                       const key=l.quoteSnapshot.quoteNo;
                       if(!acc[key]||l.ts>acc[key].ts) acc[key]=l;
                       return acc;
@@ -3255,7 +3258,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                       <Btn variant='ghost' style={{fontSize:13,padding:'4px 14px'}} onClick={()=>{
                         sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid()}]}));
                         const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} for editing`};
-                        sECS(p=>({...p,saveLog:[...safeArr(p.saveLog),logEntry]}));
+                        sECS(p=>({...p,saveLog:[...(p.saveLog||[]),logEntry]}));
                       }}>Edit</Btn>
                     </div>
                   ))}
@@ -3395,12 +3398,26 @@ const stripJsonSuffix = obj => {
       }
       // Merge loaded costSheets — use LAST row per serviceCode (most recent wins)
       // Always clear quoteOverrides on load
+      // Backward compat: if GS still has old internalCosts_json/externalCosts_json, merge into costs
       if(cs.length){
         const csMap={};
         cs.forEach(x=>{ if(x.serviceCode) csMap[x.serviceCode]=x; });
         const merged = SEED_COST_SHEETS.map(def=>{
           const fromGS = csMap[def.serviceCode];
-          return fromGS ? {...def,...stripJsonSuffix(fromGS), quoteOverrides:[]} : def;
+          if(!fromGS) return def;
+          const stripped = stripJsonSuffix(fromGS);
+          // If costs is empty but old fields exist, merge them
+          if((!stripped.costs||!stripped.costs.length)){
+            const ic = safeArr(stripped.internalCosts);
+            const ec = safeArr(stripped.externalCosts);
+            if(ic.length||ec.length){
+              stripped.costs = [
+                ...ic.map(r=>({id:r.id||uid(),label:r.label||"",unit:r.unit||"",qty:r.qty||0,rate:r.rate||0,payMonth:r.payMonth||1})),
+                ...ec.map(r=>({id:r.id||uid(),label:r.label||"",unit:r.unit||"",qty:r.qty||0,rate:r.rate||0,payMonth:r.payMonth||1})),
+              ];
+            }
+          }
+          return {...def,...stripped, quoteOverrides:[]};
         });
         sCS(merged);
       }
