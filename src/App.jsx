@@ -134,15 +134,18 @@ const nowTS = () => { const d=new Date(); return `${d.getFullYear()}-${pad2(d.ge
 const pad2  = n => String(n).padStart(2,"0");
 const safeArr = v => { if(Array.isArray(v)) return v; if(typeof v==="string"&&v.trim().startsWith("[")) { try{return JSON.parse(v);}catch(_){} } return []; };
 
-// Unified cost calc — costs is a flat array (merged internal + external)
-const calcCosts = rows => (rows||[]).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
-const calcTask  = tasks => (tasks||[]).reduce((s,t)=>s+(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior,0);
-const calcTotalCS = cs => calcCosts(cs.costs||[]) + calcTask(cs.tasks||[]);
-// Legacy helpers kept for old delivery cost breakdown (inHouseCosts/outsourceCosts schema)
+const calcIC   = rows => (rows||[]).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
+const calcEC   = (rows,coOnly) => (rows||[]).filter(r=>coOnly?!r.clientBorne:true).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
+const calcTask = tasks => (tasks||[]).reduce((s,t)=>s+(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior,0);
+const calcTotalCS = cs => calcIC(cs.internalCosts||[]) + calcEC(cs.externalCosts||[],true) + calcTask(cs.tasks||[]);
+// Legacy helpers kept for per-quotation overrides
 const calcIH  = rows => (rows||[]).reduce((s,r)=>s+(r.days||0)*(r.rate||IH_LEVELS[r.level]||0),0);
 const calcOS  = rows => (rows||[]).reduce((s,r)=>s+(r.amount||0),0);
 const calcTrv = (rows,co) => (rows||[]).filter(r=>co?!r.clientBorne:r.clientBorne).reduce((s,r)=>s+(r.amount||0),0);
-const calcQCost = q => calcCosts(q.costs||[]) + calcTask(q.tasks||[]);
+const calcQCost = q => {
+  const ic=calcIC(q.internalCosts||[]),ec=calcEC(q.externalCosts||[],true),opex=calcTask(q.tasks||[]);
+  return ic+ec+opex;
+};
 const margin     = (p,c) => p>0?((p-c)/p*100).toFixed(1):"0.0";
 const marginAmt  = (p,c) => Math.round((p||0)-(c||0));
 
@@ -165,12 +168,14 @@ const addDays = (dateStr, days) => {
 // OPEX = Man-day based labor by task
 const buildDefaultCS = s => ({
   serviceCode: s.code, serviceType: s.name,
-  stdPrice: s.stdPrice,
-  costs: [],     // flat COGS rows: {id, label, unit, qty, rate, payMonth}
-  tasks: [],     // OPEX rows: {id, taskName, manager, senior, junior, payMonth, agents}
+  stdCost: s.stdCost, stdPrice: s.stdPrice,
+  minPrice: Math.round(s.stdPrice*.85), maxPrice: Math.round(s.stdPrice*1.3),
+  internalCosts: [],  // add via + Internal
+  externalCosts: [],  // add via + External
+  tasks: [],          // add via + Task
   projectMonths: 3,
   quoteOverrides: [],
-  saveLog: [],   // [{ts, author, note}] — trim to last 30 on save
+  saveLog: [],        // [{ts, author, note}] — recorded on Save
 });
 
 //  Seed data — empty by default, add via UI 
@@ -207,7 +212,7 @@ const gsGet = async (collection) => {
 
 // Normalize a record before saving — moves plain JSON fields into _json twins
 // This ensures the sheet never has data split across both "contacts" and "contacts_json"
-const GS_JSON_FIELDS = ["contacts","workLog","saveLog","activityLog","costs","tasks","quoteOverrides","quotationData","installments","splits"];
+const GS_JSON_FIELDS = ["contacts","workLog","saveLog","activityLog","internalCosts","externalCosts","tasks","quoteOverrides","quotationData","installments","splits"];
 const normalizeForGS = record => {
   const out = {...record};
   GS_JSON_FIELDS.forEach(field => {
@@ -755,6 +760,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
                         {/* Backlog */}
                         <div style={{flex:1,position:"relative",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:"100%"}}>
                           {d.bl>0&&<span style={{position:"absolute",top:-20,fontSize:9,color:"#1e40af",fontWeight:700,whiteSpace:"nowrap",letterSpacing:"-0.03em"}}>{fmtK(d.bl)}</span>}
+                          {d.bl>0&&<span style={{position:"absolute",top:-32,fontSize:9,color:+d.ach>=100?"#16a34a":+d.ach>=80?"#d97706":"#ef4444",fontWeight:700,whiteSpace:"nowrap"}}>{d.ach}%</span>}
                           <div style={{width:"100%",background:"#1e40af",borderRadius:"3px 3px 0 0",height:`${blH}px`,minHeight:d.bl>0?2:0,cursor:"pointer"}} onMouseEnter={e=>hBar(e,{label:`${d.m} Backlog`,items:d.blItems,total:d.bl})} onMouseMove={moveBar} onMouseLeave={leaveBar}/>
                         </div>
                         {/* Received */}
@@ -764,7 +770,6 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
                         </div>
                       </div>
                       <span style={{fontSize:10,color:"#94a3b8",marginTop:5,fontWeight:500}}>{d.m}</span>
-                      {d.bl>0&&<span style={{fontSize:9,color:+d.ach>=100?"#16a34a":+d.ach>=80?"#d97706":"#ef4444",fontWeight:700,marginTop:1}}>{d.ach}%</span>}
                     </div>
                   );
                 })}
@@ -1200,11 +1205,11 @@ const WAVE_CO = {
 
 const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation}) => {
   const cs = (costSheets||[]).find(c=>c.serviceCode===opp?.serviceCode);
-  // Try live quoteOverride first, then _savedQuotes (persisted costsheet_quotes)
+  // Try live quoteOverride first, then quoteSnapshot from saveLog
   const qo = cs ? (cs.quoteOverrides||[]).find(q=>q.quoteNo===opp?.quoteNo) : null;
   const qSnap = qo || (()=>{
-    if(!cs) return null;
-    return (cs._savedQuotes||[]).find(q=>q.quoteNo===opp?.quoteNo)||null;
+    const logEntry=(cs?.saveLog||[]).slice().reverse().find(l=>l.quoteSnapshot?.quoteNo===opp?.quoteNo);
+    return logEntry?.quoteSnapshot||null;
   })();
   const qPrice = qSnap?.salesPrice || opp?.salesPrice || 0;
 
@@ -1700,7 +1705,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
 
 const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS,onDelete,initTab="detail",userList=[]}) => {
   const newOppCode=genOppCode(opps); const newQtNo=genQuoteNo(opps);
-  const blank={id:newOppCode,custId:customers[0]?.id||"",oppCode:newOppCode,quoteNo:newQtNo,jobCode:"",serviceCode:SERVICES[0].code,serviceType:SERVICES[0].name,salesPrice:0,totalCost:0,status:"Proposal",assignedTo:SALES_USERS[0]?.id||"",createdDate:today(),lostReason:"",activityLog:[],remark:"",ranking:"Medium"};
+  const blank={id:newOppCode,custId:customers[0]?.id||"",oppCode:newOppCode,quoteNo:newQtNo,jobCode:"",serviceCode:SERVICES[0].code,serviceType:SERVICES[0].name,salesPrice:SERVICES[0].stdPrice,totalCost:SERVICES[0].stdCost,status:"Proposal",assignedTo:SALES_USERS[0]?.id||"",createdDate:today(),lostReason:"",activityLog:[],remark:"",ranking:"Medium"};
   const [f,sF] = useState(initial?{...initial,activityLog:initial.activityLog||[]}:blank);
   const [tab,sTab] = useState(initTab);
   const [noteInput,sNoteInput] = useState("");
@@ -1859,18 +1864,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
       const exists=deliveries.find(d=>d.oppCode===o.oppCode);
       if(!exists){
         const buildInstFromSrc=(srcInst,cv)=>srcInst.map((ins,i)=>({id:uid(),seq:i+1,label:ins.label||`Installment ${i+1}`,pct:ins.pct||0,amount:Math.round((cv||0)*(ins.pct||0)/100),invoiceNo:"",invoiceDate:"",receiptNo:"",receiptDate:"",status:"Pending",recvMonth:ins.recvMonth||i+1}));
-        const autoInst=(()=>{
-          const cs2=(costSheets||[]).find(c2=>(c2.quoteOverrides||[]).some(q=>q.quoteNo===o.quoteNo));
-          const qo2=cs2?(cs2.quoteOverrides||[]).find(q=>q.quoteNo===o.quoteNo):null;
-          if(qo2?.installments?.length>0)return buildInstFromSrc(qo2.installments,o.salesPrice);
-          for(const cs3 of (costSheets||[])){
-            const sq=(cs3._savedQuotes||[]).find(q=>q.quoteNo===o.quoteNo);
-            if(sq?.installments?.length>0)return buildInstFromSrc(sq.installments,o.salesPrice);
-          }
-          const qdInst=o?.quotationData?.installments||[];
-          if(qdInst.length>0)return buildInstFromSrc(qdInst,o.salesPrice);
-          return[];
-        })();
+        const autoInst=(()=>{const cs2=(costSheets||[]).find(c2=>(c2.quoteOverrides||[]).some(q=>q.quoteNo===o.quoteNo));const qo2=cs2?(cs2.quoteOverrides||[]).find(q=>q.quoteNo===o.quoteNo):null;if(qo2?.installments?.length>0)return buildInstFromSrc(qo2.installments,o.salesPrice);const qdInst=o?.quotationData?.installments||[];if(qdInst.length>0)return buildInstFromSrc(qdInst,o.salesPrice);return[];})();
         const dlv={id:`DLV-${o.oppCode.replace("OPP-","")}`,custId:o.custId,oppCode:o.oppCode,quoteNo:o.quoteNo,jobCode:o.jobCode,contractNo:"",contractDate:"",serviceCode:o.serviceCode,serviceType:o.serviceType,totalContractValue:o.salesPrice,deliveryStatus:"In Progress",currentStep:DLV_STEPS[0],deliveryDate:"",assignedTo:o.assignedTo,workLog:[{id:uid(),ts:nowTS(),author:user.id,note:`Auto-created from ${o.oppCode} — Won.`}],installments:autoInst,paymentTerm:"30 days",remark:""};
         onSaveDelivery(dlv);
         toast("Delivery auto-created",`${o.jobCode} added to Delivery tab`);
@@ -2057,15 +2051,13 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
 
       {form&&<OppForm initial={edit} customers={customers} opps={opps} user={user} onSave={handleSave} onClose={()=>{sF(false);sE(null);sQT(null);}} costSheets={costSheets} onGoToCS={onGoToCS} userList={userList} onDelete={o=>{
         onDelete(o.id);
-        // Delete from costsheet_quotes by csCode
-        if(o.csCode) gsDelete("costsheet_quotes", o.csCode);
-        // Clean in-memory quoteOverrides + _savedQuotes
+        // Clean CS: remove saveLog entries + quoteOverrides matching this quoteNo/oppCode
         if(onSaveCS&&(o.quoteNo||o.oppCode)){
-          const cs=(costSheets||[]).find(c=>(c.quoteOverrides||[]).some(q=>q.quoteNo===o.quoteNo||q.oppCode===o.oppCode)||(c._savedQuotes||[]).some(q=>q.quoteNo===o.quoteNo));
+          const cs=(costSheets||[]).find(c=>(c.quoteOverrides||[]).some(q=>q.quoteNo===o.quoteNo||q.oppCode===o.oppCode)||(c.saveLog||[]).some(l=>l.quoteSnapshot?.quoteNo===o.quoteNo));
           if(cs){
             onSaveCS({...cs,
               quoteOverrides:(cs.quoteOverrides||[]).filter(q=>q.quoteNo!==o.quoteNo&&q.oppCode!==o.oppCode),
-              _savedQuotes:(cs._savedQuotes||[]).filter(q=>q.quoteNo!==o.quoteNo),
+              saveLog:(cs.saveLog||[]).filter(l=>!l.quoteSnapshot||(l.quoteSnapshot.quoteNo!==o.quoteNo&&l.quoteSnapshot.oppCode!==o.oppCode)),
             });
           }
         }
@@ -2098,68 +2090,61 @@ const CostBreakdown = ({quoteNo,costSheets}) => {
     for(const cs of costSheets){
       const found=(cs.quoteOverrides||[]).find(qo=>qo.quoteNo===quoteNo);
       if(found)return{cs,q:found};
-      // also check _savedQuotes
-      const sq=(cs._savedQuotes||[]).find(qo=>qo.quoteNo===quoteNo);
-      if(sq)return{cs,q:sq};
     }
     return null;
   },[quoteNo,costSheets]);
-  if(!q)return<div style={{padding:12,color:"#94a3b8",fontSize:13}}>No cost sheet found for {quoteNo}.</div>;
+  if(!q)return<div style={{padding:12,color:"#94a3b8",fontSize:13}}>No per-quotation cost sheet found for {quoteNo}.</div>;
   const {cs,q:qo}=q;
-  const qCOGS=calcCosts(qo.costs||[]);
-  const qOPEX=calcTask(qo.tasks||[]);
-  const qTC=qCOGS+qOPEX;
+  const qIH=calcIH(qo.inHouseCosts||[]);
+  const qOS=calcOS(qo.outsourceCosts||[]);
+  const qTV=calcTrv(qo.travelCosts||[],true);
+  const qTC=qIH+qOS+qTV;
   const mg=margin(qo.salesPrice,qTC);
   const csCode=qo.csCode||genCSCode(qo.quoteNo||"");
   const salesAgentUser=USERS.find(u=>u.id===qo.salesAgent);
   return (
     <div style={{padding:16}}>
+      {/* CS Code link header */}
       <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:14,padding:"10px 14px",background:"#fef3c7",border:"1px solid #fde68a",borderRadius:7,flexWrap:"wrap"}}>
-        <span style={{fontSize:15}}>💰</span>
+        <span style={{fontSize:15}}></span>
         <div><Span s={10} c="#92400e" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block"}}>Cost Sheet & Pricing Code</Span><span style={{fontFamily:"monospace",fontWeight:900,fontSize:15,color:"#92400e"}}>{csCode}</span></div>
         <div style={{marginLeft:8}}><Span s={10} c="#64748b" style={{textTransform:"uppercase",display:"block"}}>Linked to</Span><span style={{fontFamily:"monospace",fontSize:12,fontWeight:700,color:"#1e40af"}}>{qo.quoteNo}</span></div>
         <div style={{marginLeft:8}}><Span s={10} c="#64748b" style={{textTransform:"uppercase",display:"block"}}>OPP Code</Span><span style={{fontFamily:"monospace",fontSize:12,fontWeight:700,color:"#1e40af"}}>{qo.oppCode||"—"}</span></div>
         <div style={{marginLeft:8}}><Span s={10} c="#64748b" style={{textTransform:"uppercase",display:"block"}}>Sales Agent</Span><span style={{fontSize:12,fontWeight:700,color:"#0f172a"}}>{salesAgentUser?.name||qo.salesAgent||"—"}</span></div>
       </div>
       <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:14}}>
-        {[{l:"Sales Price",v:qo.salesPrice,c:"#0f172a"},{l:"COGS",v:qCOGS},{l:"OPEX",v:qOPEX},{l:"Total Cost",v:qTC,bold:true},{l:"Margin",v:`${mg}%`,c:+mg>=30?"#16a34a":"#dc2626"}].map(x=>(
+        {[{l:"Sales Price",v:qo.salesPrice,c:"#0f172a"},{l:"In-House",v:qIH},{l:"Outsource",v:qOS},{l:"Travel (Co.)",v:qTV},{l:"Total Cost",v:qTC,bold:true},{l:"Margin",v:`${mg}%`,c:+mg>=30?"#16a34a":"#dc2626"}].map(x=>(
           <div key={x.l} style={{textAlign:"center",padding:"9px 14px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:6}}>
             <Span s={10} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>{x.l}</Span>
             <div style={{fontWeight:x.bold?900:700,fontSize:15,color:x.c||"#374151"}}>{typeof x.v==="number"?`฿${fmt(x.v)}`:x.v}</div>
           </div>
         ))}
       </div>
-      {(qo.costs||[]).length>0&&(
+      {/* IH breakdown */}
+      {(qo.inHouseCosts||[]).length>0&&(
         <div style={{marginBottom:10}}>
-          <Span s={11} w={700} c="#64748b" style={{display:"block",marginBottom:5,textTransform:"uppercase"}}>COGS</Span>
+          <Span s={11} w={700} c="#64748b" style={{display:"block",marginBottom:5,textTransform:"uppercase"}}>In-House (Man-hours)</Span>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-            <TH cols={["Label","Unit","Qty","Rate","Total","Pay Month"]}/>
-            <tbody>{(qo.costs||[]).map(r=>(
+            <TH cols={["Label","Level","Hours","Rate/hr","Total","Assigned To"]}/>
+            <tbody>{(qo.inHouseCosts||[]).map(r=>(
               <TR key={r.id}>
-                <TD>{r.label}</TD><TD>{r.unit||""}</TD><TD right>{r.qty}</TD>
-                <TD right>฿{fmt(r.rate)}</TD>
-                <TD right style={{fontWeight:700}}>฿{fmt((r.qty||0)*(r.rate||0))}</TD>
-                <TD>M{r.payMonth||1}</TD>
+                <TD>{r.label}</TD><TD>{r.level}</TD><TD right>{r.hours}</TD><TD right>฿{fmt(r.ratePerHour)}</TD>
+                <TD right style={{fontWeight:700}}>฿{fmt(r.hours*r.ratePerHour)}</TD>
+                <TD>{USERS.find(u=>u.id===r.assignedAgent)?.name||r.assignedAgent||"—"}</TD>
               </TR>
             ))}</tbody>
           </table>
         </div>
       )}
-      {(qo.tasks||[]).length>0&&(
+      {/* OS breakdown */}
+      {(qo.outsourceCosts||[]).length>0&&(
         <div>
-          <Span s={11} w={700} c="#64748b" style={{display:"block",marginBottom:5,textTransform:"uppercase"}}>OPEX — Man-hour Tasks</Span>
+          <Span s={11} w={700} c="#64748b" style={{display:"block",marginBottom:5,textTransform:"uppercase"}}>Outsource Costs</Span>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-            <TH cols={["Task","Mgr (hrs)","Sr (hrs)","Jr (hrs)","Total","Pay Month"]}/>
-            <tbody>{(qo.tasks||[]).map(t=>{
-              const tc=(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior;
-              return(
-                <TR key={t.id}>
-                  <TD>{t.taskName}</TD><TD right>{t.manager||0}</TD><TD right>{t.senior||0}</TD><TD right>{t.junior||0}</TD>
-                  <TD right style={{fontWeight:700}}>฿{fmt(tc)}</TD>
-                  <TD>M{t.payMonth||1}</TD>
-                </TR>
-              );
-            })}</tbody>
+            <TH cols={["Label","Vendor / Person","Amount"]}/>
+            <tbody>{(qo.outsourceCosts||[]).map(r=>(
+              <TR key={r.id}><TD>{r.label}</TD><TD>{r.vendorName||"—"}</TD><TD right style={{fontWeight:700}}>฿{fmt(r.amount)}</TD></TR>
+            ))}</tbody>
           </table>
         </div>
       )}
@@ -2196,18 +2181,14 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
   //   2. opp.quotationData.installments  (Payment Schedule saved in Quotation tab)
   //   returns [] if neither source has data — NO fallback single-payment row
   const resolveInstallments=(o,cv)=>{
-    // 1. Per-Q CS quoteOverrides (live/editing)
+    // 1. Per-Q CS installments — search ALL costSheets for matching quoteNo
     const cs=(costSheets||[]).find(c=>(c.quoteOverrides||[]).some(q=>q.quoteNo===o?.quoteNo));
     const qo=cs?(cs.quoteOverrides||[]).find(q=>q.quoteNo===o?.quoteNo):null;
     if(qo?.installments?.length>0) return buildInstFromSource(qo.installments,cv);
-    // 2. _savedQuotes (persisted costsheet_quotes)
-    for(const cs2 of (costSheets||[])){
-      const sq=(cs2._savedQuotes||[]).find(q=>q.quoteNo===o?.quoteNo);
-      if(sq?.installments?.length>0) return buildInstFromSource(sq.installments,cv);
-    }
-    // 3. Quotation tab payment schedule
+    // 2. Quotation tab payment schedule (secondary)
     const qdInst=o?.quotationData?.installments||[];
     if(qdInst.length>0) return buildInstFromSource(qdInst,cv);
+    // Nothing found — no fallback row, user fills manually
     return [];
   };
 
@@ -2234,13 +2215,10 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
       if(inst.length>0){sF(p=>({...p,installments:inst}));}
       return;
     }
-    // check quoteOverrides + _savedQuotes
-    for(const cs of (costSheets||[])){
-      const qo=(cs.quoteOverrides||[]).find(q=>q.quoteNo===quoteNo);
-      if(qo?.installments?.length>0){ sF(p=>({...p,installments:buildInstFromSource(qo.installments,cv!=null?cv:f.totalContractValue||0)})); return; }
-      const sq=(cs._savedQuotes||[]).find(q=>q.quoteNo===quoteNo);
-      if(sq?.installments?.length>0){ sF(p=>({...p,installments:buildInstFromSource(sq.installments,cv!=null?cv:f.totalContractValue||0)})); return; }
-    }
+    const cs=(costSheets||[]).find(c=>(c.quoteOverrides||[]).some(q=>q.quoteNo===quoteNo));
+    const qo=cs?(cs.quoteOverrides||[]).find(q=>q.quoteNo===quoteNo):null;
+    if(qo?.installments?.length>0)
+      sF(p=>({...p,installments:buildInstFromSource(qo.installments,cv!=null?cv:f.totalContractValue||0)}));
   };
   const cust=customers.find(c=>c.id===f.custId);
   const totalPct=(f.installments||[]).reduce((s,i)=>s+i.pct,0);
@@ -2405,8 +2383,8 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
     for(const cs of costSheets||[]){
       const qo=(cs.quoteOverrides||[]).find(q=>q.quoteNo===quoteNo);
       if(qo?.installments?.length>0){ srcInst=qo.installments; break; }
-      const sq=(cs._savedQuotes||[]).find(q=>q.quoteNo===quoteNo);
-      if(sq?.installments?.length>0){ srcInst=sq.installments; break; }
+      const snap=(cs.saveLog||[]).find(l=>l.quoteSnapshot?.quoteNo===quoteNo);
+      if(snap?.quoteSnapshot?.installments?.length>0){ srcInst=snap.quoteSnapshot.installments; break; }
     }
     if(srcInst.length===0){
       const oq=opps.find(x=>x.quoteNo===quoteNo);
@@ -2803,9 +2781,9 @@ const TaskTableWidget = ({tasks,onSet,onAdd,onDel,months}) => (
 // 
 // COST SHEET (COGS + OPEX + Cashflow)
 // 
-const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQC,setQTK,setQInst,setQDlv,addQC,addQTK,addQInst,addQDlv,delQC,delQTK,delQInst,delQO,delQDlv,updQO,handleSave}) => {
-  const qCOGS=calcCosts(q.costs||[]),qOPEX=calcTask(q.tasks||[]);
-  const qTC=qCOGS+qOPEX,qMg=margin(q.salesPrice,qTC);
+const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQInst,setQDlv,addQEC,addQTK,addQInst,addQDlv,delQIC,delQEC,delQTK,delQInst,delQO,delQDlv,updQO,handleSave}) => {
+  const qIC=calcIC(q.internalCosts||[]),qEC=calcEC(q.externalCosts||[],true),qOPEX=calcTask(q.tasks||[]);
+  const qTC=qIC+qEC+qOPEX,qMg=margin(q.salesPrice,qTC);
   const months=q.projectMonths||editCS.projectMonths||3;
   const instSum=(q.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
 
@@ -2878,30 +2856,47 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQC,setQTK,setQInst,set
                       <Span s={11} w={700}>COGS</Span>
                     </div>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
-                      <colgroup><col style={{width:"35%"}}/><col style={{width:"10%"}}/><col style={{width:"8%"}}/><col style={{width:"15%"}}/><col style={{width:"14%"}}/><col style={{width:"10%"}}/><col style={{width:"8%"}}/></colgroup>
-                      <TH cols={["Label","Unit","Qty","Rate","Total","Pay M.",""]}/>
+                      <colgroup><col style={{width:"27%"}}/><col style={{width:"13%"}}/><col style={{width:"8%"}}/><col style={{width:"7%"}}/><col style={{width:"13%"}}/><col style={{width:"12%"}}/><col style={{width:"8%"}}/><col style={{width:"4%"}}/></colgroup>
+                      <TH cols={["Label","Vendor","Unit","Qty","Rate","Total","Pay M.",""]}/>
                       <tbody>
-                        {(q.costs||[]).map(r=>(
+                        {(q.internalCosts||[]).map(r=>(
                           <tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
-                            <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><Inp value={r.unit||""} onChange={e=>setQC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><NumInp value={r.qty} onChange={v=>setQC(q.id,r.id,"qty",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><NumInp value={r.rate} onChange={v=>setQC(q.id,r.id,"rate",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQIC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px",fontSize:11,color:"#94a3b8",textAlign:"center"}}>—</td>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.unit} onChange={e=>setQIC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><NumInp value={r.qty} onChange={v=>setQIC(q.id,r.id,"qty",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><NumInp value={r.rate} onChange={v=>setQIC(q.id,r.id,"rate",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px",fontWeight:700,fontSize:13}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
                             <td style={{padding:"3px 3px"}}>
-                              <Sel value={r.payMonth||1} onChange={e=>setQC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:11,width:"100%"}}>
+                              <Sel value={r.payMonth||1} onChange={e=>setQIC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:11,width:"100%"}}>
                                 {Array.from({length:(months||3)+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
                               </Sel>
                             </td>
-                            <td><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQC(q.id,r.id)}>×</Btn></td>
+                            <td><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQIC(q.id,r.id)}>×</Btn></td>
+                          </tr>
+                        ))}
+                        {(q.externalCosts||[]).map(r=>(
+                          <tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQEC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.vendorName||""} onChange={e=>setQEC(q.id,r.id,"vendorName",e.target.value)} placeholder="Vendor" style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.unit||""} onChange={e=>setQEC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><NumInp value={r.qty} onChange={v=>setQEC(q.id,r.id,"qty",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px"}}><NumInp value={r.rate} onChange={v=>setQEC(q.id,r.id,"rate",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
+                            <td style={{padding:"3px 3px",fontWeight:700,fontSize:13}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
+                            <td style={{padding:"3px 3px"}}>
+                              <Sel value={r.payMonth||1} onChange={e=>setQEC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:11,width:"100%"}}>
+                                {Array.from({length:(months||3)+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
+                              </Sel>
+                            </td>
+                            <td><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQEC(q.id,r.id)}>×</Btn></td>
                           </tr>
                         ))}
                         <tr style={{borderTop:"1px solid #e2e8f0"}}>
                           <td colSpan={4} style={{padding:"5px 4px"}}>
-                            <button onClick={()=>addQC(q.id)} style={{fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 12px",cursor:"pointer",fontWeight:600}}>+ Add</button>
+                            <button onClick={()=>addQEC(q.id)} style={{fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 12px",cursor:"pointer",fontWeight:600}}>+ Add</button>
                           </td>
                           <td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap",color:"#94a3b8",fontSize:11,fontWeight:600}}>Total COGS</td>
-                          <td colSpan={1} style={{padding:"5px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a"}}>฿{fmt(qCOGS)}</td>
+                          <td colSpan={2} style={{padding:"5px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a"}}>฿{fmt(qIC+qEC)}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -2958,7 +2953,8 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQC,setQTK,setQInst,set
                     const allM=Array.from({length:cfM+1},(_,i)=>i+1);
                     const cByM={};
                     (q.tasks||[]).forEach(t=>{const m=t.payMonth||1;const tc=(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior;cByM[m]=(cByM[m]||0)+tc;});
-                    (q.costs||[]).forEach(r=>{const m=r.payMonth||1;const amt=(r.qty||0)*(r.rate||0);cByM[m]=(cByM[m]||0)+amt;});
+                    (q.internalCosts||[]).forEach(r=>{const m=r.payMonth||1;const amt=(r.qty||0)*(r.rate||0);cByM[m]=(cByM[m]||0)+amt;});
+                    (q.externalCosts||[]).filter(r=>!r.clientBorne).forEach(r=>{const m=r.payMonth||1;const amt=(r.qty||0)*(r.rate||0);cByM[m]=(cByM[m]||0)+amt;});
                     const rByM={};
                     (q.installments||[]).forEach(ins=>{const m=ins.recvMonth||1;rByM[m]=(rByM[m]||0)+Math.round(q.salesPrice*(ins.pct||0)/100);});
                     let run=0;
@@ -3035,7 +3031,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQC,setQTK,setQInst,set
 
                 {/* Cost + margin + Save/Cancel footer */}
                 <div style={{borderTop:"1px solid #e2e8f0",padding:"12px 20px",background:"#f8fafc",display:"flex",justifyContent:"flex-end",alignItems:"center",gap:16,flexWrap:"wrap"}}>
-                  {[{l:"COGS",v:qCOGS},{l:"OPEX",v:qOPEX},{l:"Total Cost",v:qTC,bold:true}].map(x=>(
+                  {[{l:"COGS",v:qIC+qEC},{l:"OPEX",v:qOPEX},{l:"Total Cost",v:qTC,bold:true}].map(x=>(
                     <div key={x.l} style={{textAlign:"center"}}>
                       <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>{x.l}</Span>
                       <Span s={13} w={x.bold?900:700}>฿{fmt(x.v)}</Span>
@@ -3053,7 +3049,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQC,setQTK,setQInst,set
   );
 };
 
-const CostSheetPage = ({costSheets,onSave,onSaveQuote,customers,opps,user,onSaveOpp,toast,initSvcCode,onSvcReady}) => {
+const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,initSvcCode,onSvcReady}) => {
   const [selCode,sCode] = useState(SERVICES[0].code);
   useEffect(()=>{if(initSvcCode){sCode(initSvcCode);sView("quote");if(onSvcReady)onSvcReady();}},[initSvcCode]);
   const [view,sView]    = useState("quote");
@@ -3063,32 +3059,39 @@ const CostSheetPage = ({costSheets,onSave,onSaveQuote,customers,opps,user,onSave
   const [editPrice,sEP] = useState(0);
   useEffect(()=>{const f=costSheets.find(c=>c.serviceCode===selCode)||buildDefaultCS(SERVICES.find(s=>s.code===selCode)||SERVICES[0]);sECS(f);sEP(f.stdPrice||0);},[selCode,costSheets]);
 
-  // COGS calcs (unified costs array)
-  const totalCOGS = calcCosts(editCS.costs||[]);
+  // COGS calcs
+  const totalIC = calcIC(editCS.internalCosts||[]);
+  const totalEC = calcEC(editCS.externalCosts||[],true); // co-borne only
+  const totalECClient = (editCS.externalCosts||[]).filter(r=>r.clientBorne).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
+  const totalCOGS = totalIC + totalEC;
   // OPEX calcs
   const totalOPEX = calcTask(editCS.tasks||[]);
   const totalCost = totalCOGS + totalOPEX;
   const mg = margin(editPrice, totalCost);
 
-  // Costs helpers (unified)
-  const setC=(id,k,v)=>sECS(p=>({...p,costs:(p.costs||[]).map(r=>r.id===id?{...r,[k]:v}:r)}));
-  const addC=()=>sECS(p=>({...p,costs:[...(p.costs||[]),{id:uid(),label:"",unit:"Unit",qty:0,rate:0,payMonth:1}]}));
-  const delC=id=>sECS(p=>({...p,costs:(p.costs||[]).filter(r=>r.id!==id)}));
+  const setIC=(id,k,v)=>sECS(p=>({...p,internalCosts:(p.internalCosts||[]).map(r=>r.id===id?{...r,[k]:v}:r)}));
+  const addIC=()=>sECS(p=>({...p,internalCosts:[...(p.internalCosts||[]),{id:uid(),label:"",unit:"Unit",qty:0,rate:0}]}));
+  const delIC=id=>sECS(p=>({...p,internalCosts:(p.internalCosts||[]).filter(r=>r.id!==id)}));
+  const setEC=(id,k,v)=>sECS(p=>({...p,externalCosts:(p.externalCosts||[]).map(r=>r.id===id?{...r,[k]:v}:r)}));
+  const addEC=()=>sECS(p=>({...p,externalCosts:[...(p.externalCosts||[]),{id:uid(),label:"",unit:"Job",qty:0,rate:0,vendorName:"",clientBorne:false}]}));
+  const delEC=id=>sECS(p=>({...p,externalCosts:(p.externalCosts||[]).filter(r=>r.id!==id)}));
   const setTK=(id,k,v)=>sECS(p=>({...p,tasks:(p.tasks||[]).map(t=>t.id===id?{...t,[k]:v}:t)}));
   const addTK=()=>sECS(p=>({...p,tasks:[...(p.tasks||[]),{id:uid(),taskName:"",manager:0,senior:0,junior:0,payMonth:1,agents:[]}]}));
   const delTK=id=>sECS(p=>({...p,tasks:(p.tasks||[]).filter(t=>t.id!==id)}));
 
-  // Per-quotation helpers
+  // Per-quotation — only 1 CS per quote
   const updQO=(qid,fn)=>sECS(p=>({...p,quoteOverrides:(p.quoteOverrides||[]).map(q=>q.id===qid?fn(q):q)}));
   const setQF=(qid,k,v)=>updQO(qid,q=>({...q,[k]:v}));
   const setQTK=(qid,tid,k,v)=>updQO(qid,q=>({...q,tasks:(q.tasks||[]).map(t=>t.id===tid?{...t,[k]:v}:t)}));
   const addQTK=qid=>updQO(qid,q=>({...q,tasks:[...(q.tasks||[]),{id:uid(),taskName:"",manager:0,senior:0,junior:0,payMonth:1,agents:[]}]}));
   const delQTK=(qid,tid)=>updQO(qid,q=>({...q,tasks:(q.tasks||[]).filter(t=>t.id!==tid)}));
 
-  // Unified costs helpers for per-quotation
-  const setQC=(qid,rid,k,v)=>updQO(qid,q=>({...q,costs:(q.costs||[]).map(r=>r.id===rid?{...r,[k]:v}:r)}));
-  const addQC=qid=>updQO(qid,q=>({...q,costs:[...(q.costs||[]),{id:uid(),label:"",unit:"Unit",qty:0,rate:0,payMonth:1}]}));
-  const delQC=(qid,rid)=>updQO(qid,q=>({...q,costs:(q.costs||[]).filter(r=>r.id!==rid)}));
+  const setQIC=(qid,rid,k,v)=>updQO(qid,q=>({...q,internalCosts:(q.internalCosts||[]).map(r=>r.id===rid?{...r,[k]:v}:r)}));
+  const addQIC=qid=>updQO(qid,q=>({...q,internalCosts:[...(q.internalCosts||[]),{id:uid(),label:"",unit:"Unit",qty:0,rate:0,payMonth:1}]}));
+  const delQIC=(qid,rid)=>updQO(qid,q=>({...q,internalCosts:(q.internalCosts||[]).filter(r=>r.id!==rid)}));
+  const setQEC=(qid,rid,k,v)=>updQO(qid,q=>({...q,externalCosts:(q.externalCosts||[]).map(r=>r.id===rid?{...r,[k]:v}:r)}));
+  const addQEC=qid=>updQO(qid,q=>({...q,externalCosts:[...(q.externalCosts||[]),{id:uid(),label:"",unit:"Job",qty:0,rate:0,vendorName:"",clientBorne:false,payMonth:1}]}));
+  const delQEC=(qid,rid)=>updQO(qid,q=>({...q,externalCosts:(q.externalCosts||[]).filter(r=>r.id!==rid)}));
 
   const setQInst=(qid,iid,k,v)=>updQO(qid,q=>({...q,installments:(q.installments||[]).map(i=>i.id===iid?{...i,[k]:v}:i)}));
   const addQInst=qid=>updQO(qid,q=>({...q,installments:[...(q.installments||[]),{id:uid(),seq:(q.installments||[]).length+1,label:"",pct:0,detail:"",recvMonth:1}]}));
@@ -3115,7 +3118,8 @@ const CostSheetPage = ({costSheets,onSave,onSaveQuote,customers,opps,user,onSave
       projectTitle:"",
       projectScope:"",
       projectMonths:editCS.projectMonths||3,
-      costs:(editCS.costs||[]).map(r=>({...r,id:uid()})),
+      internalCosts:(editCS.internalCosts||[]).map(r=>({...r,id:uid()})),
+      externalCosts:(editCS.externalCosts||[]).map(r=>({...r,id:uid()})),
       tasks:(editCS.tasks||[]).map(t=>({...t,id:uid()})),
       installments:[
         {id:uid(),seq:1,label:"",pct:40,detail:"",recvMonth:1},
@@ -3132,17 +3136,19 @@ const CostSheetPage = ({costSheets,onSave,onSaveQuote,customers,opps,user,onSave
   const delQO=id=>sECS(p=>({...p,quoteOverrides:(p.quoteOverrides||[]).filter(r=>r.id!==id)}));
 
   const handleSave=()=>{
-    const savedQOIds=[];
-    const logEntries=[];
+    // Build detailed save log entries — one per completed quotation, plus a general entry
+    const newSaveEntries=[];
+    const savedQOIds=[];   // IDs of quoteOverrides that get committed → removed from screen
 
     (editCS.quoteOverrides||[]).forEach(q=>{
+      // Commit any QO that has custId + oppCode (new OR re-opened re-edit)
       if(q.custId&&q.oppCode){
-        const qCost=calcQCost(q);
+        const qIC=calcIC(q.internalCosts||[]),qEC=calcEC(q.externalCosts||[],true),qOPEX=calcTask(q.tasks||[]);
+        const qCost=qIC+qEC+qOPEX;
         const csCode=q.csCode||genCSCode(q.quoteNo||"");
         const qMg=margin(q.salesPrice,qCost);
         const cust=customers.find(c=>c.id===q.custId);
         const existingOpp=opps.find(o=>o.oppCode===q.oppCode);
-        // Save OPP
         const opp={
           id:q.oppCode,custId:q.custId,oppCode:q.oppCode,quoteNo:q.quoteNo,csCode,jobCode:existingOpp?.jobCode||"",
           serviceCode:editCS.serviceCode,serviceType:editCS.serviceType,salesPrice:q.salesPrice,totalCost:qCost,
@@ -3151,34 +3157,43 @@ const CostSheetPage = ({costSheets,onSave,onSaveQuote,customers,opps,user,onSave
           createdDate:existingOpp?.createdDate||today(),lostReason:existingOpp?.lostReason||"",
           activityLog:[
             ...(existingOpp?.activityLog||[]),
-            {id:uid(),ts:nowTS(),author:user.id,note:`${existingOpp?"Updated":"Created"} from ${csCode} (${editCS.serviceCode}) · ${q.quoteNo} · Cost ฿${fmt(qCost)} · Margin ${qMg}%`},
+            {id:uid(),ts:nowTS(),author:user.id,note:`${existingOpp?"Updated":"Created"} from Cost Sheet ${csCode} (${editCS.serviceCode}) · ${q.quoteNo} · Cost: ฿${fmt(qCost)} · Margin: ${qMg}%`},
           ],
           remark:q.notes||existingOpp?.remark||"",
         };
         onSaveOpp(opp);
-        // Save quote row to costsheet_quotes (separate tab)
-        onSaveQuote({...q,csCode}, editCS.serviceCode);
         savedQOIds.push(q.id);
-        logEntries.push({
+        newSaveEntries.push({
           id:uid(),ts:nowTS(),author:user.id,
           note:`Quotation ${existingOpp?"updated":"saved"} → ${csCode} · ${q.quoteNo} · ${cust?.companyEN||q.custId} · Price ฿${fmt(q.salesPrice)} · Cost ฿${fmt(qCost)} · Margin ${qMg}%`,
+          quoteSnapshot:{...q,csCode},  // stored for re-edit
         });
       }
     });
 
-    // General save entry
-    logEntries.push({id:uid(),ts:nowTS(),author:user.id,note:`Cost Sheet saved — ${selCode} · Price ฿${fmtM(editPrice)} · Cost ฿${fmtM(totalCost)} · Margin ${mg}%`});
+    // General save entry (always)
+    newSaveEntries.push({id:uid(),ts:nowTS(),author:user.id,note:`Cost Sheet saved — ${selCode}`});
 
+    // Remove committed quotations from quoteOverrides; keep uncommitted ones
     const remainingQOs=(editCS.quoteOverrides||[]).filter(q=>!savedQOIds.includes(q.id));
-    // Trim saveLog to last 30 entries (no quoteSnapshot)
-    const cleanLog=[...(editCS.saveLog||[]).filter(e=>!e.quoteSnapshot),...logEntries].slice(-30);
 
-    const saved={...editCS, stdPrice:editPrice, quoteOverrides:remainingQOs, saveLog:cleanLog};
+    const saved={
+      ...editCS,
+      stdPrice:editPrice,
+      quoteOverrides:remainingQOs,
+      saveLog:[...(editCS.saveLog||[]),...newSaveEntries],
+    };
     onSave(saved);
+    // Sync local editCS to reflect cleared quotations
     sECS(saved);
 
     const nOpps=savedQOIds.length;
-    toast("Cost Sheet saved", nOpps>0?`${nOpps} Quotation${nOpps>1?"s":""} committed to Opportunities.`:"Cost structure updated");
+    toast(
+      "Cost Sheet saved",
+      nOpps>0
+        ? `${nOpps} Quotation${nOpps>1?"s":""} committed → OPP ${savedQOIds.length>0?"saved":"created"}. Cleared from Per-Quotation view.`
+        : "Cost structure updated"
+    );
   };
 
   const curSvc = SERVICES.find(s=>s.code===selCode);
@@ -3224,15 +3239,23 @@ const CostSheetPage = ({costSheets,onSave,onSaveQuote,customers,opps,user,onSave
           </div>
           {(editCS.quoteOverrides||[]).length===0&&(
             <div>
-              {(editCS._savedQuotes||[]).length>0&&(
+              {(editCS.saveLog||[]).filter(l=>l.quoteSnapshot).length>0&&(
                 <div style={{marginBottom:12}}>
-                  {[...(editCS._savedQuotes||[])].sort((a,b)=>(b.savedTs||"").localeCompare(a.savedTs||"")).map(q=>(
-                    <div key={q.csCode} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:7,marginBottom:6}}>
-                      <span style={{fontSize:12,color:'#94a3b8',whiteSpace:'nowrap'}}>{q.savedTs}</span>
-                      <span style={{fontSize:12,fontWeight:700,fontFamily:'monospace',color:'#92400e',background:'#fef3c7',padding:'2px 8px',borderRadius:4,border:'1px solid #fde68a'}}>{q.csCode}</span>
-                      <span style={{fontSize:12,color:'#374151',flex:1}}>{q.quoteNo} {customers.find(c=>c.id===q.custId)?.companyEN||q.custId}</span>
+                  {Object.values(
+                    [...(editCS.saveLog||[])].filter(l=>l.quoteSnapshot).reduce((acc,l)=>{
+                      const key=l.quoteSnapshot.quoteNo;
+                      if(!acc[key]||l.ts>acc[key].ts) acc[key]=l;
+                      return acc;
+                    },{})
+                  ).sort((a,b)=>(b.ts||"").localeCompare(a.ts||"")).map(l=>(
+                    <div key={l.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:7,marginBottom:6}}>
+                      <span style={{fontSize:12,color:'#94a3b8',whiteSpace:'nowrap'}}>{l.ts}</span>
+                      <span style={{fontSize:12,fontWeight:700,fontFamily:'monospace',color:'#92400e',background:'#fef3c7',padding:'2px 8px',borderRadius:4,border:'1px solid #fde68a'}}>{l.quoteSnapshot.csCode}</span>
+                      <span style={{fontSize:12,color:'#374151',flex:1}}>{l.quoteSnapshot.quoteNo} {customers.find(c=>c.id===l.quoteSnapshot.custId)?.companyEN||l.quoteSnapshot.custId}</span>
                       <Btn variant='ghost' style={{fontSize:13,padding:'4px 14px'}} onClick={()=>{
-                        sECS(p=>({...p,quoteOverrides:[{...q,id:uid()}]}));
+                        sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid()}]}));
+                        const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} for editing`};
+                        sECS(p=>({...p,saveLog:[...(p.saveLog||[]),logEntry]}));
                       }}>Edit</Btn>
                     </div>
                   ))}
@@ -3242,9 +3265,9 @@ const CostSheetPage = ({costSheets,onSave,onSaveQuote,customers,opps,user,onSave
           )}
           {(editCS.quoteOverrides||[]).map((q)=>(
             <QuoteCard key={q.id} q={q} editCS={editCS} customers={customers} opps={opps} user={user}
-              setQF={setQF} setQC={setQC} setQTK={setQTK} setQInst={setQInst} setQDlv={setQDlv}
-              addQC={addQC} addQTK={addQTK} addQInst={addQInst} addQDlv={addQDlv}
-              delQC={delQC} delQTK={delQTK} delQInst={delQInst} delQO={delQO} delQDlv={delQDlv}
+              setQF={setQF} setQIC={setQIC} setQEC={setQEC} setQTK={setQTK} setQInst={setQInst} setQDlv={setQDlv}
+              addQEC={addQEC} addQTK={addQTK} addQInst={addQInst} addQDlv={addQDlv}
+              delQIC={delQIC} delQEC={delQEC} delQTK={delQTK} delQInst={delQInst} delQO={delQO} delQDlv={delQDlv}
               updQO={updQO} handleSave={handleSave}
             />
           ))}
@@ -3356,10 +3379,9 @@ const stripJsonSuffix = obj => {
       gsGet("opportunities"),
       gsGet("deliveries"),
       gsGet("costsheets"),
-      gsGet("costsheet_quotes"),
       gsGet("kpi"),
       gsGet("users"),
-    ]).then(([c,o,d,cs,cq,k,u])=>{
+    ]).then(([c,o,d,cs,k,u])=>{
       if(c.length) sCusts(c.map(x=>stripJsonSuffix({...x,id:String(x.id||"")})));
       if(o.length) sOpps(o.map(x=>stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")})));
       if(d.length) sDlv(d.map(x=>stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")})));
@@ -3372,47 +3394,13 @@ const stripJsonSuffix = obj => {
         sUserList(safe);
       }
       // Merge loaded costSheets — use LAST row per serviceCode (most recent wins)
-      // Re-attach costsheet_quotes as quoteOverrides (keyed by serviceCode)
-      // Always clear live quoteOverrides on load (they are transient)
+      // Always clear quoteOverrides on load
       if(cs.length){
         const csMap={};
         cs.forEach(x=>{ if(x.serviceCode) csMap[x.serviceCode]=x; });
-        // Build quoteOverrides per serviceCode from costsheet_quotes
-        const cqBySvc={};
-        if(cq.length){
-          cq.forEach(q=>{
-            const qn = stripJsonSuffix(q);
-            const sc = qn.serviceCode;
-            if(!sc) return;
-            if(!cqBySvc[sc]) cqBySvc[sc]=[];
-            cqBySvc[sc].push(qn);
-          });
-        }
         const merged = SEED_COST_SHEETS.map(def=>{
           const fromGS = csMap[def.serviceCode];
-          if(!fromGS) return def;
-          const base = {...def,...stripJsonSuffix(fromGS), quoteOverrides:[]};
-          // Attach saved quotes as quoteOverrides for re-edit (mapped back to QO shape)
-          const savedQuotes = (cqBySvc[def.serviceCode]||[]).map(q=>({
-            id: uid(),
-            csCode:          q.csCode||"",
-            oppCode:         q.oppCode||"",
-            quoteNo:         q.quoteNo||"",
-            custId:          q.custId||"",
-            salesAgent:      q.salesAgent||"",
-            contactPersonId: q.contactPersonId||"",
-            salesPrice:      q.salesPrice||0,
-            projectTitle:    q.projectTitle||"",
-            projectScope:    q.projectScope||"",
-            projectMonths:   q.projectMonths||3,
-            notes:           q.notes||"",
-            costs:           safeArr(q.costs),
-            tasks:           safeArr(q.tasks),
-            installments:    safeArr(q.installments),
-            lineItems:       safeArr(q.lineItems),
-            deliverables:    safeArr(q.deliverables),
-          }));
-          return {...base, _savedQuotes: savedQuotes};
+          return fromGS ? {...def,...stripJsonSuffix(fromGS), quoteOverrides:[]} : def;
         });
         sCS(merged);
       }
@@ -3485,46 +3473,17 @@ const stripJsonSuffix = obj => {
     gsSave("opportunities", norm);
   };
 
-  //  saveCS: update local + push to GS
-  //  - costsheets tab gets template fields only (no quoteOverrides)
-  //  - each committed quoteOverride is saved to costsheet_quotes as its own row
+  //  saveCS: update local + push to GS (key = serviceCode, strip quoteOverrides before save)
   const saveCS = cs => {
     sCS(p => {
       const next = p.find(x=>x.serviceCode===cs.serviceCode)
         ? p.map(x=>x.serviceCode===cs.serviceCode?cs:x)
         : [...p,cs];
-      // Trim saveLog to last 30 plain entries (no quoteSnapshot)
-      const cleanLog = (cs.saveLog||[]).filter(e=>!e.quoteSnapshot).slice(-30);
-      const toSave = {...cs, quoteOverrides:[], saveLog:cleanLog};
+      // Strip live quoteOverrides before persisting — they are committed into saveLog already
+      const toSave = {...cs, quoteOverrides:[]};
       gsSave("costsheets", toSave);
       return next;
     });
-  };
-
-  //  saveQuote: save a single committed quotation row to costsheet_quotes
-  const saveQuote = (q, serviceCode) => {
-    const row = {
-      csCode:          q.csCode||"",
-      serviceCode:     serviceCode||"",
-      oppCode:         q.oppCode||"",
-      quoteNo:         q.quoteNo||"",
-      custId:          q.custId||"",
-      salesAgent:      q.salesAgent||"",
-      contactPersonId: q.contactPersonId||"",
-      salesPrice:      q.salesPrice||0,
-      projectTitle:    q.projectTitle||"",
-      projectScope:    q.projectScope||"",
-      projectMonths:   q.projectMonths||3,
-      notes:           q.notes||"",
-      costs:           q.costs||[],
-      tasks:           q.tasks||[],
-      installments:    q.installments||[],
-      lineItems:       q.lineItems||[],
-      deliverables:    q.deliverables||[],
-      savedTs:         nowTS(),
-      savedBy:         user?.id||"",
-    };
-    gsSave("costsheet_quotes", row);
   };
 
   //  Sync status badge 
@@ -3572,7 +3531,7 @@ const stripJsonSuffix = obj => {
         {page==="customers" && <CustomersPage user={user} customers={customers} opps={opps} onSave={saveItem(sCusts,"customers")} onDelete={deleteItem(sCusts,"customers")} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)} userList={userList}/>}
         {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} onDelete={deleteItem(sOpps,"opportunities")} onSaveCS={saveCS} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} onDeleteDelivery={deleteItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)} userList={userList}/>}
         {page==="delivery"  && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={code=>{sSvcCode(code);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}} userList={userList}/>}
-        {page==="costsheet" && <CostSheetPage costSheets={costSheets} onSave={saveCS} onSaveQuote={saveQuote} customers={customers} opps={opps} user={user} onSaveOpp={saveOpp} toast={toast} initSvcCode={initSvcCode} onSvcReady={()=>sSvcCode(null)}/>}
+        {page==="costsheet" && <CostSheetPage costSheets={costSheets} onSave={saveCS} customers={customers} opps={opps} user={user} onSaveOpp={saveOpp} toast={toast} initSvcCode={initSvcCode} onSvcReady={()=>sSvcCode(null)}/>}
         {page==="setup"     && <SetupPage/>}
       </div>
       <Toast toasts={toasts}/>
