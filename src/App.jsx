@@ -1208,7 +1208,7 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
   // Try live quoteOverride first, then quoteSnapshot from saveLog
   const qo = cs ? (cs.quoteOverrides||[]).find(q=>q.quoteNo===opp?.quoteNo) : null;
   const qSnap = qo || (()=>{
-    const logEntry=(cs?.saveLog||[]).slice().reverse().find(l=>l.quoteSnapshot?.quoteNo===opp?.quoteNo);
+    const logEntry=safeArr(cs?.saveLog).slice().reverse().find(l=>l.quoteSnapshot?.quoteNo===opp?.quoteNo);
     return logEntry?.quoteSnapshot||null;
   })();
   const qPrice = qSnap?.salesPrice || opp?.salesPrice || 0;
@@ -1747,24 +1747,21 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
             <div style={{gridColumn:"1/-1"}}>
               <FRow label="Note Log">
                 <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-                  {f.remark&&(()=>{
-                    const lines=f.remark.split("\n").filter(Boolean);
-                    return [...lines].reverse().map((line,i)=>{
-                      const origIdx=lines.length-1-i;
-                      const m=line.match(/^\[([^\]]+)\]\s*(.*)/);
-                      const meta=m?m[1]:""; const body=m?m[2]:line;
-                      const datePart=meta.split("·")[0].trim(); const authorPart=meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
-                      return(
-                      <div key={origIdx} style={{padding:"5px 8px 5px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"flex-start",gap:6}}>
-                        <div style={{flex:1,lineHeight:1.5}}>
-                          <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
-                          {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
-                          <span>{body}</span>
-                        </div>
-                        <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
+                  {f.remark&&[...f.remark.split("\n").filter(Boolean)].reverse().map((line,i,arr)=>{
+                    const m=line.match(/^\[([^\]]+)\]\s*(.*)/);
+                    const meta=m?m[1]:""; const body=m?m[2]:line;
+                    const datePart=meta.split("·")[0].trim(); const authorPart=meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
+                    return(
+                    <div key={i} style={{padding:"5px 8px 5px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"flex-start",gap:6}}>
+                      <div style={{flex:1,lineHeight:1.5}}>
+                        <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
+                        {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
+                        <span>{body}</span>
                       </div>
-                    );});
-                  })()}                  <div style={{display:"flex",gap:0}}>
+                      <button onClick={()=>{const lines=f.remark.split("\n").filter(Boolean);const orig=arr[arr.length-1-i];const newRemark=lines.filter(l=>l!==orig).join("\n");set("remark",newRemark);}} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
+                    </div>
+                  );})}
+                  <div style={{display:"flex",gap:0}}>
                     <Inp value={noteInput} onChange={e=>sNoteInput(e.target.value)} placeholder={`Add note… (${today()})`}
                       onKeyDown={e=>{if(e.key==="Enter"&&noteInput.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);sNoteInput("");}}}
                       style={{borderRadius:0,background:"#fff",flex:1,border:"none",borderTop:"1px solid #f1f5f9"}}/>
@@ -2060,7 +2057,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
           if(cs){
             onSaveCS({...cs,
               quoteOverrides:(cs.quoteOverrides||[]).filter(q=>q.quoteNo!==o.quoteNo&&q.oppCode!==o.oppCode),
-              saveLog:(cs.saveLog||[]).filter(l=>!l.quoteSnapshot||(l.quoteSnapshot.quoteNo!==o.quoteNo&&l.quoteSnapshot.oppCode!==o.oppCode)),
+              saveLog:safeArr(cs.saveLog).filter(l=>!l.quoteSnapshot||(l.quoteSnapshot.quoteNo!==o.quoteNo&&l.quoteSnapshot.oppCode!==o.oppCode)),
             });
           }
         }
@@ -2386,7 +2383,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
     for(const cs of costSheets||[]){
       const qo=(cs.quoteOverrides||[]).find(q=>q.quoteNo===quoteNo);
       if(qo?.installments?.length>0){ srcInst=qo.installments; break; }
-      const snap=(cs.saveLog||[]).find(l=>l.quoteSnapshot?.quoteNo===quoteNo);
+      const snap=safeArr(cs.saveLog).find(l=>l.quoteSnapshot?.quoteNo===quoteNo);
       if(snap?.quoteSnapshot?.installments?.length>0){ srcInst=snap.quoteSnapshot.installments; break; }
     }
     if(srcInst.length===0){
@@ -3184,7 +3181,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
       ...editCS,
       stdPrice:editPrice,
       quoteOverrides:remainingQOs,
-      saveLog:[...(editCS.saveLog||[]),...newSaveEntries],
+      saveLog:[...safeArr(editCS.saveLog),...newSaveEntries],
     };
     onSave(saved);
     // Sync local editCS to reflect cleared quotations
@@ -3242,10 +3239,10 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           </div>
           {(editCS.quoteOverrides||[]).length===0&&(
             <div>
-              {(editCS.saveLog||[]).filter(l=>l.quoteSnapshot).length>0&&(
+              {safeArr(editCS.saveLog).filter(l=>l.quoteSnapshot).length>0&&(
                 <div style={{marginBottom:12}}>
                   {Object.values(
-                    [...(editCS.saveLog||[])].filter(l=>l.quoteSnapshot).reduce((acc,l)=>{
+                    safeArr(editCS.saveLog).filter(l=>l.quoteSnapshot).reduce((acc,l)=>{
                       const key=l.quoteSnapshot.quoteNo;
                       if(!acc[key]||l.ts>acc[key].ts) acc[key]=l;
                       return acc;
@@ -3258,7 +3255,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                       <Btn variant='ghost' style={{fontSize:13,padding:'4px 14px'}} onClick={()=>{
                         sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid()}]}));
                         const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} for editing`};
-                        sECS(p=>({...p,saveLog:[...(p.saveLog||[]),logEntry]}));
+                        sECS(p=>({...p,saveLog:[...safeArr(p.saveLog),logEntry]}));
                       }}>Edit</Btn>
                     </div>
                   ))}
