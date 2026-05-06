@@ -3196,10 +3196,13 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           savedBy:          user.id,
         });
 
-        // saveLog = plain text log only, no quoteSnapshot (quote data lives in costsheet_quotes)
+        // saveLog entry includes quoteSnapshot for immediate UI update (list shows without reload).
+        // costsheet_quotes tab is the persistent source of truth; saveLog snapshot is local/ephemeral.
+        const savedTs = nowTS();
         newSaveEntries.push({
-          id:uid(),ts:nowTS(),author:user.id,
+          id:uid(),ts:savedTs,author:user.id,
           note:`Quotation ${existingOpp?"updated":"saved"} → ${csCode} · ${q.quoteNo} · ${cust?.companyEN||q.custId} · Price ฿${fmt(q.salesPrice)} · Cost ฿${fmt(qCost)} · Margin ${qMg}%`,
+          quoteSnapshot:{...q,csCode,internalCosts:mergedCosts,externalCosts:[]},
         });
       }
     });
