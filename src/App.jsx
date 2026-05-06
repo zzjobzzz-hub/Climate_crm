@@ -132,6 +132,7 @@ const uid   = () => `${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
 const today = () => new Date().toISOString().slice(0,10);
 const nowTS = () => { const d=new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
 const pad2  = n => String(n).padStart(2,"0");
+const todayTH = () => { const d=new Date(); return `${d.getFullYear()+543}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
 const safeArr = v => { if(Array.isArray(v)) return v; if(typeof v==="string"&&v.trim().startsWith("[")) { try{return JSON.parse(v);}catch(_){} } return []; };
 
 const calcIC   = rows => (rows||[]).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
@@ -3194,13 +3195,13 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           installments_json: q.installments||[],
           lineItems_json:   q.lineItems||[],
           deliverables_json: q.deliverables||[],
-          savedTs:          nowTS(),
+          savedTs:          todayTH(),
           savedBy:          user.id,
         });
 
         // saveLog entry includes quoteSnapshot for immediate UI update (list shows without reload).
         // costsheet_quotes tab is the persistent source of truth; saveLog snapshot is local/ephemeral.
-        const savedTs = nowTS();
+        const savedTs = todayTH();
         newSaveEntries.push({
           id:uid(),ts:savedTs,author:user.id,
           note:`Quotation ${existingOpp?"updated":"saved"} → ${csCode} · ${q.quoteNo} · ${cust?.companyEN||q.custId} · Price ฿${fmt(q.salesPrice)} · Cost ฿${fmt(qCost)} · Margin ${qMg}%`,
