@@ -3166,10 +3166,40 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
         };
         onSaveOpp(opp);
         savedQOIds.push(q.id);
+
+        // Write quote data to costsheet_quotes (upsert by csCode).
+        // Source of truth for display and re-editing.
+        // Merge internalCosts + externalCosts into single costs array (v6 GAS format).
+        const mergedCosts = [
+          ...(q.internalCosts||[]).map(r=>({id:r.id||uid(),label:r.label||"",unit:r.unit||"",qty:r.qty||0,rate:r.rate||0,payMonth:r.payMonth||1})),
+          ...(q.externalCosts||[]).map(r=>({id:r.id||uid(),label:r.label||"",unit:r.unit||"",qty:r.qty||0,rate:r.rate||0,payMonth:r.payMonth||1})),
+        ];
+        gsSave("costsheet_quotes", {
+          csCode,
+          serviceCode:      editCS.serviceCode,
+          oppCode:          q.oppCode||"",
+          quoteNo:          q.quoteNo||"",
+          custId:           q.custId||"",
+          salesAgent:       q.salesAgent||"",
+          contactPersonId:  q.contactPersonId||"",
+          salesPrice:       q.salesPrice||0,
+          projectTitle:     q.projectTitle||"",
+          projectScope:     q.projectScope||"",
+          projectMonths:    q.projectMonths||editCS.projectMonths||3,
+          notes:            q.notes||"",
+          costs_json:       mergedCosts,
+          tasks_json:       q.tasks||[],
+          installments_json: q.installments||[],
+          lineItems_json:   q.lineItems||[],
+          deliverables_json: q.deliverables||[],
+          savedTs:          nowTS(),
+          savedBy:          user.id,
+        });
+
+        // saveLog = plain text log only, no quoteSnapshot (quote data lives in costsheet_quotes)
         newSaveEntries.push({
           id:uid(),ts:nowTS(),author:user.id,
           note:`Quotation ${existingOpp?"updated":"saved"} → ${csCode} · ${q.quoteNo} · ${cust?.companyEN||q.custId} · Price ฿${fmt(q.salesPrice)} · Cost ฿${fmt(qCost)} · Margin ${qMg}%`,
-          quoteSnapshot:{...q,csCode},  // stored for re-edit
         });
       }
     });
