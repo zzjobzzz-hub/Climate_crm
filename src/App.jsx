@@ -132,7 +132,6 @@ const uid   = () => `${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
 const today = () => new Date().toISOString().slice(0,10);
 const nowTS = () => { const d=new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
 const pad2  = n => String(n).padStart(2,"0");
-const todayTH = () => { const d=new Date(); return `${d.getFullYear()+543}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
 const safeArr = v => { if(Array.isArray(v)) return v; if(typeof v==="string"&&v.trim().startsWith("[")) { try{return JSON.parse(v);}catch(_){} } return []; };
 
 const calcIC   = rows => (rows||[]).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
@@ -2055,9 +2054,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
 
       {form&&<OppForm initial={edit} customers={customers} opps={opps} user={user} onSave={handleSave} onClose={()=>{sF(false);sE(null);sQT(null);}} costSheets={costSheets} onGoToCS={onGoToCS} userList={userList} onDelete={o=>{
         onDelete(o.id);
-        // Delete from costsheet_quotes tab by csCode (primary key)
-        if(o.csCode) gsDelete("costsheet_quotes", o.csCode);
-        // Clean CS local state: remove saveLog entries + quoteOverrides matching this quoteNo/oppCode
+        // Clean CS: remove saveLog entries + quoteOverrides matching this quoteNo/oppCode
         if(onSaveCS&&(o.quoteNo||o.oppCode)){
           const cs=(costSheets||[]).find(c=>(c.quoteOverrides||[]).some(q=>q.quoteNo===o.quoteNo||q.oppCode===o.oppCode)||(c.saveLog||[]).some(l=>l.quoteSnapshot?.quoteNo===o.quoteNo));
           if(cs){
@@ -3165,47 +3162,14 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
             ...(existingOpp?.activityLog||[]),
             {id:uid(),ts:nowTS(),author:user.id,note:`${existingOpp?"Updated":"Created"} from Cost Sheet ${csCode} (${editCS.serviceCode}) · ${q.quoteNo} · Cost: ฿${fmt(qCost)} · Margin: ${qMg}%`},
           ],
-          remark:q.notes||existingOpp?.remark||"",
+          remark:existingOpp?.remark||"",
         };
         onSaveOpp(opp);
         savedQOIds.push(q.id);
-
-        // Write quote data to costsheet_quotes (upsert by csCode).
-        // Source of truth for display and re-editing.
-        // Merge internalCosts + externalCosts into single costs array (v6 GAS format).
-        const mergedCosts = [
-          ...(q.internalCosts||[]).map(r=>({id:r.id||uid(),label:r.label||"",unit:r.unit||"",qty:r.qty||0,rate:r.rate||0,payMonth:r.payMonth||1})),
-          ...(q.externalCosts||[]).map(r=>({id:r.id||uid(),label:r.label||"",unit:r.unit||"",qty:r.qty||0,rate:r.rate||0,payMonth:r.payMonth||1})),
-        ];
-        gsSave("costsheet_quotes", {
-          csCode,
-          serviceCode:      editCS.serviceCode,
-          oppCode:          q.oppCode||"",
-          quoteNo:          q.quoteNo||"",
-          custId:           q.custId||"",
-          salesAgent:       q.salesAgent||"",
-          contactPersonId:  q.contactPersonId||"",
-          salesPrice:       q.salesPrice||0,
-          projectTitle:     q.projectTitle||"",
-          projectScope:     q.projectScope||"",
-          projectMonths:    q.projectMonths||editCS.projectMonths||3,
-          notes:            q.notes||"",
-          costs_json:       mergedCosts,
-          tasks_json:       q.tasks||[],
-          installments_json: q.installments||[],
-          lineItems_json:   q.lineItems||[],
-          deliverables_json: q.deliverables||[],
-          savedTs:          todayTH(),
-          savedBy:          user.id,
-        });
-
-        // saveLog entry includes quoteSnapshot for immediate UI update (list shows without reload).
-        // costsheet_quotes tab is the persistent source of truth; saveLog snapshot is local/ephemeral.
-        const savedTs = todayTH();
         newSaveEntries.push({
-          id:uid(),ts:savedTs,author:user.id,
+          id:uid(),ts:nowTS(),author:user.id,
           note:`Quotation ${existingOpp?"updated":"saved"} → ${csCode} · ${q.quoteNo} · ${cust?.companyEN||q.custId} · Price ฿${fmt(q.salesPrice)} · Cost ฿${fmt(qCost)} · Margin ${qMg}%`,
-          quoteSnapshot:{...q,csCode,internalCosts:mergedCosts,externalCosts:[]},
+          quoteSnapshot:{...q,csCode},  // stored for re-edit
         });
       }
     });
