@@ -2054,7 +2054,9 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
 
       {form&&<OppForm initial={edit} customers={customers} opps={opps} user={user} onSave={handleSave} onClose={()=>{sF(false);sE(null);sQT(null);}} costSheets={costSheets} onGoToCS={onGoToCS} userList={userList} onDelete={o=>{
         onDelete(o.id);
-        // Clean CS: remove saveLog entries + quoteOverrides matching this quoteNo/oppCode
+        // Delete from costsheet_quotes tab by csCode (primary key)
+        if(o.csCode) gsDelete("costsheet_quotes", o.csCode);
+        // Clean CS local state: remove saveLog entries + quoteOverrides matching this quoteNo/oppCode
         if(onSaveCS&&(o.quoteNo||o.oppCode)){
           const cs=(costSheets||[]).find(c=>(c.quoteOverrides||[]).some(q=>q.quoteNo===o.quoteNo||q.oppCode===o.oppCode)||(c.saveLog||[]).some(l=>l.quoteSnapshot?.quoteNo===o.quoteNo));
           if(cs){
