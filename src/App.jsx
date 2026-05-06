@@ -188,7 +188,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // S4: All requests include GS_AUTH_TOKEN verified server-side
 // 
-const GS_URL = "https://script.google.com/macros/s/AKfycbzKSRz2OzJ4h-GIUoCMvSy4m_Y9Yl0ioWXkSgS3ZPOaykEA-vECbmMG2FhI9VoIbmD0Gw/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbzphkBUXz2V3wxaynZz8Teg7BeINPA4bTaYI6mWtdpP4Fx-Vify26sOXh3ucEVYS5ysPQ/exec";
 
 // S1: Server-side login — credentials validated in GAS, never in browser
 const gsLogin = async (email, password) => {
@@ -3384,7 +3384,8 @@ const stripJsonSuffix = obj => {
       gsGet("costsheets"),
       gsGet("kpi"),
       gsGet("users"),
-    ]).then(([c,o,d,cs,k,u])=>{
+      gsGet("costsheet_quotes"), // FIX: load quote snapshots from dedicated tab (created by migrateCostsheetsV6)
+    ]).then(([c,o,d,cs,k,u,cq])=>{
       if(c.length) sCusts(c.map(x=>stripJsonSuffix({...x,id:String(x.id||"")})));
       if(o.length) sOpps(o.map(x=>stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")})));
       if(d.length) sDlv(d.map(x=>stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")})));
@@ -3396,6 +3397,43 @@ const stripJsonSuffix = obj => {
         OP_USERS    = safe.filter(x=>x.role==="operation");
         sUserList(safe);
       }
+
+      // FIX: Build a map of serviceCode → array of parsed quote rows from costsheet_quotes tab.
+      // After migrateCostsheetsV6, all per-quotation snapshots live there, NOT inside costsheets.saveLog.
+      // We reconstruct synthetic saveLog entries so the existing "Edit" button flow works without UI changes.
+      const quotesByServiceCode = {};
+      (cq||[]).forEach(row => {
+        const parsed = stripJsonSuffix(row);
+        const sc = String(parsed.serviceCode||"").trim();
+        if(!sc) return;
+        if(!quotesByServiceCode[sc]) quotesByServiceCode[sc] = [];
+        // v6 merges internal+external costs into a single costs array
+        const costs = safeArr(parsed.costs);
+        quotesByServiceCode[sc].push({
+          id: uid(),
+          csCode:          String(parsed.csCode||""),
+          oppCode:         String(parsed.oppCode||""),
+          quoteNo:         String(parsed.quoteNo||""),
+          custId:          String(parsed.custId||""),
+          salesAgent:      String(parsed.salesAgent||""),
+          contactPersonId: String(parsed.contactPersonId||""),
+          salesPrice:      parsed.salesPrice||0,
+          projectTitle:    String(parsed.projectTitle||""),
+          projectScope:    String(parsed.projectScope||""),
+          projectMonths:   parsed.projectMonths||3,
+          notes:           String(parsed.notes||""),
+          // internalCosts + externalCosts expected by QuoteCard — map merged costs array to internalCosts
+          internalCosts:   costs,
+          externalCosts:   [],
+          tasks:           safeArr(parsed.tasks),
+          installments:    safeArr(parsed.installments),
+          lineItems:       safeArr(parsed.lineItems),
+          deliverables:    safeArr(parsed.deliverables),
+          _savedTs:        String(parsed.savedTs||""),
+          _savedBy:        String(parsed.savedBy||""),
+        });
+      });
+
       // Merge loaded costSheets — use LAST row per serviceCode (most recent wins)
       // Always clear quoteOverrides on load
       // Backward compat: if GS still has old internalCosts_json/externalCosts_json, merge into costs
@@ -3406,7 +3444,7 @@ const stripJsonSuffix = obj => {
           const fromGS = csMap[def.serviceCode];
           if(!fromGS) return def;
           const stripped = stripJsonSuffix(fromGS);
-          // If costs is empty but old fields exist, merge them
+          // If costs is empty but old fields exist, merge them (backward compat)
           if((!stripped.costs||!stripped.costs.length)){
             const ic = safeArr(stripped.internalCosts);
             const ec = safeArr(stripped.externalCosts);
@@ -3417,7 +3455,35 @@ const stripJsonSuffix = obj => {
               ];
             }
           }
-          return {...def,...stripped, quoteOverrides:[]};
+
+          // FIX: Inject synthetic saveLog entries from costsheet_quotes so "Edit" buttons appear.
+          // The CostSheetPage reads saveLog[].quoteSnapshot to show past quotations for re-editing.
+          // After migration the snapshots moved to the costsheet_quotes tab, so we rebuild them here.
+          const existingSaveLog = safeArr(stripped.saveLog);
+          const quotesForSvc = quotesByServiceCode[def.serviceCode] || [];
+
+          // Build synthetic log entries from costsheet_quotes rows
+          const syntheticLogEntries = quotesForSvc.map(q => ({
+            id:   uid(),
+            ts:   q._savedTs,
+            author: q._savedBy,
+            note: `Quotation loaded → ${q.csCode} · ${q.quoteNo}`,
+            quoteSnapshot: q,
+          }));
+
+          // Deduplicate: keep existing log entries whose quoteNo isn't covered by the sheet data
+          // (prevents double entries if saveLog still has some snapshots)
+          const coveredQuoteNos = new Set(syntheticLogEntries.map(e=>e.quoteSnapshot.quoteNo));
+          const filteredExisting = existingSaveLog.filter(e =>
+            !e.quoteSnapshot || !coveredQuoteNos.has(e.quoteSnapshot.quoteNo)
+          );
+
+          return {
+            ...def,
+            ...stripped,
+            saveLog: [...filteredExisting, ...syntheticLogEntries],
+            quoteOverrides: [], // always clear live overrides on load
+          };
         });
         sCS(merged);
       }
