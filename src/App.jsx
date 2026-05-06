@@ -130,7 +130,7 @@ const fmtK  = n => (n||0)>=1e6?`฿${((n||0)/1e6).toFixed(1)}M`:(n||0)>=1000?`�
 const fmtDate = d => { if(!d) return "—"; const [y,m,day]=String(d).split("-"); if(!y||!m||!day) return d; return `${day}-${MONTHS[+m-1]||m}-${y}`; };
 const uid   = () => `${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
 const today = () => new Date().toISOString().slice(0,10);
-const nowTS = () => { const d=new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+const nowTS = () => { const d=new Date(); return `${d.getFullYear()+543}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
 const pad2  = n => String(n).padStart(2,"0");
 const safeArr = v => { if(Array.isArray(v)) return v; if(typeof v==="string"&&v.trim().startsWith("[")) { try{return JSON.parse(v);}catch(_){} } return []; };
 
@@ -2574,7 +2574,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
                 <TR key={ins.id}>
                   <TD><Span s={12} w={700} c="#94a3b8">#{ins.seq}</Span></TD>
                   <TD><input value={ins.label||""} readOnly style={{width:"100%",padding:"3px 6px",fontSize:11,border:"none",background:"transparent",color:"#374151",cursor:"default",outline:"none"}}/></TD>
-                  <TD style={{whiteSpace:"nowrap"}}><NumInp value={ins.pct} onChange={v=>changeLocalIns(ins.id,"pct",v)} style={{width:48,padding:"3px 5px",fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa"}}/><span style={{fontSize:10,color:"#94a3b8",marginLeft:2}}>%</span></TD>
+                  <TD style={{whiteSpace:"nowrap"}}><input value={ins.pct||0} readOnly style={{width:48,padding:"3px 5px",fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:"#f1f5f9",color:"#374151",cursor:"default",outline:"none",textAlign:"right"}}/><span style={{fontSize:10,color:"#94a3b8",marginLeft:2}}>%</span></TD>
                   <TD right style={{fontWeight:700,whiteSpace:"nowrap"}}>฿{fmt(ins.amount)}</TD>
                   <TD><input value={ins.invoiceNo||""} onChange={e=>changeLocalIns(ins.id,"invoiceNo",e.target.value)} style={{width:"100%",padding:"3px 6px",fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",fontFamily:"monospace"}}/></TD>
                   <TD><input type="date" value={ins.invoiceDate||""} onChange={e=>changeLocalIns(ins.id,"invoiceDate",e.target.value)} style={{fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",padding:"2px 4px"}}/></TD>
