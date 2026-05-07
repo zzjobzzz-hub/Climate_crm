@@ -1742,6 +1742,8 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
   const [f,sF] = useState(initial?{...initial,activityLog:initial.activityLog||[]}:blank);
   const [tab,sTab] = useState(initTab);
   const [noteInput,sNoteInput] = useState("");
+  const [noteEditIdx,sNoteEditIdx] = useState(null);
+  const [noteEditText,sNoteEditText] = useState("");
   const set=(k,v)=>sF(p=>({...p,[k]:v}));
   const isWon=f.status==="Won", isLost=f.status==="Lost";
   const mg=margin(f.salesPrice,f.totalCost||0);
@@ -1792,9 +1794,19 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                         <div style={{flex:1,lineHeight:1.5}}>
                           <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
                           {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
-                          <span>{body}</span>
+                          {noteEditIdx===origIdx
+                            ? <span style={{display:"inline-flex",gap:4,alignItems:"center",flex:1}}>
+                                <input autoFocus value={noteEditText} onChange={e=>sNoteEditText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){const updated=[...lines];updated[origIdx]=(meta?`[${meta}] `:"")+noteEditText.trim();set("remark",updated.join("\n"));sNoteEditIdx(null);}if(e.key==="Escape")sNoteEditIdx(null);}} style={{fontSize:12,padding:"1px 6px",border:"1px solid #3b82f6",borderRadius:3,outline:"none",minWidth:180}}/>
+                                <button onClick={()=>{const updated=[...lines];updated[origIdx]=(meta?`[${meta}] `:"")+noteEditText.trim();set("remark",updated.join("\n"));sNoteEditIdx(null);}} style={{border:"none",background:"#3b82f6",color:"#fff",borderRadius:3,padding:"1px 6px",cursor:"pointer",fontSize:11}}>Save</button>
+                                <button onClick={()=>sNoteEditIdx(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:3,padding:"1px 5px",cursor:"pointer",fontSize:11,color:"#64748b"}}>✕</button>
+                              </span>
+                            : <span>{body}</span>
+                          }
                         </div>
-                        <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
+                        {noteEditIdx!==origIdx&&<>
+                          <button onClick={()=>{sNoteEditIdx(origIdx);sNoteEditText(body);}} style={{flexShrink:0,border:"none",background:"transparent",color:"#94a3b8",cursor:"pointer",fontSize:12,lineHeight:1,padding:"1px 2px"}} title="Edit note">✎</button>
+                          <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
+                        </>}
                       </div>
                     );});
                   })()}                  <div style={{display:"flex",gap:0}}>
@@ -1814,7 +1826,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
           
         </>
       )}
-      {tab==="log"&&<ActivityLog logs={f.activityLog||[]} currentUser={user} users={userList}/>}
+      {tab==="log"&&<ActivityLog logs={f.activityLog||[]} currentUser={user} users={userList} onEdit={(id,text)=>sF(p=>({...p,activityLog:(p.activityLog||[]).map(x=>x.id===id?{...x,note:text}:x)}))} onDelete={id=>sF(p=>({...p,activityLog:(p.activityLog||[]).filter(x=>x.id!==id)}))}/>}
       {tab==="quotation"&&<QuotationPreview opp={f} customer={customers.find(c=>c.id===f.custId)} costSheets={costSheets||[]} onClose={onClose} onSaveQuotation={qd=>{const updated={...f,quotationData:qd,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""};onSave(updated);}}/>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
         {initial&&onDelete&&<Btn variant="danger" style={{marginRight:"auto"}} onClick={()=>setDelConfirm(true)}>Delete</Btn>}
@@ -2211,6 +2223,8 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
   },[]);
   const [tab,sTab] = useState(initTab);
   const [noteInput,sNoteInput] = useState("");
+  const [noteEditIdx,sNoteEditIdx] = useState(null);
+  const [noteEditText,sNoteEditText] = useState("");
   const set=(k,v)=>sF(p=>({...p,[k]:v}));
   // Build installments from a source array + contract value
   const buildInstFromSource=(srcInst,cv)=>srcInst.map((ins,i)=>({
@@ -2299,17 +2313,34 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
             <div style={{gridColumn:"1/-1"}}>
               <FRow label="Note Log">
                 <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-                  {f.remark&&[...f.remark.split("\n").filter(Boolean)].reverse().map((line,i)=>{
-                    const m=line.match(/^\[([^\]]+)\]\s*(.*)/);
-                    const meta=m?m[1]:""; const body=m?m[2]:line;
-                    const datePart=meta.split("·")[0].trim(); const authorPart=meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
-                    return(
-                    <div key={i} style={{padding:"6px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa"}}>
-                      <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
-                      {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
-                      <span>{body}</span>
-                    </div>
-                  );})}
+                  {f.remark&&(()=>{
+                    const lines=f.remark.split("\n").filter(Boolean);
+                    return [...lines].reverse().map((line,i)=>{
+                      const origIdx=lines.length-1-i;
+                      const m=line.match(/^\[([^\]]+)\]\s*(.*)/);
+                      const meta=m?m[1]:""; const body=m?m[2]:line;
+                      const datePart=meta.split("·")[0].trim(); const authorPart=meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
+                      return(
+                      <div key={origIdx} style={{padding:"5px 8px 5px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"flex-start",gap:6}}>
+                        <div style={{flex:1,lineHeight:1.5}}>
+                          <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
+                          {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
+                          {noteEditIdx===origIdx
+                            ? <span style={{display:"inline-flex",gap:4,alignItems:"center"}}>
+                                <input autoFocus value={noteEditText} onChange={e=>sNoteEditText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){const updated=[...lines];updated[origIdx]=(meta?`[${meta}] `:"")+noteEditText.trim();set("remark",updated.join("\n"));sNoteEditIdx(null);}if(e.key==="Escape")sNoteEditIdx(null);}} style={{fontSize:12,padding:"1px 6px",border:"1px solid #3b82f6",borderRadius:3,outline:"none",minWidth:180}}/>
+                                <button onClick={()=>{const updated=[...lines];updated[origIdx]=(meta?`[${meta}] `:"")+noteEditText.trim();set("remark",updated.join("\n"));sNoteEditIdx(null);}} style={{border:"none",background:"#3b82f6",color:"#fff",borderRadius:3,padding:"1px 6px",cursor:"pointer",fontSize:11}}>Save</button>
+                                <button onClick={()=>sNoteEditIdx(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:3,padding:"1px 5px",cursor:"pointer",fontSize:11,color:"#64748b"}}>✕</button>
+                              </span>
+                            : <span>{body}</span>
+                          }
+                        </div>
+                        {noteEditIdx!==origIdx&&<>
+                          <button onClick={()=>{sNoteEditIdx(origIdx);sNoteEditText(body);}} style={{flexShrink:0,border:"none",background:"transparent",color:"#94a3b8",cursor:"pointer",fontSize:12,lineHeight:1,padding:"1px 2px"}} title="Edit note">✎</button>
+                          <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
+                        </>}
+                      </div>
+                    );});
+                  })()}
                   <div style={{display:"flex",gap:0}}>
                     <Inp value={noteInput} onChange={e=>sNoteInput(e.target.value)} placeholder={`Add note… (${today()})`}
                       onKeyDown={e=>{if(e.key==="Enter"&&noteInput.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);sNoteInput("");}}}
