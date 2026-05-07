@@ -671,6 +671,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
                   <div key={o.id} style={{display:"flex",justifyContent:"space-between",gap:12,marginBottom:5,fontSize:12}}>
                     <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"#e2e8f0"}}>{cust?.companyEN||o.custId}</span>
                     <span style={{fontWeight:700,color:"#fbbf24",whiteSpace:"nowrap"}}>฿{fmt(o.salesPrice)}</span>
+                    {(()=>{const sr=calcSuccessRate(o);const clr=sr>=70?"#4ade80":sr>=40?"#fbbf24":"#f87171";return <span style={{fontWeight:700,color:clr,whiteSpace:"nowrap",minWidth:36,textAlign:"right",border:`1px solid ${clr}55`,borderRadius:3,padding:"1px 4px",fontSize:10}}>{sr}%</span>;})()}
                   </div>
                 );
               })}
