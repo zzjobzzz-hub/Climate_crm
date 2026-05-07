@@ -1742,8 +1742,6 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
   const [f,sF] = useState(initial?{...initial,activityLog:initial.activityLog||[]}:blank);
   const [tab,sTab] = useState(initTab);
   const [noteInput,sNoteInput] = useState("");
-  const [noteEditIdx,sNoteEditIdx] = useState(null);
-  const [noteEditText,sNoteEditText] = useState("");
   const set=(k,v)=>sF(p=>({...p,[k]:v}));
   const isWon=f.status==="Won", isLost=f.status==="Lost";
   const mg=margin(f.salesPrice,f.totalCost||0);
@@ -1794,19 +1792,9 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                         <div style={{flex:1,lineHeight:1.5}}>
                           <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
                           {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
-                          {noteEditIdx===origIdx
-                            ? <span style={{display:"inline-flex",gap:4,alignItems:"center",flex:1}}>
-                                <input autoFocus value={noteEditText} onChange={e=>sNoteEditText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){const updated=[...lines];updated[origIdx]=(meta?`[${meta}] `:"")+noteEditText.trim();set("remark",updated.join("\n"));sNoteEditIdx(null);}if(e.key==="Escape")sNoteEditIdx(null);}} style={{fontSize:12,padding:"1px 6px",border:"1px solid #3b82f6",borderRadius:3,outline:"none",minWidth:180}}/>
-                                <button onClick={()=>{const updated=[...lines];updated[origIdx]=(meta?`[${meta}] `:"")+noteEditText.trim();set("remark",updated.join("\n"));sNoteEditIdx(null);}} style={{border:"none",background:"#3b82f6",color:"#fff",borderRadius:3,padding:"1px 6px",cursor:"pointer",fontSize:11}}>Save</button>
-                                <button onClick={()=>sNoteEditIdx(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:3,padding:"1px 5px",cursor:"pointer",fontSize:11,color:"#64748b"}}>✕</button>
-                              </span>
-                            : <span>{body}</span>
-                          }
+                          <span>{body}</span>
                         </div>
-                        {noteEditIdx!==origIdx&&<>
-                          <button onClick={()=>{sNoteEditIdx(origIdx);sNoteEditText(body);}} style={{flexShrink:0,border:"none",background:"transparent",color:"#94a3b8",cursor:"pointer",fontSize:12,lineHeight:1,padding:"1px 2px"}} title="Edit note">✎</button>
-                          <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
-                        </>}
+                        <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
                       </div>
                     );});
                   })()}                  <div style={{display:"flex",gap:0}}>
@@ -2223,8 +2211,6 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
   },[]);
   const [tab,sTab] = useState(initTab);
   const [noteInput,sNoteInput] = useState("");
-  const [noteEditIdx,sNoteEditIdx] = useState(null);
-  const [noteEditText,sNoteEditText] = useState("");
   const set=(k,v)=>sF(p=>({...p,[k]:v}));
   // Build installments from a source array + contract value
   const buildInstFromSource=(srcInst,cv)=>srcInst.map((ins,i)=>({
@@ -2325,19 +2311,9 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
                         <div style={{flex:1,lineHeight:1.5}}>
                           <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
                           {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
-                          {noteEditIdx===origIdx
-                            ? <span style={{display:"inline-flex",gap:4,alignItems:"center"}}>
-                                <input autoFocus value={noteEditText} onChange={e=>sNoteEditText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){const updated=[...lines];updated[origIdx]=(meta?`[${meta}] `:"")+noteEditText.trim();set("remark",updated.join("\n"));sNoteEditIdx(null);}if(e.key==="Escape")sNoteEditIdx(null);}} style={{fontSize:12,padding:"1px 6px",border:"1px solid #3b82f6",borderRadius:3,outline:"none",minWidth:180}}/>
-                                <button onClick={()=>{const updated=[...lines];updated[origIdx]=(meta?`[${meta}] `:"")+noteEditText.trim();set("remark",updated.join("\n"));sNoteEditIdx(null);}} style={{border:"none",background:"#3b82f6",color:"#fff",borderRadius:3,padding:"1px 6px",cursor:"pointer",fontSize:11}}>Save</button>
-                                <button onClick={()=>sNoteEditIdx(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:3,padding:"1px 5px",cursor:"pointer",fontSize:11,color:"#64748b"}}>✕</button>
-                              </span>
-                            : <span>{body}</span>
-                          }
+                          <span>{body}</span>
                         </div>
-                        {noteEditIdx!==origIdx&&<>
-                          <button onClick={()=>{sNoteEditIdx(origIdx);sNoteEditText(body);}} style={{flexShrink:0,border:"none",background:"transparent",color:"#94a3b8",cursor:"pointer",fontSize:12,lineHeight:1,padding:"1px 2px"}} title="Edit note">✎</button>
-                          <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
-                        </>}
+                        <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
                       </div>
                     );});
                   })()}
@@ -2624,7 +2600,6 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
                         <Span s={11} w={700} c="#0f172a">{u?.name||l.author}</Span>
                         <span style={{background:"#f1f5f9",color:"#64748b",fontSize:9,padding:"1px 5px",borderRadius:3,fontFamily:"monospace"}}>{l.ts}</span>
                         <div style={{marginLeft:"auto",display:"flex",gap:2}}>
-                          <button onClick={()=>{const txt=window.prompt("Edit entry:",l.note);if(txt===null)return;const updated={...d,workLog:safeArr(d.workLog).map(x=>x.id===l.id?{...x,note:txt.trim()}:x)};onSave(updated);}} style={{border:"none",background:"none",cursor:"pointer",color:"#94a3b8",fontSize:12,padding:"0 3px",lineHeight:1}} title="Edit">✎</button>
                           <button onClick={()=>{if(!window.confirm("Delete this entry?"))return;const updated={...d,workLog:safeArr(d.workLog).filter(x=>x.id!==l.id)};onSave(updated);}} style={{border:"none",background:"none",cursor:"pointer",color:"#fca5a5",fontSize:12,padding:"0 3px",lineHeight:1}} title="Delete">✕</button>
                         </div>
                       </div>
