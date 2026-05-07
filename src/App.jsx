@@ -133,6 +133,27 @@ const today = () => new Date().toISOString().slice(0,10);
 const nowTS = () => { const d=new Date(); return `${d.getFullYear()+543}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
 const pad2  = n => String(n).padStart(2,"0");
 const safeArr = v => { if(Array.isArray(v)) return v; if(typeof v==="string"&&v.trim().startsWith("[")) { try{return JSON.parse(v);}catch(_){} } return []; };
+const calcSuccessRate = o => {
+  if(o.status==="Won") return 100;
+  if(o.status==="Lost") return 0;
+  let score = 0;
+  if(o.status==="Proposal")     score += 10;
+  if(o.status==="Presentation") score += 20;
+  if(o.status==="Negotiation")  score += 35;
+  if(o.quoteNo)  score += 15;
+  if(o.csCode)   score += 10;
+  if(o.ranking==="High")   score += 20;
+  if(o.ranking==="Medium") score += 10;
+  if((o.activityLog?.length||0) >= 3) score += 10;
+  const lastLog = [...(o.activityLog||[])].sort((a,b)=>(b.ts||"").localeCompare(a.ts||""))[0];
+  if(lastLog?.ts) {
+    const last = new Date(lastLog.ts.slice(0,10));
+    const daysSince = (Date.now() - last.getTime()) / 86400000;
+    if(daysSince > 60) score -= 15;
+  }
+  return Math.min(100, Math.max(0, score));
+};
+const successRateColor = pct => pct >= 70 ? "#16a34a" : pct >= 40 ? "#d97706" : "#dc2626";
 
 const calcIC   = rows => (rows||[]).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
 const calcEC   = (rows,coOnly) => (rows||[]).filter(r=>coOnly?!r.clientBorne:true).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
@@ -1863,6 +1884,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
       if(col==="status")     return OPP_STATUSES.indexOf(o.status);
       if(col==="agent")      return (USERS.find(u=>u.id===o.assignedTo)?.name||"").toLowerCase();
       if(col==="log")        return o.activityLog?.length||0;
+      if(col==="successRate") return calcSuccessRate(o);
       return "";
     };
     return [...filtered].sort((a,b)=>{
@@ -1962,6 +1984,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
                     <div style={{fontSize:12,fontWeight:700,color:"#0f172a",marginBottom:4,lineHeight:1.3}}>{c?.companyEN||"-"}</div>
                     {o.csCode&&<div style={{marginBottom:5}}><span style={{fontFamily:"monospace",fontWeight:700,fontSize:10,background:"#fef3c7",color:"#92400e",padding:"2px 7px",borderRadius:4,border:"1px solid #fde68a"}}>{o.csCode}</span></div>}
                     <div style={{display:"flex",gap:5,marginBottom:6,flexWrap:"wrap"}}><SvcBadge code={o.serviceCode}/><span style={{background:+mg>=30?"#dcfce7":"#fee2e2",color:+mg>=30?"#16a34a":"#dc2626",fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4}}>{mg}%</span></div>
+                    {(()=>{const sr=calcSuccessRate(o);const clr=successRateColor(sr);return(<div style={{marginBottom:6}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}><span style={{fontSize:9,color:"#94a3b8",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Success</span><span style={{fontSize:10,fontWeight:800,color:clr}}>{sr}%</span></div><div style={{height:4,background:"#e2e8f0",borderRadius:99,overflow:"hidden"}}><div style={{height:"100%",width:`${sr}%`,background:clr,borderRadius:99,transition:"width .3s"}}/></div></div>);})()}
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                       <span style={{fontWeight:900,fontSize:13}}>฿{fmt(o.salesPrice)}</span>
                       <span style={{fontSize:10,color:"#94a3b8"}}>{USERS.find(u=>u.id===o.assignedTo)?.name.split(" ")[0]||"-"}</span>
@@ -1997,16 +2020,17 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
         <MultiSelect label="Status"  options={OPP_STATUSES.map(s=>({value:s,label:s}))}       selected={fSt}  onChange={setFSt}  width={150}/>
         <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fSvc} onChange={setFSvc} width={150}/>
         <MultiSelect label="Agents"  options={SALES_USERS.map(u=>({value:u.id,label:u.name.split(" ")[0]}))} selected={fAg} onChange={setFAg} width={175}/>
+        {view==="kanban"&&<div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
+          {[["recent","↓ Latest"],["oldest","↑ Oldest"]].map(([k,l])=>(
+            <button key={k} onClick={()=>setKanbanSort(k)} style={{padding:"6px 11px",border:"none",background:kanbanSort===k?"#0f172a":"#fff",color:kanbanSort===k?"#fff":"#64748b",cursor:"pointer",fontSize:11,fontWeight:kanbanSort===k?700:400,whiteSpace:"nowrap"}}>{l}</button>
+          ))}
+        </div>}
         <div style={{flex:1}}/>
         <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
           {[["table"," Table"],["kanban","⊞ Kanban"]].map(([k,l])=>(
             <button key={k} onClick={()=>sView(k)} style={{padding:"7px 14px",border:"none",background:view===k?"#0f172a":"#fff",color:view===k?"#fff":"#64748b",cursor:"pointer",fontSize:12,fontWeight:view===k?700:400}}>{l}</button>
           ))}
         </div>
-        {view==="kanban"&&<Sel value={kanbanSort} onChange={e=>setKanbanSort(e.target.value)} style={{fontSize:12,padding:"6px 10px",border:"1px solid #e2e8f0",borderRadius:6}}>
-          <option value="recent">↓ Latest first</option>
-          <option value="oldest">↑ Oldest first</option>
-        </Sel>}
       </div>
       {view==="table"&&(
         <Card><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}>
@@ -2023,6 +2047,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
               {label:"Status",       col:"status"},
               {label:"Agent",        col:"agent"},
               {label:"Ranking",      col:"ranking"},
+              {label:"Success",      col:"successRate"},
               {label:"Log",          col:"log"},
             ].map(({label,col})=>(
               <th key={col} onClick={()=>toggleSort(col)}
@@ -2059,6 +2084,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
               </TD>
               <TD>{USERS.find(u=>u.id===o.assignedTo)?.name.split(" ")[0]||"-"}</TD>
               <TD>{oRank?<span style={{background:RANK_CLR[oRank]?.bg||"#f1f5f9",color:RANK_CLR[oRank]?.c||"#64748b",padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{oRank}</span>:"—"}</TD>
+              <TD>{(()=>{const sr=calcSuccessRate(o);const clr=successRateColor(sr);return(<div style={{minWidth:72}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}><span style={{fontSize:11,fontWeight:800,color:clr}}>{sr}%</span></div><div style={{height:4,background:"#e2e8f0",borderRadius:99,overflow:"hidden"}}><div style={{height:"100%",width:`${sr}%`,background:clr,borderRadius:99}}/></div></div>);})()}</TD>
               <TD><button onClick={e=>{e.stopPropagation();sLog(o);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11}}> {o.activityLog?.length||0}</button></TD>
               <TD><Btn variant="ghost" style={{fontSize:11,padding:"3px 10px"}} onClick={e=>{e.stopPropagation();sE(o);sF(true);}}>Edit</Btn></TD>
             </TR>
@@ -2342,7 +2368,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
           <div style={{marginTop:20}}><FRow label="Current Step"><Sel value={f.currentStep} onChange={e=>set("currentStep",e.target.value)}>{DLV_STEPS.map(s=><option key={s}>{s}</option>)}</Sel></FRow></div>
         </div>
       )}
-      {tab==="log"&&<ActivityLog logs={f.workLog||[]} currentUser={user} onAdd={entry=>sF(p=>({...p,workLog:[...(p.workLog||[]),entry]}))} placeholder="Log work progress, milestones, issues…" users={userList}/>}
+      {tab==="log"&&<ActivityLog logs={f.workLog||[]} currentUser={user} onAdd={entry=>sF(p=>({...p,workLog:[...(p.workLog||[]),entry]}))} onEdit={(id,text)=>sF(p=>({...p,workLog:(p.workLog||[]).map(x=>x.id===id?{...x,note:text}:x)}))} onDelete={id=>sF(p=>({...p,workLog:(p.workLog||[]).filter(x=>x.id!==id)}))} placeholder="Log work progress, milestones, issues…" users={userList}/>}
       {tab==="cost"&&<CostBreakdown quoteNo={f.quoteNo} costSheets={costSheets}/>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
