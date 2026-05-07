@@ -376,9 +376,10 @@ const MultiSelect = ({label,options,selected,onChange,width=180}) => {
 };
 
 //  Activity log 
-const ActivityLog = ({logs,currentUser,onAdd,placeholder="Add a note…",users=[]}) => {
+const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a note…",users=[]}) => {
   const [note,sN] = useState("");
-  // Resolve a user by id — falls back to module-level USERS for any entries logged before the GS load
+  const [editId,setEditId] = useState(null);
+  const [editText,setEditText] = useState("");
   const findUser = id => users.find(x=>x.id===id) || USERS.find(x=>x.id===id);
   return (
     <div>
@@ -391,13 +392,23 @@ const ActivityLog = ({logs,currentUser,onAdd,placeholder="Add a note…",users=[
               <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:3,flexWrap:"wrap"}}>
                 <Span s={12} w={700} c="#0f172a">{u?.name||l.author}</Span>
                 <span style={{background:"#f1f5f9",color:"#64748b",fontSize:10,padding:"1px 6px",borderRadius:3,fontFamily:"monospace"}}>{l.ts}</span>
+                {(onEdit||onDelete)&&<div style={{marginLeft:"auto",display:"flex",gap:4}}>
+                  {onEdit&&<button onClick={()=>{setEditId(l.id);setEditText(l.note);}} style={{border:"none",background:"none",cursor:"pointer",color:"#94a3b8",fontSize:12,padding:"0 3px",lineHeight:1}} title="Edit">✎</button>}
+                  {onDelete&&<button onClick={()=>{if(!window.confirm("Delete this log entry?"))return;onDelete(l.id);}} style={{border:"none",background:"none",cursor:"pointer",color:"#fca5a5",fontSize:12,padding:"0 3px",lineHeight:1}} title="Delete">✕</button>}
+                </div>}
               </div>
-              <Span s={13}>{l.note}</Span>
+              {editId===l.id
+                ? <div style={{display:"flex",gap:6,marginTop:4}}>
+                    <input autoFocus value={editText} onChange={e=>setEditText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){onEdit(l.id,editText);setEditId(null);}if(e.key==="Escape")setEditId(null);}} style={{flex:1,fontSize:13,padding:"4px 8px",border:"1px solid #3b82f6",borderRadius:4,outline:"none"}}/>
+                    <button onClick={()=>{onEdit(l.id,editText);setEditId(null);}} style={{border:"none",background:"#3b82f6",color:"#fff",borderRadius:4,padding:"4px 10px",cursor:"pointer",fontSize:12}}>Save</button>
+                    <button onClick={()=>setEditId(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:12,color:"#64748b"}}>✕</button>
+                  </div>
+                : <Span s={13}>{l.note}</Span>
+              }
             </div>
           </div>
         );})}
       </div>
-
       {onAdd&&<Txta value={note} onChange={e=>sN(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&note.trim()){onAdd({id:uid(),ts:nowTS(),author:currentUser.id,note:note.trim()});sN("");e.preventDefault();}}} placeholder={placeholder} style={{minHeight:44,fontSize:13,marginBottom:4}}/>}
     </div>
   );
@@ -1827,6 +1838,7 @@ const OPP_HDR = ["OPP Code","Quote No.","CS Code","Job Code","Company","Service 
 const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSaveDelivery,onDeleteDelivery,toast,costSheets,onGoToCS,initOppCode,onOppReady,userList=[]}) => {
   const [search,sS]=useState(""); const [fSt,setFSt]=useState([]); const [fAg,setFAg]=useState([]); const [fSvc,setFSvc]=useState([]);
   const [view,sView]=useState("kanban"); const [form,sF]=useState(false); const [edit,sE]=useState(null);
+  const [kanbanSort,setKanbanSort]=useState("recent"); // recent | oldest
   const [logOpp,sLog]=useState(null); const [gs,sGS]=useState(false); const [quotationOpp,sQT]=useState(null);
   const [dragId,setDragId]=useState(null); const [dragOver,setDragOver]=useState(null);
   const [sort,setSort]=useState({col:"oppCode",dir:"asc"});
@@ -1882,7 +1894,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
   const kanbanView = (
     <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
       {OPP_STATUSES.map(status => {
-        const col=list.filter(o=>o.status===status);
+        const col=list.filter(o=>o.status===status).sort((a,b)=>{const ta=a.createdDate||"";const tb=b.createdDate||"";return kanbanSort==="recent"?tb.localeCompare(ta):ta.localeCompare(tb);});
         const cv=col.reduce((s,o)=>s+o.salesPrice,0);
         const isDragTarget = dragOver===status;
         return (
@@ -1991,6 +2003,10 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
             <button key={k} onClick={()=>sView(k)} style={{padding:"7px 14px",border:"none",background:view===k?"#0f172a":"#fff",color:view===k?"#fff":"#64748b",cursor:"pointer",fontSize:12,fontWeight:view===k?700:400}}>{l}</button>
           ))}
         </div>
+        {view==="kanban"&&<Sel value={kanbanSort} onChange={e=>setKanbanSort(e.target.value)} style={{fontSize:12,padding:"6px 10px",border:"1px solid #e2e8f0",borderRadius:6}}>
+          <option value="recent">↓ Latest first</option>
+          <option value="oldest">↑ Oldest first</option>
+        </Sel>}
       </div>
       {view==="table"&&(
         <Card><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}>
@@ -2076,7 +2092,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
             <SvcBadge code={logOpp.serviceCode}/>
             <Span s={12} w={700} c="#0f172a">฿{fmt(logOpp.salesPrice)}</Span>
           </div>
-          <ActivityLog logs={logOpp.activityLog||[]} currentUser={user} onAdd={entry=>{const up={...logOpp,activityLog:[...(logOpp.activityLog||[]),entry]};onSave(up);sLog(up);toast("Log added",logOpp.oppCode);}} placeholder="Log a call, meeting, or follow-up…" users={userList}/>
+          <ActivityLog logs={logOpp.activityLog||[]} currentUser={user} onAdd={entry=>{const up={...logOpp,activityLog:[...(logOpp.activityLog||[]),entry]};onSave(up);sLog(up);toast("Log added",logOpp.oppCode);}} onEdit={(id,text)=>{const up={...logOpp,activityLog:(logOpp.activityLog||[]).map(x=>x.id===id?{...x,note:text}:x)};onSave(up);sLog(up);}} onDelete={id=>{const up={...logOpp,activityLog:(logOpp.activityLog||[]).filter(x=>x.id!==id)};onSave(up);sLog(up);}} placeholder="Log a call, meeting, or follow-up…" users={userList}/>
           <div style={{display:"flex",justifyContent:"flex-end",marginTop:12}}><Btn onClick={()=>sLog(null)}>Done</Btn></div>
         </Modal>
       )}
@@ -2348,6 +2364,8 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
 
   // Sync from parent when d changes (e.g. after save)
   useEffect(()=>{ setLocalD(d); setLocalInst(d.installments||[]); },[d.id, d.saveLog?.length]);
+  const [editLogId,setEditLogId]=useState(null);
+  const [editLogText,setEditLogText]=useState("");
 
   const opp   = opps.find(o=>o.oppCode===d.oppCode);
   const cust  = customers.find(c=>c.id===d.custId);
@@ -2587,16 +2605,22 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
             </tbody>
           </table>
         </div>
-        {/* Save Log — latest first */}
+        {/* Save Log — latest first, editable/deletable */}
         {(d.saveLog||[]).length>0&&(
           <div style={{padding:"10px 16px",borderTop:"1px solid #f1f5f9",background:"#fafafa"}}>
             <Span s={10} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:6}}>Save Log</Span>
-            <div style={{maxHeight:120,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
+            <div style={{maxHeight:160,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
               {[...(d.saveLog||[])].sort((a,b)=>(b.ts||"").localeCompare(a.ts||"")).map(l=>(
-                <div key={l.id} style={{display:"flex",gap:8,fontSize:10,padding:"3px 0",borderBottom:"1px solid #f1f5f9"}}>
-                  <span style={{color:"#94a3b8",whiteSpace:"nowrap",minWidth:130}}>{l.ts}</span>
-                  <span style={{color:"#1e40af",fontWeight:700,minWidth:60}}>{USERS.find(u=>u.id===l.author)?.name.split(" ")[0]||l.author}</span>
-                  <span style={{color:"#374151"}}>{l.note}</span>
+                <div key={l.id} style={{display:"flex",gap:8,fontSize:10,padding:"4px 0",borderBottom:"1px solid #f1f5f9",alignItems:"center"}}>
+                  <span style={{color:"#94a3b8",whiteSpace:"nowrap",minWidth:90}}>{l.ts}</span>
+                  <span style={{color:"#1e40af",fontWeight:700,minWidth:55}}>{USERS.find(u=>u.id===l.author)?.name.split(" ")[0]||l.author}</span>
+                  {editLogId===l.id
+                    ? <><input autoFocus value={editLogText} onChange={e=>setEditLogText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){const updated={...d,saveLog:(d.saveLog||[]).map(x=>x.id===l.id?{...x,note:editLogText}:x)};onSave(updated);setLocalD(updated);setEditLogId(null);}if(e.key==="Escape")setEditLogId(null);}} style={{flex:1,fontSize:10,padding:"2px 6px",border:"1px solid #3b82f6",borderRadius:3,outline:"none"}}/><button onClick={()=>{const updated={...d,saveLog:(d.saveLog||[]).map(x=>x.id===l.id?{...x,note:editLogText}:x)};onSave(updated);setLocalD(updated);setEditLogId(null);}} style={{border:"none",background:"#3b82f6",color:"#fff",borderRadius:3,padding:"2px 6px",cursor:"pointer",fontSize:10}}>Save</button><button onClick={()=>setEditLogId(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:3,padding:"2px 5px",cursor:"pointer",fontSize:10,color:"#64748b"}}>✕</button></>
+                    : <><span style={{color:"#374151",flex:1}}>{l.note}</span>
+                        <button onClick={()=>{setEditLogId(l.id);setEditLogText(l.note);}} style={{border:"none",background:"none",cursor:"pointer",color:"#94a3b8",fontSize:11,padding:"0 3px",lineHeight:1}} title="Edit">✎</button>
+                        <button onClick={()=>{if(!window.confirm("Delete this log entry?"))return;const updated={...d,saveLog:(d.saveLog||[]).filter(x=>x.id!==l.id)};onSave(updated);setLocalD(updated);}} style={{border:"none",background:"none",cursor:"pointer",color:"#fca5a5",fontSize:11,padding:"0 3px",lineHeight:1}} title="Delete">✕</button>
+                      </>
+                  }
                 </div>
               ))}
             </div>
