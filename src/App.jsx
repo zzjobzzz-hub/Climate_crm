@@ -136,21 +136,10 @@ const safeArr = v => { if(Array.isArray(v)) return v; if(typeof v==="string"&&v.
 const calcSuccessRate = o => {
   if(o.status==="Won") return 100;
   if(o.status==="Lost") return 0;
+  if(o.successRate&&+o.successRate>0) return Math.min(100,Math.max(0,+o.successRate));
   let score = 0;
-  if(o.status==="Proposal")     score += 10;
-  if(o.status==="Presentation") score += 20;
-  if(o.status==="Negotiation")  score += 35;
-  if(o.quoteNo)  score += 15;
-  if(o.csCode)   score += 10;
-  if(o.ranking==="High")   score += 20;
-  if(o.ranking==="Medium") score += 10;
-  if((o.activityLog?.length||0) >= 3) score += 10;
-  const lastLog = [...(o.activityLog||[])].sort((a,b)=>(b.ts||"").localeCompare(a.ts||""))[0];
-  if(lastLog?.ts) {
-    const last = new Date(lastLog.ts.slice(0,10));
-    const daysSince = (Date.now() - last.getTime()) / 86400000;
-    if(daysSince > 60) score -= 15;
-  }
+  if(o.status==="Proposal")    score += 50;
+  if(o.status==="Negotiation") score += 10;
   return Math.min(100, Math.max(0, score));
 };
 const successRateColor = pct => pct >= 70 ? "#16a34a" : pct >= 40 ? "#d97706" : "#dc2626";
@@ -663,12 +652,16 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
 
           {/* Tooltip */}
           {hoveredTag && tooltipOpps.length>0 && (
-            <div style={{position:"fixed",left:hoveredTag.x,top:hoveredTag.y,zIndex:9999,background:"#1e293b",color:"#f8fafc",borderRadius:8,padding:"10px 14px",boxShadow:"0 8px 32px rgba(0,0,0,.28)",minWidth:220,maxWidth:320,pointerEvents:"none"}}>
+            <div style={{position:"fixed",left:hoveredTag.x,top:hoveredTag.y,zIndex:9999,background:"#1e293b",color:"#f8fafc",borderRadius:8,padding:"10px 14px",boxShadow:"0 8px 32px rgba(0,0,0,.28)",minWidth:260,maxWidth:340,pointerEvents:"none"}}>
               <div style={{fontWeight:800,fontSize:12,marginBottom:7,color:"#94a3b8",letterSpacing:"0.05em",textTransform:"uppercase"}}>{hoveredTag.code} · {hoveredTag.stage}</div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"1px solid #334155",borderBottom:"1px solid #334155",padding:"4px 0",marginBottom:6}}>
+                <span style={{fontSize:10,color:"#64748b",fontStyle:"italic"}}>Company · Value</span>
+                <span style={{fontSize:10,fontWeight:700,color:"#94a3b8",letterSpacing:"0.05em"}}>% Success</span>
+              </div>
               {tooltipOpps.map(o=>{
                 const cust=customers.find(c=>c.id===o.custId);
                 return(
-                  <div key={o.id} style={{display:"flex",justifyContent:"space-between",gap:12,marginBottom:5,fontSize:12}}>
+                  <div key={o.id} style={{display:"flex",justifyContent:"space-between",gap:12,marginBottom:5,fontSize:12,alignItems:"center"}}>
                     <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"#e2e8f0"}}>{cust?.companyEN||o.custId}</span>
                     <span style={{fontWeight:700,color:"#fbbf24",whiteSpace:"nowrap"}}>฿{fmt(o.salesPrice)}</span>
                     {(()=>{const sr=calcSuccessRate(o);const clr=sr>=70?"#4ade80":sr>=40?"#fbbf24":"#f87171";return <span style={{fontWeight:700,color:clr,whiteSpace:"nowrap",minWidth:36,textAlign:"right",border:`1px solid ${clr}55`,borderRadius:3,padding:"1px 4px",fontSize:10}}>{sr}%</span>;})()}
@@ -1766,6 +1759,14 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
             <FRow label="Total Cost (THB)"><Inp value={`฿${fmt(f.totalCost||0)}`} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow>
             <FRow label="Status"><Sel value={f.status} onChange={e=>set("status",e.target.value)}>{OPP_STATUSES.map(s=><option key={s}>{s}</option>)}</Sel></FRow>
             <FRow label="Sales Agent"><Inp value={SALES_USERS.find(u=>u.id===f.assignedTo)?.name||f.assignedTo} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow>
+            <FRow label="Success %" tip="Leave blank to use auto-calculated score">
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <NumInp value={f.successRate||""} onChange={v=>set("successRate",v)} style={{width:72}} placeholder="Auto"/>
+                <span style={{fontSize:11,color:"#94a3b8"}}>%</span>
+                {(!f.successRate||+f.successRate===0)&&<span style={{fontSize:11,color:"#94a3b8",fontStyle:"italic"}}>Auto: {calcSuccessRate({...f,successRate:0})}%</span>}
+                {(f.successRate&&+f.successRate>0)?<span style={{fontSize:11,fontWeight:700,color:successRateColor(+f.successRate)}}>{f.successRate}% (manual)</span>:null}
+              </div>
+            </FRow>
             <FRow label="Ranking" tip="ระดับความสำคัญของ Opportunity นี้">
               <div style={{display:"flex",gap:6}}>
                 {["High","Medium","Low"].map(r=>{
