@@ -137,10 +137,9 @@ const calcSuccessRate = o => {
   if(o.status==="Won") return 100;
   if(o.status==="Lost") return 0;
   if(o.successRate&&+o.successRate>0) return Math.min(100,Math.max(0,+o.successRate));
-  let score = 0;
-  if(o.status==="Proposal")    score += 50;
-  if(o.status==="Negotiation") score += 10;
-  return Math.min(100, Math.max(0, score));
+  if(o.status==="Negotiation") return 60;
+  if(o.status==="Proposal")    return 50;
+  return 0;
 };
 const successRateColor = pct => pct >= 70 ? "#16a34a" : pct >= 40 ? "#d97706" : "#dc2626";
 
