@@ -508,7 +508,7 @@ const LoginPage = ({onLogin}) => {
 // 
 const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toast,onGoToCS}) => {
   const [tab,sTab]   = useState("dash");
-  const [year,sYear] = useState(2026);
+  const [year,sYear] = useState(new Date().getFullYear() + 543); // BE year
   const [annual,sAnn] = useState(ANNUAL_KPI);
   // Req 14: multi-select dashboard filters
   const [fSt,setFSt]   = useState([]);
@@ -534,21 +534,25 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const splits      = kpiSplits[year]||DEFAULT_SPLIT.slice();
   const totalSplit  = splits.reduce((s,v)=>s+v,0);
 
-  // Won date priority:
-  // 1. delivery.workLog_json — "Auto-created from OPP-xxx — Won." ts (most reliable)
-  // 2. activityLog_json — last "Status → Won" entry
-  // 3. createdDate fallback
+  // Convert any date string to BE year format for consistent comparison
+  const toBEDate = d => {
+    if (!d) return "";
+    const y = parseInt(d.slice(0, 4));
+    if (y < 2500) return `${y + 543}${d.slice(4)}`; // CE → BE
+    return d; // already BE
+  };
+
   const getWonDate = opp => {
     const dlv = deliveries.find(d => d.oppCode === opp.oppCode);
     if (dlv) {
       const dlvLogs = safeArr(dlv.workLog_json || dlv.workLog);
       const dlvWon = dlvLogs.find(l => /Auto-created.*Won/i.test(l.note || ""));
-      if (dlvWon?.ts) return dlvWon.ts;
+      if (dlvWon?.ts) return toBEDate(dlvWon.ts);
     }
     const logs = safeArr(opp.activityLog_json || opp.activityLog);
     const wonLogs = logs.filter(l => /Status.*→ Won|Status changed.*to Won/i.test(l.note || ""));
-    if (wonLogs.length) return wonLogs[wonLogs.length - 1].ts;
-    return opp.createdDate;
+    if (wonLogs.length) return toBEDate(wonLogs[wonLogs.length - 1].ts);
+    return toBEDate(opp.createdDate);
   };
 
   const monthData = MONTHS.map((m,i) => {
@@ -557,7 +561,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     // Backlog = Won opps by wonDate from workLog (falls back to createdDate for legacy records)
     const blItems=filteredOpps.filter(o=>o.status==="Won"&&getWonDate(o)?.startsWith(ms)).map(o=>({company:customers.find(c=>c.id===o.custId)?.companyEN||o.custId,amount:o.salesPrice||0}));
     // Received = Delivery installments status=Received by receiptDate month (auto-synced from Delivery)
-    const recItems=deliveries.flatMap(d=>(d.installments||[]).filter(ins=>ins.receiptDate?.startsWith(ms)&&ins.status==="Received").map(ins=>({company:customers.find(c=>c.id===d.custId)?.companyEN||d.custId,amount:ins.amount||0})));
+    const recItems=deliveries.flatMap(d=>(safeArr(d.installments)).filter(ins=>toBEDate(ins.receiptDate)?.startsWith(ms)&&ins.status==="Received").map(ins=>({company:customers.find(c=>c.id===d.custId)?.companyEN||d.custId,amount:ins.amount||0})));
     const bl=blItems.reduce((s,it)=>s+it.amount,0);
     const rec=recItems.reduce((s,it)=>s+it.amount,0);
     return{m,ms,fc,bl,rec,ach:fc>0?((bl/fc)*100).toFixed(0):"0",blItems,recItems};
@@ -734,7 +738,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
           <MultiSelect label="Status"  options={OPP_STATUSES.map(s=>({value:s,label:s}))}       selected={fSt}  onChange={setFSt}  width={150}/>
           <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fSvc} onChange={setFSvc} width={150}/>
           <MultiSelect label="Agents"  options={SALES_USERS.map(u=>({value:u.id,label:u.name.split(" ")[0]}))} selected={fAg} onChange={setFAg} width={150}/>
-          {tab==="kpi"&&<><Sel value={year} onChange={e=>sYear(+e.target.value)} style={{width:88}}>{[2026,2027,2028].map(y=><option key={y}>{y}</option>)}</Sel><NumInp value={annual} onChange={v=>sAnn(v)} style={{width:160}}/></>}
+          {tab==="kpi"&&<><Sel value={year} onChange={e=>sYear(+e.target.value)} style={{width:88}}>{[2569,2570,2571].map(y=><option key={y}>{y}</option>)}</Sel><NumInp value={annual} onChange={v=>sAnn(v)} style={{width:160}}/></>}
         </div>
       </div>
 
@@ -3401,7 +3405,7 @@ function App() {
   const [initCsCode,sCsCode]   = useState(null);
   const [initCustId,sCustId]   = useState(null);
   const [initOppCode,sOppCode] = useState(null);
-  const [kpiSplits,sKPI]     = useState({2026:DEFAULT_SPLIT.slice(),2027:DEFAULT_SPLIT.slice(),2028:DEFAULT_SPLIT.slice()});
+  const [kpiSplits,sKPI]     = useState({2569:DEFAULT_SPLIT.slice(),2570:DEFAULT_SPLIT.slice(),2571:DEFAULT_SPLIT.slice()});
   const [gsStatus,sGSStatus] = useState("idle"); // "idle"|"loading"|"synced"|"error"
   const [userList,sUserList] = useState([]);      // S2: safe user list {id,name,role} loaded from GS
   const {toasts,show:toast}  = useToast();
