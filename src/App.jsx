@@ -534,6 +534,20 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const splits      = kpiSplits[year]||DEFAULT_SPLIT.slice();
   const totalSplit  = splits.reduce((s,v)=>s+v,0);
 
+  // Revenue: sum of installment.amount where expected_date is in the current CE year (no status filter)
+  const revenue = useMemo(()=>{
+    const ceYear = new Date().getFullYear();
+    const prefix = String(ceYear);
+    return deliveries.reduce((total,d)=>{
+      return total + (d.installments||[]).reduce((s,ins)=>{
+        if(!ins.expected_date) return s;
+        const dateStr = String(ins.expected_date);
+        if(dateStr.startsWith(prefix)) return s + (ins.amount||0);
+        return s;
+      },0);
+    },0);
+  },[deliveries]);
+
   // Convert any date string to BE year format for consistent comparison
   const toBEDate = d => {
     if (!d) return "";
@@ -744,14 +758,6 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
 
       {tab==="dash"&&(
         <>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12,marginBottom:14}}>
-            <SC label="Customers"      val={customers.length}       sub={`${customers.filter(c=>c.ranking==="High").length} High Priority`}/>
-            <SC label="Won YTD"        val={`฿${fmtM(totalWon)}`}  sub={`${wonOpps.length} deals closed`}   c="#16a34a"/>
-            <SC label="Opportunities"  val={`฿${fmtM(oppsPipeline)}`} sub={`${oppsPipelineCount} deals active`} c="#a78bfa"/>
-            <SC label="Pipeline"       val={`฿${fmtM(pipeline)}`}  sub={`${filteredOpps.filter(o=>!["Won","Lost"].includes(o.status)).length} active`}/>
-            <SC label="KPI Achievement" val={`${kpiPct.toFixed(1)}%`} sub={`Target ฿${fmtM(annual)}`} c={kpiPct>=75?"#16a34a":kpiPct>=50?"#d97706":"#dc2626"}/>
-          </div>
-
           <Card style={{padding:20,marginBottom:14}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
               <Span s={13} w={700}>Annual KPI Progress</Span>
@@ -759,6 +765,15 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
             </div>
             <div style={{background:"#f1f5f9",borderRadius:5,height:10}}><div style={{background:kpiPct>=75?"#16a34a":kpiPct>=50?"#f59e0b":"#0f172a",height:"100%",width:`${kpiPct}%`,borderRadius:5,transition:"width .5s"}}/></div>
           </Card>
+
+          <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:12,marginBottom:14}}>
+            <SC label="Customers"      val={customers.length}       sub={`${customers.filter(c=>c.ranking==="High").length} High Priority`}/>
+            <SC label="Won YTD"        val={`฿${fmtM(totalWon)}`}  sub={`${wonOpps.length} deals closed`}   c="#16a34a"/>
+            <SC label="Opportunities"  val={`฿${fmtM(oppsPipeline)}`} sub={`${oppsPipelineCount} deals active`} c="#a78bfa"/>
+            <SC label="Pipeline"       val={`฿${fmtM(pipeline)}`}  sub={`${filteredOpps.filter(o=>!["Won","Lost"].includes(o.status)).length} active`}/>
+            <SC label="KPI Achievement" val={`${kpiPct.toFixed(1)}%`} sub={`Target ฿${fmtM(annual)}`} c={kpiPct>=75?"#16a34a":kpiPct>=50?"#d97706":"#dc2626"}/>
+            <SC label="Revenue"        val={`฿${fmtM(revenue)}`}   sub={`Expected ${new Date().getFullYear()}`} c="#0ea5e9"/>
+          </div>
 
           {/* Req 12: Monthly bar chart with value labels on top */}
           <Card style={{padding:20,marginBottom:14}}>
@@ -1905,7 +1920,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
     if(o.status==="Won"&&o.jobCode){
       const exists=deliveries.find(d=>d.oppCode===o.oppCode);
       if(!exists){
-        const buildInstFromSrc=(srcInst,cv)=>srcInst.map((ins,i)=>({id:uid(),seq:i+1,label:ins.label||`Installment ${i+1}`,pct:ins.pct||0,amount:Math.round((cv||0)*(ins.pct||0)/100),invoiceNo:"",invoiceDate:"",receiptNo:"",receiptDate:"",status:"Pending",recvMonth:ins.recvMonth||i+1}));
+        const buildInstFromSrc=(srcInst,cv)=>srcInst.map((ins,i)=>({id:uid(),seq:i+1,label:ins.label||`Installment ${i+1}`,pct:ins.pct||0,amount:Math.round((cv||0)*(ins.pct||0)/100),expected_date:ins.expected_date||"",invoiceNo:"",invoiceDate:"",receiptNo:"",receiptDate:"",status:"Pending",recvMonth:ins.recvMonth||i+1}));
         const autoInst=(()=>{const cs2=(costSheets||[]).find(c2=>(c2.quoteOverrides||[]).some(q=>q.quoteNo===o.quoteNo));const qo2=cs2?(cs2.quoteOverrides||[]).find(q=>q.quoteNo===o.quoteNo):null;if(qo2?.installments?.length>0)return buildInstFromSrc(qo2.installments,o.salesPrice);const qdInst=o?.quotationData?.installments||[];if(qdInst.length>0)return buildInstFromSrc(qdInst,o.salesPrice);return[];})();
         const dlv={id:`DLV-${o.oppCode.replace("OPP-","")}`,custId:o.custId,oppCode:o.oppCode,quoteNo:o.quoteNo,jobCode:o.jobCode,contractNo:"",contractDate:"",serviceCode:o.serviceCode,serviceType:o.serviceType,totalContractValue:o.salesPrice,deliveryStatus:"In Progress",currentStep:DLV_STEPS[0],deliveryDate:"",assignedTo:o.assignedTo,workLog:[{id:uid(),ts:nowTS(),author:user.id,note:`Auto-created from ${o.oppCode} — Won.`}],installments:autoInst,paymentTerm:"30 days",remark:""};
         onSaveDelivery(dlv);
@@ -2222,6 +2237,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
     label:ins.label||ins.description||`Installment ${i+1}`,
     pct:ins.pct||0,
     amount:Math.round((cv||0)*(ins.pct||0)/100),
+    expected_date:ins.expected_date||"",
     invoiceNo:"",invoiceDate:"",receiptNo:"",receiptDate:"",status:"Pending",
     recvMonth:ins.recvMonth||i+1,
   }));
@@ -2275,7 +2291,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
   const totalRec=(f.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);
   const changeIns=(idx,k,v)=>sF(p=>{const ins=p.installments.map((ins2,i)=>{if(i!==idx)return ins2;const upd={...ins2,[k]:k==="pct"?+v:v};if(k==="pct")upd.amount=Math.round(p.totalContractValue*(+v||0)/100);return upd;});return{...p,installments:ins};});
   const setCv=v=>sF(p=>({...p,totalContractValue:+v,installments:p.installments.map(ins=>({...ins,amount:Math.round((+v)*(ins.pct||0)/100)}))}));
-  const addIns=()=>sF(p=>({...p,installments:[...p.installments,{id:uid(),seq:p.installments.length+1,label:`Installment ${p.installments.length+1}`,pct:0,amount:0,invoiceNo:"",invoiceDate:"",receiptNo:"",receiptDate:"",status:"Pending"}]}));
+  const addIns=()=>sF(p=>({...p,installments:[...p.installments,{id:uid(),seq:p.installments.length+1,label:`Installment ${p.installments.length+1}`,pct:0,amount:0,expected_date:"",invoiceNo:"",invoiceDate:"",receiptNo:"",receiptDate:"",status:"Pending"}]}));
   const delIns=idx=>sF(p=>({...p,installments:p.installments.filter((_,i)=>i!==idx)}));
   return (
     <Modal title={initial?`Edit — ${f.jobCode||f.id}`:"Add Delivery"} width={1000} onClose={onClose}>
@@ -2348,13 +2364,14 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
           </div>
           <div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse"}}>
-              <TH cols={["#","Description","% Share","Amount (THB)","Invoice No.","Invoice Date","Receipt No.","Receipt Date","Status",""]}/>
+              <TH cols={["#","Description","% Share","Amount (THB)","Expected Date","Invoice No.","Invoice Date","Receipt No.","Receipt Date","Status",""]}/>
               <tbody>{(f.installments||[]).map((ins,idx)=>(
                 <tr key={ins.id} style={{borderBottom:"1px solid #f1f5f9"}}>
                   <TD><Span s={12} w={700} c="#94a3b8">#{ins.seq}</Span></TD>
                   <TD><Inp value={ins.label} readOnly style={{padding:"4px 6px",fontSize:12,background:"transparent",border:"none",color:"#374151",cursor:"default"}}/></TD>
                   <TD><NumInp value={ins.pct} onChange={v=>changeIns(idx,"pct",v)} style={{padding:"4px 6px",fontSize:12,width:55}}/></TD>
                   <TD><NumInp value={ins.amount} onChange={v=>changeIns(idx,"amount",v)} style={{padding:"4px 6px",fontSize:12,width:90,fontWeight:700}}/></TD>
+                  <TD><Inp type="date" value={ins.expected_date||""} onChange={e=>changeIns(idx,"expected_date",e.target.value)} style={{padding:"4px 6px",fontSize:12}}/></TD>
                   <TD><Inp value={ins.invoiceNo} onChange={e=>changeIns(idx,"invoiceNo",e.target.value)} style={{padding:"4px 6px",fontSize:12}}/></TD>
                   <TD><Inp type="date" value={ins.invoiceDate} onChange={e=>changeIns(idx,"invoiceDate",e.target.value)} style={{padding:"4px 6px",fontSize:12}}/></TD>
                   <TD><Inp value={ins.receiptNo} onChange={e=>changeIns(idx,"receiptNo",e.target.value)} style={{padding:"4px 6px",fontSize:12}}/></TD>
@@ -2454,7 +2471,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
     const inst=srcInst.map((ins,i)=>({
       id:uid(),seq:i+1,label:ins.label||ins.description||`Installment ${i+1}`,
       pct:ins.pct||0,amount:Math.round(cv*(ins.pct||0)/100),
-      invoiceNo:"",invoiceDate:"",receiptNo:"",receiptDate:"",status:"Pending",recvMonth:ins.recvMonth||i+1,
+      expected_date:ins.expected_date||"",invoiceNo:"",invoiceDate:"",receiptNo:"",receiptDate:"",status:"Pending",recvMonth:ins.recvMonth||i+1,
     }));
     markDirty(null, inst);
 
@@ -2633,7 +2650,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
         </div>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse"}}>
-            <TH cols={["#","Description","% Share","Amount (THB)","Invoice No.","Invoice Date","Receipt No.","Receipt Date","Status"]}/>
+            <TH cols={["#","Description","% Share","Amount (THB)","Expected Date","Invoice No.","Invoice Date","Receipt No.","Receipt Date","Status"]}/>
             <tbody>
               {localInst.map(ins=>(
                 <TR key={ins.id}>
@@ -2641,6 +2658,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
                   <TD><input value={ins.label||""} readOnly style={{width:"100%",padding:"3px 6px",fontSize:11,border:"none",background:"transparent",color:"#374151",cursor:"default",outline:"none"}}/></TD>
                   <TD style={{whiteSpace:"nowrap"}}><span style={{fontSize:12,color:"#64748b",fontWeight:500}}>{ins.pct||0}%</span></TD>
                   <TD right style={{fontWeight:700,whiteSpace:"nowrap"}}>฿{fmt(ins.amount)}</TD>
+                  <TD><input type="date" value={ins.expected_date||""} onChange={e=>changeLocalIns(ins.id,"expected_date",e.target.value)} style={{fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",padding:"2px 4px"}}/></TD>
                   <TD><input value={ins.invoiceNo||""} onChange={e=>changeLocalIns(ins.id,"invoiceNo",e.target.value)} style={{width:"100%",padding:"3px 6px",fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",fontFamily:"monospace"}}/></TD>
                   <TD><input type="date" value={ins.invoiceDate||""} onChange={e=>changeLocalIns(ins.id,"invoiceDate",e.target.value)} style={{fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",padding:"2px 4px"}}/></TD>
                   <TD><input value={ins.receiptNo||""} onChange={e=>changeLocalIns(ins.id,"receiptNo",e.target.value)} style={{width:"100%",padding:"3px 6px",fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",fontFamily:"monospace"}}/></TD>
@@ -2648,7 +2666,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
                   <TD><select value={ins.status} onChange={e=>changeLocalIns(ins.id,"status",e.target.value)} style={{padding:"3px 5px",fontSize:11,border:"1px solid #e2e8f0",borderRadius:3,background:ins.status==="Received"?"#dcfce7":ins.status==="Overdue"?"#fee2e2":ins.status==="Invoiced"?"#eff6ff":"#f8fafc",color:ins.status==="Received"?"#16a34a":ins.status==="Overdue"?"#dc2626":ins.status==="Invoiced"?"#1e40af":"#64748b",fontWeight:700,cursor:"pointer"}}>{INS_STATUSES.map(s=><option key={s}>{s}</option>)}</select></TD>
                 </TR>
               ))}
-              {localInst.length===0&&<tr><td colSpan={9} style={{padding:"16px",textAlign:"center",color:"#94a3b8",fontSize:12}}>No installments — click  Sync from Quotation{(localD.quoteNo||d.quoteNo)?` (${localD.quoteNo||d.quoteNo})`:" (set Quote No. first)"}</td></tr>}
+              {localInst.length===0&&<tr><td colSpan={10} style={{padding:"16px",textAlign:"center",color:"#94a3b8",fontSize:12}}>No installments — click  Sync from Quotation{(localD.quoteNo||d.quoteNo)?` (${localD.quoteNo||d.quoteNo})`:" (set Quote No. first)"}</td></tr>}
             </tbody>
           </table>
         </div>
