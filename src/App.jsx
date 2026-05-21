@@ -1776,10 +1776,13 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
 
 const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS,onDelete,initTab="detail",userList=[]}) => {
   const newOppCode=genOppCode(opps); const newQtNo=genQuoteNo(opps);
-  const blank={id:newOppCode,custId:customers[0]?.id||"",oppCode:newOppCode,quoteNo:newQtNo,jobCode:"",serviceCode:SERVICES[0].code,serviceType:SERVICES[0].name,salesPrice:SERVICES[0].stdPrice,totalCost:SERVICES[0].stdCost,status:"Proposal",assignedTo:SALES_USERS[0]?.id||"",createdDate:today(),lostReason:"",activityLog:[],remark:"",ranking:"Medium"};
+  const blank={id:newOppCode,custId:customers[0]?.id||"",oppCode:newOppCode,quoteNo:newQtNo,jobCode:"",serviceCode:SERVICES[0].code,serviceType:SERVICES[0].name,salesPrice:SERVICES[0].stdPrice,totalCost:SERVICES[0].stdCost,status:"Proposal",assignedTo:SALES_USERS[0]?.id||"",createdDate:today(),lostReason:"",activityLog:[],remark:"",ranking:"Medium",successRate:""};
   const [f,sF] = useState(initial?{...initial,activityLog:initial.activityLog||[]}:blank);
   const [tab,sTab] = useState(initTab);
   const [noteInput,sNoteInput] = useState("");
+  // srLocal: tracks successRate input locally so typing then clicking Save without blur still captures the value
+  const [srLocal,setSrLocal] = useState(()=>{const v=initial?.successRate;return(v===0||v===undefined||v===""||v===null)?"":String(v);});
+  const getSrValue=()=>{const n=parseFloat(srLocal);return isNaN(n)?0:Math.min(100,Math.max(0,n));};
   const set=(k,v)=>sF(p=>({...p,[k]:v}));
   const isWon=f.status==="Won", isLost=f.status==="Lost";
   const mg=margin(f.salesPrice,f.totalCost||0);
@@ -1807,10 +1810,13 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
             <FRow label="Sales Agent"><Inp value={SALES_USERS.find(u=>u.id===f.assignedTo)?.name||f.assignedTo} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow>
             <FRow label="Success %" tip="Leave blank to use auto-calculated score">
               <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <SuccessRateInput value={f.successRate} onCommit={v=>set("successRate",v)}/>
+                <input type="text" inputMode="numeric" value={srLocal} placeholder="Auto"
+                  onChange={e=>setSrLocal(e.target.value.replace(/[^0-9.]/g,""))}
+                  onBlur={()=>{ const n=getSrValue(); setSrLocal(n===0?"":String(n)); set("successRate",n); }}
+                  style={{...SI,width:72,textAlign:"right"}}/>
                 <span style={{fontSize:11,color:"#94a3b8"}}>%</span>
-                {(!f.successRate||+f.successRate===0)&&<span style={{fontSize:11,color:"#94a3b8",fontStyle:"italic"}}>Auto: {calcSuccessRate({...f,successRate:0})}%</span>}
-                {(f.successRate&&+f.successRate>0)?<span style={{fontSize:11,fontWeight:700,color:successRateColor(+f.successRate)}}>{f.successRate}% (manual)</span>:null}
+                {(!getSrValue())&&<span style={{fontSize:11,color:"#94a3b8",fontStyle:"italic"}}>Auto: {calcSuccessRate({...f,successRate:0})}%</span>}
+                {getSrValue()>0&&<span style={{fontSize:11,fontWeight:700,color:successRateColor(getSrValue())}}>{getSrValue()}% (manual)</span>}
               </div>
             </FRow>
             <FRow label="Ranking" tip="ระดับความสำคัญของ Opportunity นี้">
@@ -1866,7 +1872,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
         {initial&&onDelete&&<Btn variant="danger" style={{marginRight:"auto"}} onClick={()=>setDelConfirm(true)}>Delete</Btn>}
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn onClick={()=>onSave({...f,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""})}>Save</Btn>
+        <Btn onClick={()=>onSave({...f,successRate:getSrValue(),jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""})}>Save</Btn>
       </div>
 
       {delConfirm&&(
@@ -3037,11 +3043,12 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                       <Span s={11} w={700}>COGS</Span>
                     </div>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
-                      <colgroup><col style={{width:"27%"}}/><col style={{width:"13%"}}/><col style={{width:"8%"}}/><col style={{width:"7%"}}/><col style={{width:"13%"}}/><col style={{width:"12%"}}/><col style={{width:"8%"}}/><col style={{width:"4%"}}/></colgroup>
-                      <TH cols={["Label","Vendor","Unit","Qty","Rate","Total","Pay M.",""]}/>
+                      <colgroup><col style={{width:20}}/><col style={{width:"25%"}}/><col style={{width:"12%"}}/><col style={{width:"7%"}}/><col style={{width:"7%"}}/><col style={{width:"12%"}}/><col style={{width:"11%"}}/><col style={{width:"7%"}}/><col style={{width:"4%"}}/></colgroup>
+                      <TH cols={["#","Label","Vendor","Unit","Qty","Rate","Total","Pay M.",""]}/>
                       <tbody>
-                        {(q.internalCosts||[]).map(r=>(
+                        {(q.internalCosts||[]).map((r,idx)=>(
                           <tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
+                            <td style={{padding:"3px 3px",textAlign:"center",fontSize:11,color:"#94a3b8",fontWeight:700}}>{idx+1}</td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQIC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px",fontSize:11,color:"#94a3b8",textAlign:"center"}}>—</td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.unit} onChange={e=>setQIC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
@@ -3056,8 +3063,9 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                             <td><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQIC(q.id,r.id)}>×</Btn></td>
                           </tr>
                         ))}
-                        {(q.externalCosts||[]).map(r=>(
+                        {(q.externalCosts||[]).map((r,idx)=>(
                           <tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
+                            <td style={{padding:"3px 3px",textAlign:"center",fontSize:11,color:"#94a3b8",fontWeight:700}}>{(q.internalCosts||[]).length+idx+1}</td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQEC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.vendorName||""} onChange={e=>setQEC(q.id,r.id,"vendorName",e.target.value)} placeholder="Vendor" style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.unit||""} onChange={e=>setQEC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
@@ -3073,7 +3081,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                           </tr>
                         ))}
                         <tr style={{borderTop:"1px solid #e2e8f0"}}>
-                          <td colSpan={4} style={{padding:"5px 4px"}}>
+                          <td colSpan={5} style={{padding:"5px 4px"}}>
                             <button onClick={()=>addQEC(q.id)} style={{fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 12px",cursor:"pointer",fontWeight:600}}>+ Add</button>
                           </td>
                           <td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap",color:"#94a3b8",fontSize:11,fontWeight:600}}>Total COGS</td>
