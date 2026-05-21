@@ -282,6 +282,17 @@ const NumInp = ({value,onChange,style,...p}) => {
     style={{...SI,...style,textAlign:"right"}}/>;
 };
 const Sel  = ({style,children,...p}) => <select {...p} style={{...SI,...style}}>{children}</select>;
+// SuccessRateInput: local state — only commits to parent on blur (no re-render on keystroke)
+const SuccessRateInput = ({value, onCommit}) => {
+  const [local, setLocal] = React.useState(value===0||value===undefined||value===""?"":String(value));
+  React.useEffect(()=>{ setLocal(value===0||value===undefined||value===""?"":String(value)); },[value]);
+  return (
+    <input type="text" inputMode="numeric" value={local} placeholder="Auto"
+      onChange={e=>{ const v=e.target.value.replace(/[^0-9.]/g,""); setLocal(v); }}
+      onBlur={()=>{ const n=parseFloat(local); onCommit(isNaN(n)?0:Math.min(100,Math.max(0,n))); }}
+      style={{...SI,width:72,textAlign:"right"}}/>
+  );
+};
 const Txta = ({style,...p}) => <textarea {...p} style={{...SI,resize:"vertical",...style}}/>;
 
 const BV = {
@@ -548,6 +559,21 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     },0);
   },[deliveries]);
 
+  // Invoice Received: sum of installment.amount where invoiceDate is in the current CE year AND status="Received"
+  const invoiceReceived = useMemo(()=>{
+    const ceYear = new Date().getFullYear();
+    const prefix = String(ceYear);
+    return deliveries.reduce((total,d)=>{
+      return total + (d.installments||[]).reduce((s,ins)=>{
+        if(ins.status!=="Received") return s;
+        if(!ins.invoiceDate) return s;
+        const dateStr = String(ins.invoiceDate);
+        if(dateStr.startsWith(prefix)) return s + (ins.amount||0);
+        return s;
+      },0);
+    },0);
+  },[deliveries]);
+
   // Convert any date string to BE year format for consistent comparison
   const toBEDate = d => {
     if (!d) return "";
@@ -766,13 +792,14 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
             <div style={{background:"#f1f5f9",borderRadius:5,height:10}}><div style={{background:kpiPct>=75?"#16a34a":kpiPct>=50?"#f59e0b":"#0f172a",height:"100%",width:`${kpiPct}%`,borderRadius:5,transition:"width .5s"}}/></div>
           </Card>
 
-          <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:12,marginBottom:14}}>
-            <SC label="Customers"      val={customers.length}       sub={`${customers.filter(c=>c.ranking==="High").length} High Priority`}/>
-            <SC label="Revenue"        val={`฿${fmtM(revenue)}`}   sub={`Expected ${new Date().getFullYear()}`} c="#0ea5e9"/>
-            <SC label="Won YTD"        val={`฿${fmtM(totalWon)}`}  sub={`${wonOpps.length} deals closed`}   c="#16a34a"/>
-            <SC label="Opportunities"  val={`฿${fmtM(oppsPipeline)}`} sub={`${oppsPipelineCount} deals active`} c="#a78bfa"/>
-            <SC label="Pipeline"       val={`฿${fmtM(pipeline)}`}  sub={`${filteredOpps.filter(o=>!["Won","Lost"].includes(o.status)).length} active`}/>
-            <SC label="KPI Achievement" val={`${kpiPct.toFixed(1)}%`} sub={`Target ฿${fmtM(annual)}`} c={kpiPct>=75?"#16a34a":kpiPct>=50?"#d97706":"#dc2626"}/>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:12,marginBottom:14}}>
+            <SC label="Customers"        val={customers.length}           sub={`${customers.filter(c=>c.ranking==="High").length} High Priority`}/>
+            <SC label="Revenue"          val={`฿${fmtM(revenue)}`}       sub={`Expected ${new Date().getFullYear()}`} c="#0ea5e9"/>
+            <SC label="Won YTD"          val={`฿${fmtM(totalWon)}`}      sub={`${wonOpps.length} deals closed`} c="#16a34a"/>
+            <SC label="Opportunities"    val={`฿${fmtM(oppsPipeline)}`}  sub={`${oppsPipelineCount} deals active`} c="#a78bfa"/>
+            <SC label="Pipeline"         val={`฿${fmtM(pipeline)}`}      sub={`${filteredOpps.filter(o=>!["Won","Lost"].includes(o.status)).length} active`}/>
+            <SC label="KPI Achievement"  val={`${kpiPct.toFixed(1)}%`}   sub={`Target ฿${fmtM(annual)}`} c={kpiPct>=75?"#16a34a":kpiPct>=50?"#d97706":"#dc2626"}/>
+            <SC label="Invoice Received" val={`฿${fmtM(invoiceReceived)}`} sub={`By invoice date ${new Date().getFullYear()}`} c="#f59e0b"/>
           </div>
 
           {/* Req 12: Monthly bar chart with value labels on top */}
@@ -1771,7 +1798,8 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
 <FRow label="OPP Code"><Inp value={f.oppCode} readOnly style={{border:"none",background:"transparent",fontFamily:"monospace",fontWeight:600,color:"#1e40af",cursor:"default"}}/></FRow>
 <FRow label="Quote No."><button onClick={()=>f.quoteNo&&sTab("quotation")} style={{fontFamily:"monospace",fontWeight:600,fontSize:14,background:"none",color:f.quoteNo?"#1e40af":"#94a3b8",border:"none",padding:"8px 0",cursor:f.quoteNo?"pointer":"default",textDecoration:f.quoteNo?"underline":"none"}}>{f.quoteNo||"—"}</button></FRow>
             {f.csCode&&<div style={{gridColumn:"1/-1",marginTop:4}}><FRow label="Cost Sheet & Pricing Code (CS Code)"><div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>{onSave({...f,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""});if(onGoToCS)onGoToCS(f.serviceCode,f.csCode);}} style={{fontFamily:"monospace",fontWeight:700,fontSize:13,background:"none",color:"#1e40af",padding:"4px 0",border:"none",cursor:"pointer",textDecoration:"underline"}}>{f.csCode}</button><Span s={11} c="#64748b">Click to open Cost Sheet (saves first)</Span></div></FRow></div>}
-            <div style={{gridColumn:"1/-1"}}><FRow label="Customer"><Inp value={customers.find(c=>c.id===f.custId)?.companyEN||f.custId} readOnly style={{border:"none",background:"transparent",fontWeight:400,cursor:"default"}}/></FRow></div>
+            <FRow label="Customer"><Inp value={customers.find(c=>c.id===f.custId)?.companyEN||f.custId} readOnly style={{border:"none",background:"transparent",fontWeight:400,cursor:"default"}}/></FRow>
+            <FRow label="Nickname / Catchword" tip="Short label shown on kanban card"><Inp value={f.nickname||""} onChange={e=>set("nickname",e.target.value)} placeholder="e.g. BKK Hotel, Phase 2…"/></FRow>
             <div style={{gridColumn:"1/-1"}}><FRow label="Service"><Inp value={`[${f.serviceCode}] ${f.serviceType}`} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow></div>
             <FRow label="Sales Price (THB)"><Inp value={`฿${fmt(f.salesPrice)}`} readOnly style={{border:"none",background:"transparent",fontWeight:400,cursor:"default"}}/></FRow>
             <FRow label="Total Cost (THB)"><Inp value={`฿${fmt(f.totalCost||0)}`} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow>
@@ -1779,7 +1807,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
             <FRow label="Sales Agent"><Inp value={SALES_USERS.find(u=>u.id===f.assignedTo)?.name||f.assignedTo} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow>
             <FRow label="Success %" tip="Leave blank to use auto-calculated score">
               <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <NumInp value={f.successRate||""} onChange={v=>set("successRate",v)} style={{width:72}} placeholder="Auto"/>
+                <SuccessRateInput value={f.successRate} onCommit={v=>set("successRate",v)}/>
                 <span style={{fontSize:11,color:"#94a3b8"}}>%</span>
                 {(!f.successRate||+f.successRate===0)&&<span style={{fontSize:11,color:"#94a3b8",fontStyle:"italic"}}>Auto: {calcSuccessRate({...f,successRate:0})}%</span>}
                 {(f.successRate&&+f.successRate>0)?<span style={{fontSize:11,fontWeight:700,color:successRateColor(+f.successRate)}}>{f.successRate}% (manual)</span>:null}
@@ -1817,7 +1845,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                       </div>
                     );});
                   })()}                  <div style={{display:"flex",gap:0}}>
-                    <Inp value={noteInput} onChange={e=>sNoteInput(e.target.value)} placeholder={`Add note… (${today()})`}
+                    <Inp value={noteInput} onChange={e=>sNoteInput(e.target.value)} placeholder="Add entry… (Enter to save)"
                       onKeyDown={e=>{if(e.key==="Enter"&&noteInput.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);sNoteInput("");}}}
                       style={{borderRadius:0,background:"#fff",flex:1,border:"none",borderTop:"1px solid #f1f5f9"}}/>
                   </div>
@@ -2001,7 +2029,8 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
                       <div style={{fontSize:11,fontWeight:700,color:"#1e40af",fontFamily:"monospace"}}>{o.oppCode}</div>
                       <span style={{color:"#cbd5e1",fontSize:14,cursor:"grab",lineHeight:1}}></span>
                     </div>
-                    <div style={{fontSize:12,fontWeight:700,color:"#0f172a",marginBottom:4,lineHeight:1.3}}>{c?.companyEN||"-"}</div>
+                    <div style={{fontSize:12,fontWeight:700,color:"#0f172a",marginBottom:o.nickname?1:4,lineHeight:1.3}}>{c?.companyEN||"-"}</div>
+                    {o.nickname&&<div style={{fontSize:10,color:"#94a3b8",marginBottom:4,fontStyle:"italic",lineHeight:1.3}}>{o.nickname}</div>}
                     {o.csCode&&<div style={{marginBottom:5}}><span style={{fontFamily:"monospace",fontWeight:700,fontSize:10,background:"#fef3c7",color:"#92400e",padding:"2px 7px",borderRadius:4,border:"1px solid #fde68a"}}>{o.csCode}</span></div>}
                     <div style={{display:"flex",gap:5,marginBottom:6,flexWrap:"wrap"}}><SvcBadge code={o.serviceCode}/><span style={{background:+mg>=30?"#dcfce7":"#fee2e2",color:+mg>=30?"#16a34a":"#dc2626",fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4}}>{mg}%</span></div>
                     {(()=>{const sr=calcSuccessRate(o);const clr=successRateColor(sr);return(<div style={{marginBottom:6}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}><span style={{fontSize:9,color:"#94a3b8",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Success</span><span style={{fontSize:10,fontWeight:800,color:clr}}>{sr}%</span></div><div style={{height:4,background:"#e2e8f0",borderRadius:99,overflow:"hidden"}}><div style={{height:"100%",width:`${sr}%`,background:clr,borderRadius:99,transition:"width .3s"}}/></div></div>);})()}
@@ -2367,7 +2396,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
               <TH cols={["#","Description","% Share","Amount (THB)","Expected Date","Invoice No.","Invoice Date","Receipt No.","Receipt Date","Status",""]}/>
               <tbody>{(f.installments||[]).map((ins,idx)=>(
                 <tr key={ins.id} style={{borderBottom:"1px solid #f1f5f9"}}>
-                  <TD><Span s={12} w={700} c="#94a3b8">#{ins.seq}</Span></TD>
+                  <TD><Span s={12} w={700} c="#94a3b8">{ins.seq}</Span></TD>
                   <TD><Inp value={ins.label} readOnly style={{padding:"4px 6px",fontSize:12,background:"transparent",border:"none",color:"#374151",cursor:"default"}}/></TD>
                   <TD><NumInp value={ins.pct} onChange={v=>changeIns(idx,"pct",v)} style={{padding:"4px 6px",fontSize:12,width:55}}/></TD>
                   <TD><NumInp value={ins.amount} onChange={v=>changeIns(idx,"amount",v)} style={{padding:"4px 6px",fontSize:12,width:90,fontWeight:700}}/></TD>
@@ -2654,7 +2683,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
             <tbody>
               {localInst.map(ins=>(
                 <TR key={ins.id}>
-                  <TD><Span s={12} w={700} c="#94a3b8">#{ins.seq}</Span></TD>
+                  <TD><Span s={12} w={700} c="#94a3b8">{ins.seq}</Span></TD>
                   <TD><input value={ins.label||""} readOnly style={{width:"100%",padding:"3px 6px",fontSize:11,border:"none",background:"transparent",color:"#374151",cursor:"default",outline:"none"}}/></TD>
                   <TD style={{whiteSpace:"nowrap"}}><span style={{fontSize:12,color:"#64748b",fontWeight:500}}>{ins.pct||0}%</span></TD>
                   <TD right style={{fontWeight:700,whiteSpace:"nowrap"}}>฿{fmt(ins.amount)}</TD>
@@ -2749,38 +2778,65 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
   );
 };
 
-//  TaskRow: isolated component so taskName input retains focus on keystroke 
-const TaskRow = React.memo(({t,onSet,onDel,months}) => {
-  const [name,setName]         = useState(t.taskName);
-  const [agentOpen,setAO]      = useState(false);
-  useEffect(()=>{ setName(t.taskName); },[t.taskName]);
-  const tc=(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior;
-  const agents = t.agents||[];
+//  TaskRow: isolated component so taskName input retains focus on keystroke
+//  agents is now an array of {uid, manager, senior, junior} objects
+const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
+  const [name, setName] = useState(t.taskName);
+  const [agentOpen, setAO] = useState(false);
+  useEffect(() => { setName(t.taskName); }, [t.taskName]);
 
-  const toggleAgent = (uid) => {
-    const next = agents.includes(uid) ? agents.filter(a=>a!==uid) : [...agents,uid];
-    onSet(t.id,"agents",next);
+  // agents: [{uid, manager, senior, junior}]
+  const agents = Array.isArray(t.agents) && t.agents.length > 0 && typeof t.agents[0] === "object"
+    ? t.agents
+    : []; // legacy string[] treated as empty — agents will be re-added
+
+  // Totals summed across all agent rows (or from task-level if no agents)
+  const totalMgr  = agents.length > 0 ? agents.reduce((s,a)=>s+(a.manager||0),0) : (t.manager||0);
+  const totalSr   = agents.length > 0 ? agents.reduce((s,a)=>s+(a.senior||0),0)  : (t.senior||0);
+  const totalJr   = agents.length > 0 ? agents.reduce((s,a)=>s+(a.junior||0),0)  : (t.junior||0);
+  const tc = totalMgr*IH_LEVELS.Manager + totalSr*IH_LEVELS.Senior + totalJr*IH_LEVELS.Junior;
+
+  const eligibleUsers = USERS.filter(u => ["sales","operation"].includes(u.role));
+  const assignedUids  = agents.map(a => a.uid);
+
+  const addAgent = uid => {
+    if(!uid || assignedUids.includes(uid)) return;
+    const next = [...agents, {uid, manager:0, senior:0, junior:0}];
+    onSet(t.id, "agents", next);
   };
+  const removeAgent = uid => onSet(t.id, "agents", agents.filter(a=>a.uid!==uid));
+  const setAgentField = (uid, k, v) => onSet(t.id, "agents", agents.map(a=>a.uid===uid?{...a,[k]:+v}:a));
 
-  // Agents eligible: all users except md/admin-only
-  const eligibleUsers = USERS.filter(u=>["sales","operation"].includes(u.role));
+  // When no agents: allow direct editing on the task row
+  const setTaskField = (k, v) => onSet(t.id, k, +v);
 
   return (
     <>
-      <tr style={{borderBottom:agentOpen?"none":"1px solid #f8fafc"}}>
+      {/* ── Main task row ── */}
+      <tr style={{borderBottom: agentOpen ? "none" : "1px solid #f8fafc"}}>
+        <td style={{padding:"3px 4px",textAlign:"center",fontSize:11,color:"#94a3b8",fontWeight:700,width:24}}>{rowNum}</td>
         <td style={{padding:"3px 4px"}}>
           <input value={name}
             onChange={e=>setName(e.target.value)}
             onBlur={e=>onSet(t.id,"taskName",e.target.value)}
             style={{padding:"2px 5px",fontSize:13,width:"100%",boxSizing:"border-box",border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",outline:"none"}}/>
         </td>
-        {["manager","senior","junior"].map(lvl=>(
-          <td key={lvl} style={{padding:"3px 4px"}}>
-            <input type="text" inputMode="numeric" value={t[lvl]||""}
-              onChange={e=>onSet(t.id,lvl,+e.target.value)}
-              style={{padding:"2px 4px",fontSize:13,width:48,textAlign:"center",border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",outline:"none"}}/>
-          </td>
-        ))}
+        {/* Mgr / Sr / Jr — read-only totals when agents assigned, editable otherwise */}
+        {["manager","senior","junior"].map(lvl => {
+          const val = agents.length > 0
+            ? agents.reduce((s,a)=>s+(a[lvl]||0),0)
+            : (t[lvl]||0);
+          return (
+            <td key={lvl} style={{padding:"3px 4px"}}>
+              {agents.length > 0
+                ? <span style={{display:"block",textAlign:"center",fontSize:13,fontWeight:600,color:"#64748b",padding:"2px 4px"}}>{val||""}</span>
+                : <input type="text" inputMode="numeric" value={t[lvl]||""}
+                    onChange={e=>setTaskField(lvl,e.target.value)}
+                    style={{padding:"2px 4px",fontSize:13,width:48,textAlign:"center",border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",outline:"none"}}/>
+              }
+            </td>
+          );
+        })}
         <td style={{padding:"3px 4px",fontWeight:700,whiteSpace:"nowrap",fontSize:13}}>฿{fmt(tc)}</td>
         <td style={{padding:"3px 4px"}}>
           <Sel value={t.payMonth||1} onChange={e=>onSet(t.id,"payMonth",+e.target.value)} style={{padding:"2px 3px",fontSize:13,width:52}}>
@@ -2791,58 +2847,111 @@ const TaskRow = React.memo(({t,onSet,onDel,months}) => {
           <div style={{display:"flex",gap:3,alignItems:"center"}}>
             <button onClick={()=>setAO(p=>!p)} title="Assign agents"
               style={{fontSize:13,padding:"1px 5px",border:`1px solid ${agents.length>0?"#86efac":"#e2e8f0"}`,borderRadius:3,background:agents.length>0?"#f0fdf4":"#f8fafc",color:agents.length>0?"#16a34a":"#64748b",cursor:"pointer",whiteSpace:"nowrap",minWidth:24,textAlign:"center"}}>
-              {agents.length>0?`@${agents.length}`:"@"}
+              {agents.length > 0 ? `@${agents.length}` : "@"}
             </button>
             <Btn variant="danger" style={{fontSize:13,padding:"1px 5px"}} onClick={()=>onDel(t.id)}>×</Btn>
           </div>
         </td>
       </tr>
-      {agentOpen&&(
-        <tr style={{borderBottom:"1px solid #f8fafc",background:"#f8fffe"}}>
-          <td colSpan={7} style={{padding:"5px 8px"}}>
-            <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-              <span style={{fontSize:12,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",marginRight:2}}>Assigned:</span>
-              {/* Agent chips */}
-              {agents.map(uid=>{
-                const u=USERS.find(x=>x.id===uid);
-                return u?(
-                  <span key={uid} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 7px",background:"#0f172a",color:"#fff",borderRadius:10,fontSize:13,fontWeight:600}}>
-                    {u.name.split(" ")[0]}
-                    <button onClick={()=>toggleAgent(uid)} style={{background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:11,padding:0,lineHeight:1}}>×</button>
-                  </span>
-                ):null;
-              })}
-              {/* Add agent dropdown */}
-              <select onChange={e=>{if(e.target.value)toggleAgent(e.target.value);e.target.value="";}}
-                style={{fontSize:13,padding:"2px 5px",border:"1px dashed #bfdbfe",borderRadius:4,background:"#eff6ff",color:"#1e40af",cursor:"pointer"}}>
+
+      {/* ── Per-agent sub-rows ── */}
+      {agentOpen && (
+        <>
+          {agents.map(a => {
+            const u = USERS.find(x=>x.id===a.uid);
+            const agentCost = (a.manager||0)*IH_LEVELS.Manager + (a.senior||0)*IH_LEVELS.Senior + (a.junior||0)*IH_LEVELS.Junior;
+            return (
+              <tr key={a.uid} style={{background:"#f0fdf4",borderBottom:"1px solid #dcfce7"}}>
+                <td colSpan={2} style={{padding:"3px 8px 3px 28px"}}>
+                  <select
+                    value={a.uid}
+                    onChange={e=>{
+                      const newUid = e.target.value;
+                      if(!newUid || assignedUids.filter(x=>x!==a.uid).includes(newUid)) return;
+                      onSet(t.id, "agents", agents.map(x=>x.uid===a.uid?{...x,uid:newUid}:x));
+                    }}
+                    style={{fontSize:12,padding:"2px 5px",border:"1px solid #86efac",borderRadius:3,background:"#fff",color:"#16a34a",fontWeight:700,width:"100%"}}>
+                    {eligibleUsers.map(eu=>(
+                      <option key={eu.id} value={eu.id} disabled={assignedUids.includes(eu.id)&&eu.id!==a.uid}>
+                        {eu.name.split(" ")[0]} ({eu.role})
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                {["manager","senior","junior"].map(lvl=>(
+                  <td key={lvl} style={{padding:"3px 4px"}}>
+                    <input type="text" inputMode="numeric" value={a[lvl]||""}
+                      onChange={e=>setAgentField(a.uid,lvl,e.target.value||0)}
+                      style={{padding:"2px 4px",fontSize:13,width:48,textAlign:"center",border:"1px solid #bbf7d0",borderRadius:3,background:"#fff",outline:"none"}}/>
+                  </td>
+                ))}
+                <td style={{padding:"3px 4px",fontWeight:700,fontSize:12,whiteSpace:"nowrap",color:"#16a34a"}}>฿{fmt(agentCost)}</td>
+                <td colSpan={2} style={{padding:"3px 4px"}}>
+                  <button onClick={()=>removeAgent(a.uid)} style={{fontSize:12,color:"#dc2626",background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:3,padding:"1px 7px",cursor:"pointer"}}>×</button>
+                </td>
+              </tr>
+            );
+          })}
+          {/* Sub-total row */}
+          {agents.length > 0 && (
+            <tr style={{background:"#f0fdf4",borderBottom:"1px solid #e2e8f0"}}>
+              <td colSpan={2} style={{padding:"3px 8px 3px 28px",fontSize:10,color:"#64748b",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em"}}>Sub-total</td>
+              <td style={{padding:"3px 4px",textAlign:"center",fontSize:11,fontWeight:700,color:"#374151"}}>{totalMgr||""}</td>
+              <td style={{padding:"3px 4px",textAlign:"center",fontSize:11,fontWeight:700,color:"#374151"}}>{totalSr||""}</td>
+              <td style={{padding:"3px 4px",textAlign:"center",fontSize:11,fontWeight:700,color:"#374151"}}>{totalJr||""}</td>
+              <td style={{padding:"3px 4px",fontWeight:800,fontSize:12,color:"#0f172a"}}>฿{fmt(tc)}</td>
+              <td colSpan={2}/>
+            </tr>
+          )}
+          {/* Add agent row */}
+          <tr style={{background:"#f8fffe",borderBottom:"1px solid #e2e8f0"}}>
+            <td colSpan={8} style={{padding:"5px 8px 5px 28px"}}>
+              <select onChange={e=>{addAgent(e.target.value);e.target.value="";}}
+                style={{fontSize:12,padding:"2px 8px",border:"1px dashed #86efac",borderRadius:4,background:"#fff",color:"#16a34a",cursor:"pointer"}}>
                 <option value="">+ Add Agent</option>
-                {eligibleUsers.filter(u=>!agents.includes(u.id)).map(u=>(
+                {eligibleUsers.filter(u=>!assignedUids.includes(u.id)).map(u=>(
                   <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
                 ))}
               </select>
-              {agents.length===0&&<span style={{fontSize:12,color:"#94a3b8",fontStyle:"italic"}}>No agents assigned yet</span>}
-            </div>
-          </td>
-        </tr>
+              {agents.length===0 && <span style={{fontSize:11,color:"#94a3b8",fontStyle:"italic",marginLeft:8}}>No agents assigned yet</span>}
+            </td>
+          </tr>
+        </>
       )}
     </>
   );
 });
 
-//  TaskTableWidget: standalone table, uses TaskRow to prevent focus loss 
-const TaskTableWidget = ({tasks,onSet,onAdd,onDel,months}) => (
+//  TaskTableWidget: standalone table, uses TaskRow to prevent focus loss
+const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
+  const totalOPEX = (tasks||[]).reduce((s,t) => {
+    const agents = Array.isArray(t.agents) && t.agents.length > 0 && typeof t.agents[0] === "object" ? t.agents : [];
+    const mgr  = agents.length > 0 ? agents.reduce((x,a)=>x+(a.manager||0),0) : (t.manager||0);
+    const sr   = agents.length > 0 ? agents.reduce((x,a)=>x+(a.senior||0),0)  : (t.senior||0);
+    const jr   = agents.length > 0 ? agents.reduce((x,a)=>x+(a.junior||0),0)  : (t.junior||0);
+    return s + mgr*IH_LEVELS.Manager + sr*IH_LEVELS.Senior + jr*IH_LEVELS.Junior;
+  }, 0);
+  return (
     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
-      <colgroup><col style={{width:"40%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"11%"}}/><col style={{width:"9%"}}/><col style={{width:"13%"}}/></colgroup>
+      <colgroup><col style={{width:24}}/><col style={{width:"36%"}}/><col style={{width:"8%"}}/><col style={{width:"8%"}}/><col style={{width:"8%"}}/><col style={{width:"10%"}}/><col style={{width:"8%"}}/><col style={{width:"12%"}}/></colgroup>
       <thead><tr style={{background:"#f8fafc"}}>
-        {["Task / Activity","Mgr (hrs)","Sr (hrs)","Jr (hrs)","Total Cost","Pay Month","Agent / Cancel"].map(h=><th key={h} style={{padding:"5px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:9,borderBottom:"1px solid #e2e8f0"}}>{h}</th>)}
+        {["#","Task / Activity","Mgr (hrs)","Sr (hrs)","Jr (hrs)","Total Cost","Pay Month","Agent / Cancel"].map(h=>(
+          <th key={h} style={{padding:"5px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:9,borderBottom:"1px solid #e2e8f0"}}>{h}</th>
+        ))}
       </tr></thead>
       <tbody>
-        {(tasks||[]).map(t=><TaskRow key={t.id} t={t} onSet={onSet} onDel={onDel} months={months}/>)}
-        {/* +Task button on left under Task/Activity column */}
-        <tr style={{borderTop:"1px solid #e2e8f0"}}><td colSpan={4} style={{padding:"5px 4px"}}><button onClick={onAdd} style={{fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 14px",cursor:"pointer",fontWeight:600}}>+ Task</button></td><td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap",color:"#94a3b8",fontSize:11,fontWeight:600}}>Total OPEX</td><td style={{padding:"5px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a"}} colSpan={1}>฿{fmt((tasks||[]).reduce((s,t)=>(s+(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior),0))}</td></tr>
+        {(tasks||[]).map((t,idx)=><TaskRow key={t.id} t={t} rowNum={idx+1} onSet={onSet} onDel={onDel} months={months}/>)}
+        <tr style={{borderTop:"1px solid #e2e8f0"}}>
+          <td colSpan={5} style={{padding:"5px 4px"}}>
+            <button onClick={onAdd} style={{fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 14px",cursor:"pointer",fontWeight:600}}>+ Task</button>
+          </td>
+          <td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap",color:"#94a3b8",fontSize:11,fontWeight:600}}>Total OPEX</td>
+          <td style={{padding:"5px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a"}}>฿{fmt(totalOPEX)}</td>
+        </tr>
       </tbody>
     </table>
-);
+  );
+};
 
 // 
 // Smooth drag-to-sort hook
