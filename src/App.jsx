@@ -3394,7 +3394,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
         newSaveEntries.push({
           id:uid(),ts:nowTS(),author:user.id,
           note:`Quotation ${existingOpp?"updated":"saved"} → ${csCode} · ${q.quoteNo} · ${cust?.companyEN||q.custId} · Price ฿${fmt(q.salesPrice)} · Cost ฿${fmt(qCost)} · Margin ${qMg}%`,
-          quoteSnapshot:{...q,csCode},  // stored for re-edit
+          quoteSnapshot:{...q,csCode,_savedTs:nowTS(),_savedBy:user.id},  // stored for re-edit
         });
       }
     });
@@ -3405,11 +3405,19 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
     // Remove committed quotations from quoteOverrides; keep uncommitted ones
     const remainingQOs=(editCS.quoteOverrides||[]).filter(q=>!savedQOIds.includes(q.id));
 
+    // Remove stale saveLog entries for quoteNos we just saved, then append fresh ones
+    const savedQuoteNos = new Set(savedQOIds.map(id=>{
+      const qo=(editCS.quoteOverrides||[]).find(x=>x.id===id);
+      return qo?.quoteNo;
+    }).filter(Boolean));
+    const prunedSaveLog = safeArr(editCS.saveLog).filter(e=>
+      !e.quoteSnapshot || !savedQuoteNos.has(e.quoteSnapshot.quoteNo)
+    );
     const saved={
       ...editCS,
       stdPrice:editPrice,
       quoteOverrides:remainingQOs,
-      saveLog:[...safeArr(editCS.saveLog),...newSaveEntries],
+      saveLog:[...prunedSaveLog,...newSaveEntries],
     };
     onSave(saved);
     // Sync local editCS to reflect cleared quotations
