@@ -565,7 +565,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     const prefix = String(ceYear);
     return deliveries.reduce((total,d)=>{
       return total + (d.installments||[]).reduce((s,ins)=>{
-        if(ins.status!=="Received") return s;
+        if(ins.status!=="Invoiced") return s;
         if(!ins.invoiceDate) return s;
         const dateStr = String(ins.invoiceDate);
         if(dateStr.startsWith(prefix)) return s + (ins.amount||0);
@@ -3324,9 +3324,9 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
       projectTitle:"",
       projectScope:"",
       projectMonths:editCS.projectMonths||3,
-      internalCosts:(editCS.internalCosts||[]).map(r=>({...r,id:uid()})),
-      externalCosts:(editCS.externalCosts||[]).map(r=>({...r,id:uid()})),
-      tasks:(editCS.tasks||[]).map(t=>({...t,id:uid()})),
+      internalCosts:[],
+      externalCosts:[],
+      tasks:[],
       installments:[
         {id:uid(),seq:1,label:"",pct:40,detail:"",recvMonth:1},
         {id:uid(),seq:2,label:"",pct:40,detail:"",recvMonth:2},
