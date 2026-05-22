@@ -520,7 +520,11 @@ const LoginPage = ({onLogin}) => {
 const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toast,onGoToCS}) => {
   const [tab,sTab]   = useState("dash");
   const [year,sYear] = useState(new Date().getFullYear() + 543); // BE year
-  const [annual,sAnn] = useState(ANNUAL_KPI);
+  const [annual,sAnn] = useState(()=>kpiSplits[new Date().getFullYear()+543+"_annual"]||ANNUAL_KPI);
+  // Sync annual from kpiSplits when year changes or data loads from GS
+  useEffect(()=>{
+    if(kpiSplits[year+"_annual"]) sAnn(kpiSplits[year+"_annual"]);
+  },[year,kpiSplits]);
   // Req 14: multi-select dashboard filters
   const [fSt,setFSt]   = useState([]);
   const [fSvc,setFSvc] = useState([]);
@@ -610,7 +614,14 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const upSplit=(i,v)=>setKpiSplits(p=>({...p,[year]:splits.map((x,j)=>j===i?+v:x)}));
   const saveKpi=()=>{
     const entry={id:uid(),ts:nowTS(),author:user.id,note:`KPI saved — ${year} · Annual ฿${fmtM(annual)} · Split total ${totalSplit.toFixed(1)}%`};
-    setKpiSplits(p=>({...p,[year+"_log"]:[...(p[year+"_log"]||[]),entry]}));
+    setKpiSplits(p=>({...p,[year]:splits,[year+"_annual"]:annual,[year+"_log"]:[...(p[year+"_log"]||[]),entry]}));
+    // Persist to Google Sheets — one row per year, primary key = year
+    gsSave("kpi", {
+      year:   year,
+      annual: annual,
+      splits: splits,
+      saveLog:[entry],
+    });
     toast("KPI & Forecast saved",`${year} splits saved by ${user.name}`);
   };
   const BAR_H=160;
@@ -3724,7 +3735,11 @@ const stripJsonSuffix = obj => {
       }
       if(k.length){
         const kpiObj={};
-        k.forEach(r=>{ if(r.year) kpiObj[r.year]=r.splits||DEFAULT_SPLIT.slice(); });
+        k.forEach(r=>{
+          if(!r.year) return;
+          kpiObj[r.year] = safeArr(r.splits).length ? r.splits : DEFAULT_SPLIT.slice();
+          if(r.annual) kpiObj[r.year+"_annual"] = +r.annual;
+        });
         if(Object.keys(kpiObj).length) sKPI(p=>({...p,...kpiObj}));
       }
       sGSStatus("synced");
