@@ -3368,6 +3368,28 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           remark:existingOpp?.remark||"",
         };
         onSaveOpp(opp);
+        // Bug 3 fix: write updated quote data to costsheet_quotes tab so edits persist on refresh
+        gsSave("costsheet_quotes", {
+          csCode,
+          serviceCode: editCS.serviceCode,
+          oppCode:     q.oppCode,
+          quoteNo:     q.quoteNo,
+          custId:      q.custId,
+          salesAgent:  q.salesAgent||"",
+          contactPersonId: q.contactPersonId||"",
+          salesPrice:  q.salesPrice,
+          projectTitle:q.projectTitle||"",
+          projectScope:q.projectScope||"",
+          projectMonths:q.projectMonths||editCS.projectMonths||3,
+          notes:       q.notes||"",
+          costs_json:  [...(q.internalCosts||[]), ...(q.externalCosts||[])],
+          tasks_json:  q.tasks||[],
+          installments_json: q.installments||[],
+          lineItems_json:    q.lineItems||[],
+          deliverables_json: q.deliverables||[],
+          savedTs:     nowTS(),
+          savedBy:     user.id,
+        });
         savedQOIds.push(q.id);
         newSaveEntries.push({
           id:uid(),ts:nowTS(),author:user.id,
