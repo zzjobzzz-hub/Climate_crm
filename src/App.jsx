@@ -666,7 +666,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
       {sub&&<Span s={11} c="#94a3b8" style={{marginTop:3,display:"block"}}>{sub}</Span>}
     </Card>
   );
-  const SCTooltip = hovSC && (
+  const SCTooltip = () => hovSC ? (
     <div style={{position:"fixed",left:hovPos.x+14,top:hovPos.y-10,zIndex:9999,
       background:"#1e293b",color:"#fff",borderRadius:8,padding:"10px 14px",
       boxShadow:"0 4px 20px rgba(0,0,0,0.25)",minWidth:220,pointerEvents:"none"}}>
@@ -685,7 +685,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
         <span style={{fontSize:12,fontWeight:800,color:"#fbbf24"}}>฿{fmt(invoiceReceived)}</span>
       </div>
     </div>
-  );
+  ) : null;
 
   // Req 13: Pipeline analysis with monthly breakdown + sort + service count
   const PipelineAnalysis = () => {
@@ -854,7 +854,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
             <SC label="Opportunities"    val={`฿${fmtM(oppsPipeline)}`}  sub={`${oppsPipelineCount} deals active`} c="#a78bfa"/>
             <SC label="Pipeline"         val={`฿${fmtM(pipeline)}`}      sub={`${filteredOpps.filter(o=>!["Won","Lost"].includes(o.status)).length} active`}/>
           </div>
-          {SCTooltip}
+          {SCTooltip()}
 
           {/* Req 12: Monthly bar chart with value labels on top */}
           <Card style={{padding:20,marginBottom:14}}>
@@ -3814,7 +3814,12 @@ const TSProjectCard = ({opp,cust,snapshot,tsRecord,planRows,onSave,toast,user}) 
   const getA = (taskId,uid,mmyy) => actual[`${taskId}_${uid}_${mmyy}`]??null;
   const setA = (taskId,taskName,uid,name,role,mmyy,val) => {
     const key=`${taskId}_${uid}_${mmyy}`;
-    sActual(p=>val===""||val===null?Object.fromEntries(Object.entries(p).filter(([k])=>k!==key)):{...p,[key]:{taskId,taskName,agentUid:uid,agentName:name,role,month:mmyy,actualHours:+val}});
+    if(val===null||val===""){
+      sActual(p=>Object.fromEntries(Object.entries(p).filter(([k])=>k!==key)));
+    } else {
+      // store raw string while typing so "1." or "1.5" works; parse on save
+      sActual(p=>({...p,[key]:{taskId,taskName,agentUid:uid,agentName:name,role,month:mmyy,actualHours:parseFloat(val)||0,_raw:val}}));
+    }
   };
 
   const handleSave = () => {
@@ -3948,8 +3953,8 @@ const TSProjectCard = ({opp,cust,snapshot,tsRecord,planRows,onSave,toast,user}) 
                                 <td style={{...tdR,color:"#64748b"}}>{a.planHours}h</td>
                                 <td style={{...tdR,padding:"4px 6px"}}>
                                   <input type="number" min="0" step="0.5"
-                                    value={aVal??""} placeholder="0"
-                                    onChange={e=>setA(row.id,row.taskName,a.uid,a.name,a.role,k,e.target.value||null)}
+                                    value={aVal===null||aVal===undefined?"":aVal}
+                                    onChange={e=>{ const v=e.target.value; setA(row.id,row.taskName,a.uid,a.name,a.role,k,v===""?null:v); }}
                                     style={{width:68,padding:"3px 6px",border:"1px solid #cbd5e1",
                                       borderRadius:4,fontSize:12,textAlign:"right",background:"#fff"}}/>
                                 </td>
