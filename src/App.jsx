@@ -798,21 +798,23 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
       {tab==="dash"&&(
         <>
           <Card style={{padding:20,marginBottom:14}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:6}}>
               <Span s={13} w={700}>Annual KPI Progress</Span>
-              <Span s={12} c="#64748b">฿{fmtM(totalWon)} / ฿{fmtM(annual)}</Span>
+              <div style={{display:"flex",alignItems:"baseline",gap:12}}>
+                <Span s={18} w={700} c={kpiPct>=75?"#16a34a":kpiPct>=50?"#d97706":"#dc2626"}>{kpiPct.toFixed(1)}%</Span>
+                <Span s={12} c="#64748b">฿{fmtM(totalWon)} / ฿{fmtM(annual)}</Span>
+              </div>
             </div>
             <div style={{background:"#f1f5f9",borderRadius:5,height:10}}><div style={{background:kpiPct>=75?"#16a34a":kpiPct>=50?"#f59e0b":"#0f172a",height:"100%",width:`${kpiPct}%`,borderRadius:5,transition:"width .5s"}}/></div>
           </Card>
 
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:12,marginBottom:14}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:12,marginBottom:14}}>
             <SC label="Customers"        val={customers.length}           sub={`${customers.filter(c=>c.ranking==="High").length} High Priority`}/>
             <SC label="Revenue"          val={`฿${fmtM(revenue)}`}       sub={`Expected ${new Date().getFullYear()}`} c="#0ea5e9"/>
             <SC label="Won YTD"          val={`฿${fmtM(totalWon)}`}      sub={`${wonOpps.length} deals closed`} c="#16a34a"/>
+            <SC label="Invoice Received" val={`฿${fmtM(invoiceReceived)}`} sub={`By invoice date ${new Date().getFullYear()}`} c="#f59e0b"/>
             <SC label="Opportunities"    val={`฿${fmtM(oppsPipeline)}`}  sub={`${oppsPipelineCount} deals active`} c="#a78bfa"/>
             <SC label="Pipeline"         val={`฿${fmtM(pipeline)}`}      sub={`${filteredOpps.filter(o=>!["Won","Lost"].includes(o.status)).length} active`}/>
-            <SC label="KPI Achievement"  val={`${kpiPct.toFixed(1)}%`}   sub={`Target ฿${fmtM(annual)}`} c={kpiPct>=75?"#16a34a":kpiPct>=50?"#d97706":"#dc2626"}/>
-            <SC label="Invoice Received" val={`฿${fmtM(invoiceReceived)}`} sub={`By invoice date ${new Date().getFullYear()}`} c="#f59e0b"/>
           </div>
 
           {/* Req 12: Monthly bar chart with value labels on top */}
