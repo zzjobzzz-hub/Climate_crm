@@ -580,6 +580,25 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     },0);
   },[deliveries]);
 
+  const invoiceBreakdown = useMemo(()=>{
+    const ceYear = new Date().getFullYear();
+    const prefix = String(ceYear);
+    const map={};
+    deliveries.forEach(d=>{
+      const total=(d.installments||[]).reduce((s,ins)=>{
+        if(ins.status!=="Invoiced"||!ins.invoiceDate) return s;
+        if(!String(ins.invoiceDate).startsWith(prefix)) return s;
+        return s+(ins.amount||0);
+      },0);
+      if(total>0){
+        const cust=customers.find(c=>c.id===d.custId);
+        const name=cust?.companyEN||d.custId;
+        map[name]=(map[name]||0)+total;
+      }
+    });
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  },[deliveries,customers]);
+
   // Convert any date string to BE year format for consistent comparison
   const toBEDate = d => {
     if (!d) return "";
@@ -635,12 +654,37 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   let ytdFc=0,ytdBl=0,ytdRec=0;
   const rows=monthData.map(d=>{ytdFc+=d.fc;ytdBl+=d.bl;ytdRec+=d.rec;return{...d,ytdFc,ytdBl,ytdRec,ytdRem:ytdFc-ytdBl};});
 
-  const SC = ({label,val,sub,c="#0f172a"}) => (
-    <Card style={{padding:"14px 18px"}}>
+  const [hovSC,sHovSC]=useState(null); // which SC card is hovered
+  const [hovPos,sHovPos]=useState({x:0,y:0});
+  const SC = ({label,val,sub,c="#0f172a",tooltip}) => (
+    <Card style={{padding:"14px 18px",position:"relative",cursor:tooltip?"default":"auto"}}
+      onMouseEnter={tooltip?e=>{sHovSC(label);sHovPos({x:e.clientX,y:e.clientY})}:undefined}
+      onMouseMove={tooltip?e=>sHovPos({x:e.clientX,y:e.clientY}):undefined}
+      onMouseLeave={tooltip?()=>sHovSC(null):undefined}>
       <Span s={10} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:4}}>{label}</Span>
       <div style={{fontSize:22,fontWeight:900,color:c,letterSpacing:"-0.02em",lineHeight:1.1}}>{val}</div>
       {sub&&<Span s={11} c="#94a3b8" style={{marginTop:3,display:"block"}}>{sub}</Span>}
     </Card>
+  );
+  const SCTooltip = hovSC && (
+    <div style={{position:"fixed",left:hovPos.x+14,top:hovPos.y-10,zIndex:9999,
+      background:"#1e293b",color:"#fff",borderRadius:8,padding:"10px 14px",
+      boxShadow:"0 4px 20px rgba(0,0,0,0.25)",minWidth:220,pointerEvents:"none"}}>
+      <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>
+        Invoice Received {new Date().getFullYear()}
+      </div>
+      {invoiceBreakdown.map(([name,amt])=>(
+        <div key={name} style={{display:"flex",justifyContent:"space-between",gap:16,marginBottom:3}}>
+          <span style={{fontSize:12,color:"#e2e8f0"}}>{name}</span>
+          <span style={{fontSize:12,fontWeight:700,color:"#fbbf24"}}>฿{fmt(amt)}</span>
+        </div>
+      ))}
+      {invoiceBreakdown.length===0&&<div style={{fontSize:12,color:"#64748b"}}>No invoiced installments</div>}
+      <div style={{borderTop:"1px solid #334155",marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between"}}>
+        <span style={{fontSize:12,fontWeight:700,color:"#fff"}}>Total</span>
+        <span style={{fontSize:12,fontWeight:800,color:"#fbbf24"}}>฿{fmt(invoiceReceived)}</span>
+      </div>
+    </div>
   );
 
   // Req 13: Pipeline analysis with monthly breakdown + sort + service count
@@ -797,15 +841,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
           <Card style={{padding:20,marginBottom:14}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
               <Span s={13} w={700}>Annual KPI Progress</Span>
-              <div style={{display:"flex",alignItems:"center",gap:6,
-                background:kpiPct>=75?"#dcfce7":kpiPct>=50?"#fef3c7":"#fee2e2",
-                border:`1.5px solid ${kpiPct>=75?"#16a34a":kpiPct>=50?"#f59e0b":"#dc2626"}`,
-                borderRadius:8,padding:"4px 14px"}}>
-                <Span s={18} w={800} c={kpiPct>=75?"#16a34a":kpiPct>=50?"#d97706":"#dc2626"}>฿{fmtM(totalWon)}</Span>
-                <Span s={13} w={500} c={kpiPct>=75?"#16a34a":kpiPct>=50?"#d97706":"#dc2626"}>/ ฿{fmtM(annual)}</Span>
-                <div style={{width:1,height:16,background:kpiPct>=75?"#16a34a":kpiPct>=50?"#f59e0b":"#dc2626",opacity:0.4,margin:"0 2px"}}/>
-                <Span s={14} w={800} c={kpiPct>=75?"#16a34a":kpiPct>=50?"#d97706":"#dc2626"}>[ {kpiPct.toFixed(1)}% ]</Span>
-              </div>
+              <Span s={14} w={600} c="#0f172a">฿{fmtM(totalWon)} / ฿{fmtM(annual)} ({kpiPct.toFixed(1)}%)</Span>
             </div>
             <div style={{background:"#f1f5f9",borderRadius:5,height:10}}><div style={{background:kpiPct>=75?"#16a34a":kpiPct>=50?"#f59e0b":"#0f172a",height:"100%",width:`${kpiPct}%`,borderRadius:5,transition:"width .5s"}}/></div>
           </Card>
@@ -814,10 +850,11 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
             <SC label="Customers"        val={customers.length}           sub={`${customers.filter(c=>c.ranking==="High").length} High Priority`}/>
             <SC label="Revenue"          val={`฿${fmtM(revenue)}`}       sub={`Expected ${new Date().getFullYear()}`} c="#0ea5e9"/>
             <SC label="Won YTD"          val={`฿${fmtM(totalWon)}`}      sub={`${wonOpps.length} deals closed`} c="#16a34a"/>
-            <SC label="Invoice Received" val={`฿${fmtM(invoiceReceived)}`} sub={`By invoice date ${new Date().getFullYear()}`} c="#f59e0b"/>
+            <SC label="Invoice Received" val={`฿${fmtM(invoiceReceived)}`} sub={`By invoice date ${new Date().getFullYear()}`} c="#f59e0b" tooltip/>
             <SC label="Opportunities"    val={`฿${fmtM(oppsPipeline)}`}  sub={`${oppsPipelineCount} deals active`} c="#a78bfa"/>
             <SC label="Pipeline"         val={`฿${fmtM(pipeline)}`}      sub={`${filteredOpps.filter(o=>!["Won","Lost"].includes(o.status)).length} active`}/>
           </div>
+          {SCTooltip}
 
           {/* Req 12: Monthly bar chart with value labels on top */}
           <Card style={{padding:20,marginBottom:14}}>
@@ -2737,7 +2774,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
 
 const DLV_HDR = ["Delivery ID","Customer","OPP Code","Quote No.","Job Code","Contract No.","Contract Date","Service Type","Contract Value","Status","Step","Delivery Date","Total Received","Balance"];
 const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,onGoToCS,onGoToCust,onGoToOpp,userList=[]}) => {
-  const [search,sS]=useState(""); const [fDS,setFDS]=useState([]); const [fStep,setFStep]=useState([]);
+  const [search,sS]=useState(""); const [fDS,setFDS]=useState([]); const [fStep,setFStep]=useState([]); const [fDSvc,setFDSvc]=useState([]);
   const [form,sF]=useState(false); const [edit,sE]=useState(null); const [gs,sGS]=useState(false);
   const [initTab,sInitTab]=useState("detail"); // which tab to open in DeliveryForm
   const [quotationOpp,sQT]=useState(null); // for inline Quotation Preview modal
@@ -2745,7 +2782,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
   // Req 9: expandable sections per delivery card
 
   const list=deliveries
-    .filter(d=>{const c=customers.find(x=>x.id===d.custId);const q=search.toLowerCase();return(!search||(d.jobCode||"").toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||(d.contractNo||"").toLowerCase().includes(q)||(d.oppCode||"").toLowerCase().includes(q))&&(fDS.length===0||fDS.includes(d.deliveryStatus))&&(fStep.length===0||fStep.includes(d.currentStep));})
+    .filter(d=>{const c=customers.find(x=>x.id===d.custId);const q=search.toLowerCase();return(!search||(d.jobCode||"").toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||(d.contractNo||"").toLowerCase().includes(q)||(d.oppCode||"").toLowerCase().includes(q))&&(fDS.length===0||fDS.includes(d.deliveryStatus))&&(fStep.length===0||fStep.includes(d.currentStep))&&(fDSvc.length===0||fDSvc.includes(d.serviceCode));})
     .sort((a,b)=>{
       if(sortBy==="oldest"){
         const ta=a.contractDate||a.workLog?.[0]?.ts||"";
@@ -2775,8 +2812,9 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:200,minWidth:140}}/>
-        <MultiSelect label="Status" options={DLV_STATUSES.map(s=>({value:s,label:s}))} selected={fDS}   onChange={setFDS}   width={140}/>
-        <MultiSelect label="Step"   options={DLV_STEPS.map(s=>({value:s,label:s}))}    selected={fStep} onChange={setFStep} width={155}/>
+        <MultiSelect label="Status"  options={DLV_STATUSES.map(s=>({value:s,label:s}))} selected={fDS}    onChange={setFDS}    width={140}/>
+        <MultiSelect label="Step"    options={DLV_STEPS.map(s=>({value:s,label:s}))}    selected={fStep}  onChange={setFStep}  width={155}/>
+        <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fDSvc} onChange={setFDSvc} width={140}/>
         <div style={{flex:1}}/>
         <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
           {[["recent","↓ Latest"],["oldest","↑ Oldest"],["contractDate","↓ Contract Date"],["contractValue","↓ Value"]].map(([k,l])=>(
@@ -3532,12 +3570,15 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
 // ============================================================
 const RATE_PER_HOUR = {Manager:1441, Senior:948, Junior:600};
 
-// ── helpers ──────────────────────────────────────────────────
 const parseMonthStr = mmyy => {
   if(!mmyy) return null;
-  const [mm,yy] = mmyy.split("-").map(Number);
-  if(!mm||!yy) return null;
-  return new Date(2000+yy, mm-1, 1);
+  const parts = mmyy.split("-").map(Number);
+  if(parts.length < 2) return null;
+  const mm = parts[0];
+  const rawYY = parts[1];
+  if(!mm||!rawYY) return null;
+  const yyyy = rawYY > 100 ? rawYY : 2000 + rawYY;
+  return new Date(yyyy, mm-1, 1);
 };
 const addMonthsToStr = (mmyy,n) => {
   const d = parseMonthStr(mmyy);
@@ -3550,39 +3591,40 @@ const fmtMonthStr = mmyy => {
   if(!d) return mmyy||"";
   return d.toLocaleString("en-US",{month:"short",year:"numeric"});
 };
-
-// ── build plan rows from quote snapshot ──────────────────────
 const buildTSPlanRows = (snapshot, userList) => {
   if(!snapshot) return [];
   return safeArr(snapshot.tasks).map(t => {
-    const agents = Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object" ? t.agents : [];
-    const agentRows = agents.map(a => {
+    const agents = Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];
+    const agentRows = agents.map(a=>{
       const info = userList.find(u=>u.id===a.uid)||{name:a.uid||"Unknown",id:a.uid||""};
-      const hrs   = (a.manager||0)+(a.senior||0)+(a.junior||0);
-      const role  = (a.manager||0)>0?"Manager":(a.senior||0)>0?"Senior":"Junior";
-      return {uid:info.id, name:info.name, role, planHours:hrs};
+      const hrs = (a.manager||0)+(a.senior||0)+(a.junior||0);
+      const role = (a.manager||0)>0?"Manager":(a.senior||0)>0?"Senior":"Junior";
+      return {uid:info.id,name:info.name,role,planHours:hrs};
     });
     const totalPlanHours = agentRows.length>0
       ? agentRows.reduce((s,a)=>s+a.planHours,0)
       : (t.manager||0)+(t.senior||0)+(t.junior||0);
-    return {id:t.id, taskName:t.taskName||"(Unnamed Task)", payMonth:t.payMonth||1, totalPlanHours, agentRows};
+    return {id:t.id,taskName:t.taskName||"(Unnamed Task)",payMonth:t.payMonth||1,totalPlanHours,agentRows};
   });
 };
 
-// ── TimesheetPage ─────────────────────────────────────────────
+// ── TimesheetPage ─────────────────────────────────────────────────────────
 const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimesheet,toast,userList}) => {
-  const [search,sSearch] = useState("");
+  const [pageTab, sPageTab] = useState("projects"); // projects | bymonth
+  const [search,  sSearch]  = useState("");
+  const [fSvc,    setFSvc]  = useState([]);
 
   const wonOpps = useMemo(()=>
     opps.filter(o=>o.status==="Won"&&o.jobCode&&o.csCode)
         .filter(o=>{
           const q=search.toLowerCase();
-          if(!q) return true;
           const c=customers.find(x=>x.id===o.custId);
-          return o.jobCode.toLowerCase().includes(q)||o.oppCode.toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q);
+          const matchSearch = !q||(o.jobCode||"").toLowerCase().includes(q)||(o.oppCode||"").toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q);
+          const matchSvc = fSvc.length===0||fSvc.includes(o.serviceCode);
+          return matchSearch&&matchSvc;
         })
         .sort((a,b)=>(b.createdDate||"").localeCompare(a.createdDate||""))
-  ,[opps,customers,search]);
+  ,[opps,customers,search,fSvc]);
 
   const getQuoteSnapshot = opp => {
     const cs = costSheets.find(x=>x.serviceCode===opp.serviceCode);
@@ -3596,65 +3638,194 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
   const getTSRecord = oppCode =>
     timesheets.find(t=>t.oppCode===oppCode)||{id:uid(),oppCode,jobCode:"",startMonth:"",actualEntries:[]};
 
+  // By Month — aggregate all projects
+  const byMonthData = useMemo(()=>{
+    const map={};
+    wonOpps.forEach(opp=>{
+      const cust=customers.find(c=>c.id===opp.custId);
+      const snapshot=getQuoteSnapshot(opp);
+      const tsRecord=getTSRecord(opp.oppCode);
+      const planRows=buildTSPlanRows(snapshot,userList);
+      // Plan by payMonth → resolve to mm-yy
+      planRows.forEach(row=>{
+        const mmyy=tsRecord.startMonth?addMonthsToStr(tsRecord.startMonth,row.payMonth-1):`M${row.payMonth}`;
+        if(!map[mmyy]) map[mmyy]={mmyy,rows:[]};
+        row.agentRows.forEach(a=>{
+          map[mmyy].rows.push({
+            uid:a.uid,name:a.name,role:a.role,
+            planHours:a.planHours,actualHours:0,
+            project:opp.jobCode,company:cust?.companyEN||opp.custId,
+          });
+        });
+      });
+      // Actual from saved entries
+      safeArr(tsRecord.actualEntries).forEach(e=>{
+        const mmyy=e.month||"?";
+        if(!map[mmyy]) map[mmyy]={mmyy,rows:[]};
+        const existing=map[mmyy].rows.find(r=>r.uid===e.agentUid&&r.project===opp.jobCode);
+        if(existing) existing.actualHours+=(e.actualHours||0);
+        else map[mmyy].rows.push({
+          uid:e.agentUid,name:e.agentName||e.agentUid,role:e.role||"",
+          planHours:0,actualHours:e.actualHours||0,
+          project:opp.jobCode,company:cust?.companyEN||opp.custId,
+        });
+      });
+    });
+    return Object.values(map).sort((a,b)=>{
+      const da=parseMonthStr(a.mmyy),db=parseMonthStr(b.mmyy);
+      if(da&&db) return da-db;
+      return (a.mmyy||"").localeCompare(b.mmyy||"");
+    });
+  },[wonOpps,timesheets,costSheets,userList]);
+
   return (
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
-        <Span s={20} w={800}>Time Sheet</Span>
-        <input value={search} onChange={e=>sSearch(e.target.value)}
-          placeholder="Search job code or company…"
-          style={{...SI,width:260,fontSize:13}}/>
+      {/* ── Top bar ── */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div style={{display:"flex",gap:0,borderBottom:"2px solid #e2e8f0"}}>
+          {[["projects","Projects"],["bymonth","By Month"]].map(([k,l])=>(
+            <button key={k} onClick={()=>sPageTab(k)}
+              style={{padding:"8px 18px",border:"none",background:"none",cursor:"pointer",fontSize:13,
+                fontWeight:pageTab===k?800:500,color:pageTab===k?"#0f172a":"#94a3b8",
+                borderBottom:pageTab===k?"2.5px solid #0f172a":"2.5px solid transparent",marginBottom:-2}}>
+              {l}
+            </button>
+          ))}
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fSvc} onChange={setFSvc} width={150}/>
+          <input value={search} onChange={e=>sSearch(e.target.value)}
+            placeholder="Search job code or company…"
+            style={{...SI,width:230,fontSize:13}}/>
+        </div>
       </div>
-      {wonOpps.length===0&&(
-        <Card style={{padding:40,textAlign:"center"}}>
-          <Span s={14} c="#94a3b8">{search?"No matching projects.":"No Won opportunities with job codes yet."}</Span>
-        </Card>
+
+      {/* ══ TAB: Projects ══════════════════════════════════════════════ */}
+      {pageTab==="projects"&&(
+        <>
+          {wonOpps.length===0&&(
+            <Card style={{padding:40,textAlign:"center"}}>
+              <Span s={14} c="#94a3b8">{search||fSvc.length?"No matching projects.":"No Won opportunities with job codes yet."}</Span>
+            </Card>
+          )}
+          {wonOpps.map(opp=>{
+            const cust=customers.find(c=>c.id===opp.custId);
+            const snapshot=getQuoteSnapshot(opp);
+            const tsRecord=getTSRecord(opp.oppCode);
+            const planRows=buildTSPlanRows(snapshot,userList);
+            return (
+              <TSProjectCard key={opp.oppCode}
+                opp={opp} cust={cust} snapshot={snapshot}
+                tsRecord={tsRecord} planRows={planRows}
+                onSave={onSaveTimesheet} toast={toast} user={user}/>
+            );
+          })}
+        </>
       )}
-      {wonOpps.map(opp=>{
-        const cust     = customers.find(c=>c.id===opp.custId);
-        const snapshot = getQuoteSnapshot(opp);
-        const tsRecord = getTSRecord(opp.oppCode);
-        const planRows = buildTSPlanRows(snapshot,userList);
-        return (
-          <TSProjectCard key={opp.oppCode}
-            opp={opp} cust={cust} snapshot={snapshot}
-            tsRecord={tsRecord} planRows={planRows}
-            onSave={onSaveTimesheet} toast={toast} user={user}/>
-        );
-      })}
+
+      {/* ══ TAB: By Month ═══════════════════════════════════════════════ */}
+      {pageTab==="bymonth"&&(
+        <div>
+          {byMonthData.length===0&&(
+            <Card style={{padding:40,textAlign:"center"}}>
+              <Span s={14} c="#94a3b8">No data yet. Set start months and save time sheets in Projects tab.</Span>
+            </Card>
+          )}
+          {byMonthData.map(({mmyy,rows})=>{
+            const totalPlan=rows.reduce((s,r)=>s+r.planHours,0);
+            const totalActual=rows.reduce((s,r)=>s+r.actualHours,0);
+            const totalPlanTHB=rows.reduce((s,r)=>s+r.planHours*(RATE_PER_HOUR[r.role]||948),0);
+            const totalActualTHB=rows.reduce((s,r)=>s+r.actualHours*(RATE_PER_HOUR[r.role]||948),0);
+            const vc=(totalActual-totalPlan)<0?"#16a34a":(totalActual-totalPlan)>0?"#dc2626":"#64748b";
+            return (
+              <Card key={mmyy} style={{marginBottom:10,overflow:"hidden"}}>
+                {/* Month header */}
+                <div style={{padding:"10px 18px",background:"#f8fafc",borderBottom:"1px solid #e2e8f0",
+                  display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <Span s={14} w={800}>{fmtMonthStr(mmyy)}</Span>
+                  <div style={{display:"flex",gap:20,alignItems:"center"}}>
+                    <span style={{fontSize:12,color:"#64748b"}}>Plan <b style={{color:"#0f172a"}}>{totalPlan}h</b> · ฿{fmt(totalPlanTHB)}</span>
+                    <span style={{fontSize:12,color:"#1e40af"}}>Actual <b>{totalActual}h</b> · ฿{fmt(totalActualTHB)}</span>
+                    {totalActual>0&&<span style={{fontSize:12,fontWeight:800,color:vc}}>Var {(totalActual-totalPlan)>0?"+":""}{totalActual-totalPlan}h</span>}
+                  </div>
+                </div>
+                {/* Rows */}
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                  <thead>
+                    <tr style={{background:"#f1f5f9"}}>
+                      <th style={{padding:"6px 14px",textAlign:"left",color:"#64748b",fontWeight:700,fontSize:11}}>Agent</th>
+                      <th style={{padding:"6px 10px",textAlign:"left",color:"#64748b",fontWeight:700,fontSize:11}}>Role</th>
+                      <th style={{padding:"6px 10px",textAlign:"left",color:"#64748b",fontWeight:700,fontSize:11}}>Project</th>
+                      <th style={{padding:"6px 10px",textAlign:"left",color:"#64748b",fontWeight:700,fontSize:11}}>Company</th>
+                      <th style={{padding:"6px 10px",textAlign:"right",color:"#64748b",fontWeight:700,fontSize:11}}>Plan hrs</th>
+                      <th style={{padding:"6px 10px",textAlign:"right",color:"#64748b",fontWeight:700,fontSize:11}}>Plan ฿</th>
+                      <th style={{padding:"6px 10px",textAlign:"right",color:"#1e40af",fontWeight:700,fontSize:11}}>Actual hrs</th>
+                      <th style={{padding:"6px 10px",textAlign:"right",color:"#1e40af",fontWeight:700,fontSize:11}}>Actual ฿</th>
+                      <th style={{padding:"6px 10px",textAlign:"right",color:"#64748b",fontWeight:700,fontSize:11}}>Var hrs</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r,i)=>{
+                      const rate=RATE_PER_HOUR[r.role]||948;
+                      const vHrs=r.actualHours-r.planHours;
+                      const vc2=vHrs<0?"#16a34a":vHrs>0?"#dc2626":"#64748b";
+                      return (
+                        <tr key={i} style={{borderTop:"1px solid #f1f5f9"}}>
+                          <td style={{padding:"7px 14px",fontWeight:600,color:"#0f172a"}}>{r.name}</td>
+                          <td style={{padding:"7px 10px"}}>
+                            <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4,
+                              background:r.role==="Manager"?"#dbeafe":r.role==="Senior"?"#ede9fe":"#dcfce7",
+                              color:r.role==="Manager"?"#1e40af":r.role==="Senior"?"#7c3aed":"#16a34a"}}>
+                              {r.role||"—"}
+                            </span>
+                          </td>
+                          <td style={{padding:"7px 10px",fontFamily:"monospace",fontSize:11,color:"#1e40af",fontWeight:700}}>{r.project}</td>
+                          <td style={{padding:"7px 10px",color:"#64748b",fontSize:12}}>{r.company}</td>
+                          <td style={{padding:"7px 10px",textAlign:"right"}}>{r.planHours>0?`${r.planHours}h`:"-"}</td>
+                          <td style={{padding:"7px 10px",textAlign:"right"}}>{r.planHours>0?`฿${fmt(r.planHours*rate)}`:"-"}</td>
+                          <td style={{padding:"7px 10px",textAlign:"right",color:"#1e40af",fontWeight:600}}>{r.actualHours>0?`${r.actualHours}h`:"-"}</td>
+                          <td style={{padding:"7px 10px",textAlign:"right",color:"#1e40af",fontWeight:600}}>{r.actualHours>0?`฿${fmt(r.actualHours*rate)}`:"-"}</td>
+                          <td style={{padding:"7px 10px",textAlign:"right",fontWeight:700,color:vc2}}>
+                            {r.actualHours>0||r.planHours>0?`${vHrs>0?"+":""}${vHrs}h`:"-"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
 
-// ── TSProjectCard ─────────────────────────────────────────────
+// ── TSProjectCard ──────────────────────────────────────────────────────────
 const TSProjectCard = ({opp,cust,snapshot,tsRecord,planRows,onSave,toast,user}) => {
-  const [isOpen,   sOpen]   = useState(false);
-  const [tab,      sTab]    = useState("plan");
-  const [startMonth, sSM]   = useState(tsRecord.startMonth||"");
-  const [actual,   sActual] = useState(safeArr(tsRecord.actualEntries));
-  const [openTask, sOT]     = useState({});  // {taskId: bool}
+  const [isOpen,  sOpen]  = useState(false);
+  const [startMonth, sSM] = useState(tsRecord.startMonth||"");
+  const [actual,  sActual]= useState({});  // {taskId_agentUid_mmyy: hrs} — blank each session
+  const [openTask,sOT]    = useState({});
 
-  useEffect(()=>{ sSM(tsRecord.startMonth||""); sActual(safeArr(tsRecord.actualEntries)); },[tsRecord.oppCode]);
+  useEffect(()=>{ sSM(tsRecord.startMonth||""); },[tsRecord.oppCode]);
 
-  const getActualHrs = (taskId,agentUid,monthStr) =>
-    actual.find(e=>e.taskId===taskId&&e.agentUid===agentUid&&e.month===monthStr)?.actualHours??null;
-
-  const setActualHrs = (taskId,taskName,agentUid,agentName,role,monthStr,val) => {
-    const hrs = val===""||val===null||isNaN(+val)?0:+val;
-    sActual(prev=>{
-      const without = prev.filter(e=>!(e.taskId===taskId&&e.agentUid===agentUid&&e.month===monthStr));
-      if(hrs===0) return without;
-      return [...without,{taskId,taskName,agentUid,agentName,role,month:monthStr,actualHours:hrs}];
-    });
+  const getA = (taskId,uid,mmyy) => actual[`${taskId}_${uid}_${mmyy}`]??null;
+  const setA = (taskId,taskName,uid,name,role,mmyy,val) => {
+    const key=`${taskId}_${uid}_${mmyy}`;
+    sActual(p=>val===""||val===null?Object.fromEntries(Object.entries(p).filter(([k])=>k!==key)):{...p,[key]:{taskId,taskName,agentUid:uid,agentName:name,role,month:mmyy,actualHours:+val}});
   };
 
   const handleSave = () => {
-    const rec = {...tsRecord,jobCode:opp.jobCode,startMonth,actualEntries:actual,savedTs:nowTS(),savedBy:user.id};
+    const actualEntries = Object.values(actual).filter(e=>e.actualHours>0);
+    const rec = {...tsRecord,jobCode:opp.jobCode,startMonth,actualEntries,savedTs:nowTS(),savedBy:user.id};
     onSave(rec);
     toast("Time Sheet saved",`${opp.jobCode} · saved by ${user.name}`);
   };
 
-  // ── Summary by agent ─────────────────────────────────────────
-  const summaryByAgent = useMemo(()=>{
+  // By Agent summary — plan from planRows, actual from local state
+  const byAgent = useMemo(()=>{
     const map={};
     planRows.forEach(row=>{
       row.agentRows.forEach(a=>{
@@ -3662,81 +3833,45 @@ const TSProjectCard = ({opp,cust,snapshot,tsRecord,planRows,onSave,toast,user}) 
         map[a.uid].planHours+=a.planHours;
       });
     });
-    actual.forEach(e=>{
+    Object.values(actual).forEach(e=>{
       if(!map[e.agentUid]) map[e.agentUid]={uid:e.agentUid,name:e.agentName||e.agentUid,role:e.role||"",planHours:0,actualHours:0};
       map[e.agentUid].actualHours+=(e.actualHours||0);
     });
     return Object.values(map);
   },[planRows,actual]);
 
-  // ── Summary by month (actual grouped by mm-yy) ───────────────
-  const summaryByMonth = useMemo(()=>{
-    const map={};
-    // Plan: group by payMonth → resolve to mm-yy via startMonth
-    planRows.forEach(row=>{
-      const mmyy = startMonth ? addMonthsToStr(startMonth,row.payMonth-1) : `M${row.payMonth}`;
-      if(!map[mmyy]) map[mmyy]={mmyy,planAgents:{},actualAgents:{}};
-      row.agentRows.forEach(a=>{
-        if(!map[mmyy].planAgents[a.uid])
-          map[mmyy].planAgents[a.uid]={uid:a.uid,name:a.name,role:a.role,planHours:0};
-        map[mmyy].planAgents[a.uid].planHours+=a.planHours;
-      });
-    });
-    // Actual: group by actual logged month
-    actual.forEach(e=>{
-      const mmyy=e.month||"?";
-      if(!map[mmyy]) map[mmyy]={mmyy,planAgents:{},actualAgents:{}};
-      if(!map[mmyy].actualAgents[e.agentUid])
-        map[mmyy].actualAgents[e.agentUid]={uid:e.agentUid,name:e.agentName||e.agentUid,role:e.role||"",actualHours:0};
-      map[mmyy].actualAgents[e.agentUid].actualHours+=(e.actualHours||0);
-    });
-    // Sort by calendar month
-    return Object.values(map).sort((a,b)=>{
-      const da=parseMonthStr(a.mmyy), db=parseMonthStr(b.mmyy);
-      if(da&&db) return da-db;
-      return (a.mmyy||"").localeCompare(b.mmyy||"");
-    });
-  },[planRows,actual,startMonth]);
-
-  const thStyle = {padding:"7px 10px",textAlign:"right",borderBottom:"2px solid #e2e8f0",color:"#64748b",fontWeight:700,fontSize:11};
-  const thL     = {...thStyle,textAlign:"left"};
-  const tdR     = {padding:"6px 10px",textAlign:"right",fontSize:12};
-  const tdL     = {padding:"6px 10px",fontSize:12};
+  const thS={padding:"7px 10px",borderBottom:"2px solid #e2e8f0",color:"#64748b",fontWeight:700,fontSize:11};
+  const thR={...thS,textAlign:"right"};
+  const thL={...thS,textAlign:"left"};
+  const tdR={padding:"6px 10px",textAlign:"right",fontSize:12};
+  const tdL={padding:"6px 10px",fontSize:12};
 
   return (
     <Card style={{marginBottom:10,overflow:"hidden"}}>
-      {/* ── Header ── */}
+      {/* ── Header — matches Delivery style ── */}
       <div onClick={()=>sOpen(p=>!p)}
-        style={{padding:"13px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",
-          cursor:"pointer",background:isOpen?"#f8fafc":"#fff",
+        style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",
+          alignItems:"center",cursor:"pointer",
+          background:isOpen?"#f8fafc":"#fff",
           borderBottom:isOpen?"1px solid #e2e8f0":"none"}}>
-        <div style={{display:"flex",gap:14,alignItems:"center"}}>
-          <Span s={13} w={800}>{opp.jobCode}</Span>
-          <Span s={12} c="#64748b">{cust?.companyEN||opp.custId}</Span>
-          <Span s={11} c="#94a3b8">{opp.serviceType}</Span>
-          {!snapshot&&<span style={{fontSize:10,color:"#dc2626",background:"#fee2e2",padding:"1px 8px",borderRadius:8}}>No quote snapshot</span>}
+        <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+          <span style={{fontFamily:"monospace",fontWeight:800,fontSize:13,color:"#0f172a"}}>{opp.jobCode}</span>
+          <SvcBadge code={opp.serviceCode}/>
+          <span style={{fontSize:13,color:"#374151",fontWeight:600}}>{cust?.companyEN||opp.custId}</span>
+          {!snapshot&&<span style={{fontSize:10,color:"#dc2626",background:"#fee2e2",padding:"2px 8px",borderRadius:4}}>No quote snapshot</span>}
         </div>
-        <div style={{display:"flex",gap:12,alignItems:"center"}}>
-          <Span s={12} c="#16a34a" w={700}>฿{fmtM(opp.salesPrice||0)}</Span>
-          <Span s={16} c="#94a3b8">{isOpen?"▲":"▼"}</Span>
+        <div style={{display:"flex",gap:10,alignItems:"center"}}>
+          <span style={{fontSize:13,fontWeight:700,color:isOpen?"#0f172a":"#94a3b8"}}>{isOpen?"▲":"▼"}</span>
         </div>
       </div>
 
       {isOpen&&(
-        <div style={{padding:18}}>
-          {/* ── Controls ── */}
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-            <div style={{display:"flex",gap:0,alignItems:"center",borderBottom:"2px solid #e2e8f0"}}>
-              {[["plan","Plan / Actual"],["summary","By Agent"],["bymonth","By Month"]].map(([k,l])=>(
-                <button key={k} onClick={()=>sTab(k)}
-                  style={{padding:"6px 16px",border:"none",background:"none",cursor:"pointer",fontSize:12,
-                    fontWeight:tab===k?800:500,color:tab===k?"#0f172a":"#94a3b8",
-                    borderBottom:tab===k?"2px solid #0f172a":"2px solid transparent",marginBottom:-2}}>
-                  {l}
-                </button>
-              ))}
-              <div style={{width:1,height:18,background:"#e2e8f0",margin:"0 10px"}}/>
-              <label style={{fontSize:12,color:"#64748b",marginRight:6}}>Start Month</label>
+        <div style={{padding:16}}>
+          {/* ── Controls bar ── */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,
+            paddingBottom:12,borderBottom:"1px solid #f1f5f9"}}>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <label style={{fontSize:12,color:"#64748b",fontWeight:600}}>Start Month</label>
               <input type="month"
                 value={startMonth?`20${startMonth.split("-")[1]}-${startMonth.split("-")[0]}`:""}
                 onChange={e=>{
@@ -3744,8 +3879,8 @@ const TSProjectCard = ({opp,cust,snapshot,tsRecord,planRows,onSave,toast,user}) 
                   if(yyyy&&mm) sSM(`${mm}-${String(yyyy).slice(-2)}`);
                   else sSM("");
                 }}
-                style={{...SI,fontSize:12,padding:"3px 8px",width:145}}/>
-              {startMonth&&<Span s={11} c="#94a3b8" style={{marginLeft:6}}>M1 = {fmtMonthStr(startMonth)}</Span>}
+                style={{...SI,fontSize:12,padding:"4px 8px",width:150}}/>
+              {startMonth&&<span style={{fontSize:11,color:"#94a3b8"}}>M1 = {fmtMonthStr(startMonth)}</span>}
             </div>
             <Btn onClick={handleSave} style={{fontSize:12,padding:"5px 16px"}}>Save Time Sheet</Btn>
           </div>
@@ -3756,230 +3891,150 @@ const TSProjectCard = ({opp,cust,snapshot,tsRecord,planRows,onSave,toast,user}) 
             </div>
           )}
 
-          {/* ══ TAB: Plan / Actual ══════════════════════════════ */}
-          {snapshot&&tab==="plan"&&(
-            <div style={{overflowX:"auto"}}>
-              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                <thead>
-                  <tr style={{background:"#f8fafc"}}>
-                    <th style={{...thL,width:56}}>Month</th>
-                    <th style={thL}>Task / Agent</th>
-                    <th style={thStyle}>Plan (hrs)</th>
-                    <th style={{...thStyle,color:"#1e40af"}}>Actual (hrs)</th>
-                    <th style={thStyle}>mm-yy</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {planRows.map(row=>{
-                    const monthStr = startMonth?addMonthsToStr(startMonth,row.payMonth-1):"";
-                    const isExpanded = openTask[row.id];
-                    const taskActual = actual.filter(e=>e.taskId===row.id).reduce((s,e)=>s+(e.actualHours||0),0);
-                    return (
-                      <React.Fragment key={row.id}>
-                        {/* Task row — M# and task on same line */}
-                        <tr onClick={()=>sOT(p=>({...p,[row.id]:!p[row.id]}))}
-                          style={{cursor:row.agentRows.length>0?"pointer":"default",
-                            borderBottom:"1px solid #f1f5f9",
-                            background:isExpanded?"#fafafa":"#fff"}}>
-                          <td style={{...tdL,fontWeight:800,color:"#0f172a",whiteSpace:"nowrap"}}>
-                            M{row.payMonth}
-                          </td>
-                          <td style={{...tdL,fontWeight:600,color:"#374151"}}>
-                            {row.agentRows.length>0&&(
-                              <span style={{marginRight:6,fontSize:10,color:"#94a3b8"}}>
-                                {isExpanded?"▼":"▶"}
-                              </span>
-                            )}
-                            {row.taskName}
-                            {row.agentRows.length>0&&(
-                              <span style={{marginLeft:8,fontSize:10,color:"#94a3b8"}}>
-                                {row.agentRows.length} agent{row.agentRows.length>1?"s":""}
-                              </span>
-                            )}
-                          </td>
-                          <td style={tdR}>{row.totalPlanHours>0?`${row.totalPlanHours}h`:"-"}</td>
-                          <td style={{...tdR,color:"#1e40af",fontWeight:600}}>
-                            {taskActual>0?`${taskActual}h`:"-"}
-                          </td>
-                          <td style={{...tdR,fontSize:11,color:"#94a3b8"}}>
-                            {monthStr?fmtMonthStr(monthStr):""}
-                          </td>
-                        </tr>
-                        {/* Agent sub-rows */}
-                        {isExpanded&&row.agentRows.map(a=>{
-                          const mmyy  = monthStr||`M${row.payMonth}`;
-                          const aActual = getActualHrs(row.id,a.uid,mmyy);
-                          return (
-                            <tr key={a.uid} style={{background:"#f8fbff",borderBottom:"1px solid #f1f5f9"}}>
-                              <td style={tdL}/>
-                              <td style={{...tdL,paddingLeft:28}}>
-                                <span style={{color:"#94a3b8",marginRight:6}}>↳</span>
-                                <span style={{fontWeight:600}}>{a.name}</span>
-                                <span style={{marginLeft:6,fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:6,
-                                  background:a.role==="Manager"?"#dbeafe":a.role==="Senior"?"#ede9fe":"#dcfce7",
-                                  color:a.role==="Manager"?"#1e40af":a.role==="Senior"?"#7c3aed":"#16a34a"}}>
-                                  {a.role}
-                                </span>
-                              </td>
-                              <td style={{...tdR,color:"#64748b"}}>{a.planHours}h</td>
-                              <td style={{...tdR,padding:"4px 6px"}}>
-                                <input type="number" min="0" step="0.5"
-                                  value={aActual??""} placeholder="0"
-                                  onChange={e=>setActualHrs(row.id,row.taskName,a.uid,a.name,a.role,mmyy,e.target.value)}
-                                  style={{width:68,padding:"3px 6px",border:"1px solid #cbd5e1",
-                                    borderRadius:4,fontSize:12,textAlign:"right",background:"#fff"}}/>
-                              </td>
-                              <td style={{...tdR,fontSize:11,color:"#94a3b8"}}>{mmyy?fmtMonthStr(mmyy):""}</td>
-                            </tr>
-                          );
-                        })}
-                        {isExpanded&&row.agentRows.length===0&&(
-                          <tr style={{background:"#fafcff",borderBottom:"1px solid #f1f5f9"}}>
-                            <td/><td colSpan={4} style={{...tdL,paddingLeft:28,color:"#94a3b8",fontStyle:"italic",fontSize:11}}>
-                              No agents assigned
+          {snapshot&&(
+            <>
+              {/* ── Plan / Actual table ── */}
+              <div style={{overflowX:"auto",marginBottom:20}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                  <thead>
+                    <tr style={{background:"#f8fafc"}}>
+                      <th style={{...thL,width:52}}>Month</th>
+                      <th style={thL}>Task / Agent</th>
+                      <th style={thR}>Plan (hrs)</th>
+                      <th style={{...thR,color:"#1e40af"}}>Actual (hrs)</th>
+                      <th style={thR}>mm-yy</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {planRows.map(row=>{
+                      const mmyy=startMonth?addMonthsToStr(startMonth,row.payMonth-1):"";
+                      const isExp=openTask[row.id];
+                      const taskActual=Object.values(actual).filter(e=>e.taskId===row.id).reduce((s,e)=>s+(e.actualHours||0),0);
+                      return (
+                        <React.Fragment key={row.id}>
+                          <tr onClick={()=>sOT(p=>({...p,[row.id]:!p[row.id]}))}
+                            style={{cursor:row.agentRows.length>0?"pointer":"default",
+                              borderBottom:"1px solid #f1f5f9",
+                              background:isExp?"#fafafa":"#fff"}}>
+                            <td style={{...tdL,fontWeight:800,color:"#0f172a",whiteSpace:"nowrap"}}>M{row.payMonth}</td>
+                            <td style={{...tdL,fontWeight:600,color:"#374151"}}>
+                              {row.agentRows.length>0&&(
+                                <span style={{marginRight:6,fontSize:10,color:"#94a3b8"}}>{isExp?"▼":"▶"}</span>
+                              )}
+                              {row.taskName}
+                              {row.agentRows.length>0&&(
+                                <span style={{marginLeft:8,fontSize:10,color:"#94a3b8"}}>{row.agentRows.length} agent{row.agentRows.length>1?"s":""}</span>
+                              )}
                             </td>
+                            <td style={tdR}>{row.totalPlanHours>0?`${row.totalPlanHours}h`:"-"}</td>
+                            <td style={{...tdR,color:"#1e40af",fontWeight:600}}>{taskActual>0?`${taskActual}h`:"-"}</td>
+                            <td style={{...tdR,fontSize:11,color:"#94a3b8"}}>{mmyy?fmtMonthStr(mmyy):""}</td>
                           </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+                          {isExp&&row.agentRows.map(a=>{
+                            const k=mmyy||`M${row.payMonth}`;
+                            const aVal=getA(row.id,a.uid,k);
+                            return (
+                              <tr key={a.uid} style={{background:"#f8fbff",borderBottom:"1px solid #f1f5f9"}}>
+                                <td style={tdL}/>
+                                <td style={{...tdL,paddingLeft:26}}>
+                                  <span style={{color:"#94a3b8",marginRight:6}}>↳</span>
+                                  <span style={{fontWeight:600}}>{a.name}</span>
+                                  <span style={{marginLeft:6,fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:4,
+                                    background:a.role==="Manager"?"#dbeafe":a.role==="Senior"?"#ede9fe":"#dcfce7",
+                                    color:a.role==="Manager"?"#1e40af":a.role==="Senior"?"#7c3aed":"#16a34a"}}>
+                                    {a.role}
+                                  </span>
+                                </td>
+                                <td style={{...tdR,color:"#64748b"}}>{a.planHours}h</td>
+                                <td style={{...tdR,padding:"4px 6px"}}>
+                                  <input type="number" min="0" step="0.5"
+                                    value={aVal??""} placeholder="0"
+                                    onChange={e=>setA(row.id,row.taskName,a.uid,a.name,a.role,k,e.target.value||null)}
+                                    style={{width:68,padding:"3px 6px",border:"1px solid #cbd5e1",
+                                      borderRadius:4,fontSize:12,textAlign:"right",background:"#fff"}}/>
+                                </td>
+                                <td style={{...tdR,fontSize:11,color:"#94a3b8"}}>{k?fmtMonthStr(k):""}</td>
+                              </tr>
+                            );
+                          })}
+                          {isExp&&row.agentRows.length===0&&(
+                            <tr style={{background:"#fafcff",borderBottom:"1px solid #f1f5f9"}}>
+                              <td/><td colSpan={4} style={{...tdL,paddingLeft:26,color:"#94a3b8",fontStyle:"italic",fontSize:11}}>No agents assigned</td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
 
-          {/* ══ TAB: By Agent Summary ════════════════════════════ */}
-          {snapshot&&tab==="summary"&&(
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-              <thead>
-                <tr style={{background:"#f8fafc"}}>
-                  <th style={thL}>Agent</th>
-                  <th style={thL}>Role</th>
-                  <th style={thStyle}>Plan hrs</th>
-                  <th style={thStyle}>Plan ฿</th>
-                  <th style={{...thStyle,color:"#1e40af"}}>Actual hrs</th>
-                  <th style={{...thStyle,color:"#1e40af"}}>Actual ฿</th>
-                  <th style={thStyle}>Var hrs</th>
-                  <th style={thStyle}>Var ฿</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summaryByAgent.map(r=>{
-                  const rate=RATE_PER_HOUR[r.role]||948;
-                  const pTHB=r.planHours*rate, aTHB=r.actualHours*rate;
-                  const vHrs=r.actualHours-r.planHours, vTHB=aTHB-pTHB;
-                  const vc=vHrs<0?"#16a34a":vHrs>0?"#dc2626":"#64748b";
-                  return (
-                    <tr key={r.uid} style={{borderBottom:"1px solid #f1f5f9"}}>
-                      <td style={{...tdL,fontWeight:600}}>{r.name}</td>
-                      <td style={tdL}>
-                        <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:6,
-                          background:r.role==="Manager"?"#dbeafe":r.role==="Senior"?"#ede9fe":"#dcfce7",
-                          color:r.role==="Manager"?"#1e40af":r.role==="Senior"?"#7c3aed":"#16a34a"}}>
-                          {r.role||"—"}
-                        </span>
-                      </td>
-                      <td style={tdR}>{r.planHours}h</td>
-                      <td style={tdR}>฿{fmt(pTHB)}</td>
-                      <td style={{...tdR,color:"#1e40af",fontWeight:600}}>{r.actualHours}h</td>
-                      <td style={{...tdR,color:"#1e40af",fontWeight:600}}>฿{fmt(aTHB)}</td>
-                      <td style={{...tdR,color:vc,fontWeight:600}}>{vHrs>0?"+":""}{vHrs}h</td>
-                      <td style={{...tdR,color:vc,fontWeight:600}}>{vTHB>0?"+":""}฿{fmt(Math.abs(vTHB))}</td>
-                    </tr>
-                  );
-                })}
-                {/* Totals */}
-                {(()=>{
-                  const tP=summaryByAgent.reduce((s,r)=>s+r.planHours,0);
-                  const tA=summaryByAgent.reduce((s,r)=>s+r.actualHours,0);
-                  const tPB=summaryByAgent.reduce((s,r)=>s+r.planHours*(RATE_PER_HOUR[r.role]||948),0);
-                  const tAB=summaryByAgent.reduce((s,r)=>s+r.actualHours*(RATE_PER_HOUR[r.role]||948),0);
-                  const vc=(tA-tP)<0?"#16a34a":(tA-tP)>0?"#dc2626":"#64748b";
-                  return (
-                    <tr style={{background:"#f8fafc",fontWeight:800,borderTop:"2px solid #e2e8f0"}}>
-                      <td colSpan={2} style={{...tdL,fontWeight:800}}>Total</td>
-                      <td style={tdR}>{tP}h</td>
-                      <td style={tdR}>฿{fmt(tPB)}</td>
-                      <td style={{...tdR,color:"#1e40af"}}>{tA}h</td>
-                      <td style={{...tdR,color:"#1e40af"}}>฿{fmt(tAB)}</td>
-                      <td style={{...tdR,color:vc}}>{(tA-tP)>0?"+":""}{tA-tP}h</td>
-                      <td style={{...tdR,color:vc}}>{(tAB-tPB)>0?"+":""}฿{fmt(Math.abs(tAB-tPB))}</td>
-                    </tr>
-                  );
-                })()}
-              </tbody>
-            </table>
-          )}
-
-          {/* ══ TAB: By Month ════════════════════════════════════ */}
-          {snapshot&&tab==="bymonth"&&(
-            <div>
-              {summaryByMonth.length===0&&(
-                <div style={{padding:24,textAlign:"center",color:"#94a3b8",fontSize:13}}>
-                  No data yet. Set a start month and enter actual hours in Plan / Actual tab.
+              {/* ── By Agent summary — pinned below table ── */}
+              {byAgent.length>0&&(
+                <div style={{borderTop:"2px solid #f1f5f9",paddingTop:12}}>
+                  <Span s={11} w={700} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:8}}>By Agent Summary</Span>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                    <thead>
+                      <tr style={{background:"#f8fafc"}}>
+                        <th style={thL}>Agent</th>
+                        <th style={thL}>Role</th>
+                        <th style={thR}>Plan hrs</th>
+                        <th style={thR}>Plan ฿</th>
+                        <th style={{...thR,color:"#1e40af"}}>Actual hrs</th>
+                        <th style={{...thR,color:"#1e40af"}}>Actual ฿</th>
+                        <th style={thR}>Var hrs</th>
+                        <th style={thR}>Var ฿</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {byAgent.map(r=>{
+                        const rate=RATE_PER_HOUR[r.role]||948;
+                        const pB=r.planHours*rate,aB=r.actualHours*rate;
+                        const vH=r.actualHours-r.planHours,vB=aB-pB;
+                        const vc=vH<0?"#16a34a":vH>0?"#dc2626":"#64748b";
+                        return (
+                          <tr key={r.uid} style={{borderBottom:"1px solid #f1f5f9"}}>
+                            <td style={{...tdL,fontWeight:600}}>{r.name}</td>
+                            <td style={tdL}>
+                              <span style={{fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:4,
+                                background:r.role==="Manager"?"#dbeafe":r.role==="Senior"?"#ede9fe":"#dcfce7",
+                                color:r.role==="Manager"?"#1e40af":r.role==="Senior"?"#7c3aed":"#16a34a"}}>
+                                {r.role||"—"}
+                              </span>
+                            </td>
+                            <td style={tdR}>{r.planHours}h</td>
+                            <td style={tdR}>฿{fmt(pB)}</td>
+                            <td style={{...tdR,color:"#1e40af",fontWeight:600}}>{r.actualHours}h</td>
+                            <td style={{...tdR,color:"#1e40af",fontWeight:600}}>฿{fmt(aB)}</td>
+                            <td style={{...tdR,color:vc,fontWeight:600}}>{vH>0?"+":""}{vH}h</td>
+                            <td style={{...tdR,color:vc,fontWeight:600}}>{vB>0?"+":""}฿{fmt(Math.abs(vB))}</td>
+                          </tr>
+                        );
+                      })}
+                      {(()=>{
+                        const tP=byAgent.reduce((s,r)=>s+r.planHours,0);
+                        const tA=byAgent.reduce((s,r)=>s+r.actualHours,0);
+                        const tPB=byAgent.reduce((s,r)=>s+r.planHours*(RATE_PER_HOUR[r.role]||948),0);
+                        const tAB=byAgent.reduce((s,r)=>s+r.actualHours*(RATE_PER_HOUR[r.role]||948),0);
+                        const vc=(tA-tP)<0?"#16a34a":(tA-tP)>0?"#dc2626":"#64748b";
+                        return (
+                          <tr style={{background:"#f8fafc",fontWeight:800,borderTop:"2px solid #e2e8f0"}}>
+                            <td colSpan={2} style={{...tdL,fontWeight:800}}>Total</td>
+                            <td style={tdR}>{tP}h</td>
+                            <td style={tdR}>฿{fmt(tPB)}</td>
+                            <td style={{...tdR,color:"#1e40af"}}>{tA}h</td>
+                            <td style={{...tdR,color:"#1e40af"}}>฿{fmt(tAB)}</td>
+                            <td style={{...tdR,color:vc}}>{(tA-tP)>0?"+":""}{tA-tP}h</td>
+                            <td style={{...tdR,color:vc}}>{(tAB-tPB)>0?"+":""}฿{fmt(Math.abs(tAB-tPB))}</td>
+                          </tr>
+                        );
+                      })()}
+                    </tbody>
+                  </table>
                 </div>
               )}
-              {summaryByMonth.map(({mmyy,planAgents,actualAgents})=>{
-                // merge all agents for this month
-                const allUids = [...new Set([...Object.keys(planAgents),...Object.keys(actualAgents)])];
-                const monthPlanHrs   = Object.values(planAgents).reduce((s,a)=>s+a.planHours,0);
-                const monthActualHrs = Object.values(actualAgents).reduce((s,a)=>s+a.actualHours,0);
-                const monthPlanTHB   = Object.values(planAgents).reduce((s,a)=>s+a.planHours*(RATE_PER_HOUR[a.role]||948),0);
-                const monthActualTHB = Object.values(actualAgents).reduce((s,a)=>s+a.actualHours*(RATE_PER_HOUR[a.role]||948),0);
-                return (
-                  <div key={mmyy} style={{marginBottom:10,border:"1px solid #e2e8f0",borderRadius:8,overflow:"hidden"}}>
-                    {/* Month header */}
-                    <div style={{background:"#f1f5f9",padding:"8px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                      <Span s={13} w={800}>{fmtMonthStr(mmyy)}</Span>
-                      <div style={{display:"flex",gap:20}}>
-                        <span style={{fontSize:12,color:"#64748b"}}>Plan <b>{monthPlanHrs}h</b> · ฿{fmt(monthPlanTHB)}</span>
-                        <span style={{fontSize:12,color:"#1e40af"}}>Actual <b>{monthActualHrs}h</b> · ฿{fmt(monthActualTHB)}</span>
-                        {monthActualHrs>0&&<span style={{fontSize:12,fontWeight:700,
-                          color:(monthActualHrs-monthPlanHrs)<0?"#16a34a":(monthActualHrs-monthPlanHrs)>0?"#dc2626":"#64748b"}}>
-                          Var {(monthActualHrs-monthPlanHrs)>0?"+":""}{monthActualHrs-monthPlanHrs}h
-                        </span>}
-                      </div>
-                    </div>
-                    {/* Agent rows for this month */}
-                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                      <tbody>
-                        {allUids.map(uid=>{
-                          const pa=planAgents[uid];
-                          const aa=actualAgents[uid];
-                          const name=(pa?.name||aa?.name||uid);
-                          const role=(pa?.role||aa?.role||"");
-                          const rate=RATE_PER_HOUR[role]||948;
-                          const ph=pa?.planHours||0, ah=aa?.actualHours||0;
-                          const vc=(ah-ph)<0?"#16a34a":(ah-ph)>0?"#dc2626":"#64748b";
-                          return (
-                            <tr key={uid} style={{borderTop:"1px solid #f1f5f9"}}>
-                              <td style={{...tdL,paddingLeft:18,fontWeight:600,width:"25%"}}>{name}</td>
-                              <td style={tdL}>
-                                {role&&<span style={{fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:6,
-                                  background:role==="Manager"?"#dbeafe":role==="Senior"?"#ede9fe":"#dcfce7",
-                                  color:role==="Manager"?"#1e40af":role==="Senior"?"#7c3aed":"#16a34a"}}>
-                                  {role}
-                                </span>}
-                              </td>
-                              <td style={tdR}>{ph>0?`${ph}h`:"-"}</td>
-                              <td style={tdR}>{ph>0?`฿${fmt(ph*rate)}`:"-"}</td>
-                              <td style={{...tdR,color:"#1e40af",fontWeight:600}}>{ah>0?`${ah}h`:"-"}</td>
-                              <td style={{...tdR,color:"#1e40af",fontWeight:600}}>{ah>0?`฿${fmt(ah*rate)}`:"-"}</td>
-                              {ah>0&&ph>0&&<td style={{...tdR,color:vc,fontWeight:700}}>
-                                {(ah-ph)>0?"+":""}{ah-ph}h
-                              </td>}
-                              {!(ah>0&&ph>0)&&<td/>}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })}
-            </div>
+            </>
           )}
-
         </div>
       )}
     </Card>
