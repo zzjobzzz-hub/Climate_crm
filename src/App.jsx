@@ -523,7 +523,8 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const [annual,sAnn] = useState(()=>kpiSplits[new Date().getFullYear()+543+"_annual"]||ANNUAL_KPI);
   // Sync annual from kpiSplits when year changes or data loads from GS
   useEffect(()=>{
-    if(kpiSplits[year+"_annual"]) sAnn(kpiSplits[year+"_annual"]);
+    const saved = kpiSplits[year+"_annual"];
+    if(saved !== undefined && saved !== null && saved !== "") sAnn(+saved);
   },[year,kpiSplits]);
   // Req 14: multi-select dashboard filters
   const [fSt,setFSt]   = useState([]);
@@ -3735,10 +3736,12 @@ const stripJsonSuffix = obj => {
       }
       if(k.length){
         const kpiObj={};
-        k.forEach(r=>{
+        k.forEach(row=>{
+          const r = stripJsonSuffix(row); // strips splits_json → splits, saveLog_json → saveLog
           if(!r.year) return;
           kpiObj[r.year] = safeArr(r.splits).length ? r.splits : DEFAULT_SPLIT.slice();
-          if(r.annual) kpiObj[r.year+"_annual"] = +r.annual;
+          if(r.annual !== undefined && r.annual !== null && r.annual !== "")
+            kpiObj[r.year+"_annual"] = +r.annual;
         });
         if(Object.keys(kpiObj).length) sKPI(p=>({...p,...kpiObj}));
       }
