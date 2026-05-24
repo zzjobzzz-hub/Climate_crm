@@ -197,7 +197,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // S4: All requests include GS_AUTH_TOKEN verified server-side
 // 
-const GS_URL = "https://script.google.com/macros/s/AKfycbzk27FbA0LR8CK0AXVSATJ8HfbZL_jqWFD_HmP3lut__owFgl6_zafNp7Lyn1lB4hah2w/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycby666U44RIeI1x-CWeyIiob5EBdyfKXv1vI3vfe9YQmGSJ4oMNa1ZVPv_iFVoE0jf2W/exec";
 
 // S1: Server-side login — credentials validated in GAS, never in browser
 const gsLogin = async (email, password) => {
@@ -3532,6 +3532,472 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
 // 
 // SETUP GUIDE
 // 
+
+// ============================================================
+//  TIME SHEET PAGE
+// ============================================================
+const RATE_PER_HOUR = {Manager: 1441, Senior: 948, Junior: 600};
+
+const TimesheetPage = ({user, opps, customers, costSheets, timesheets, onSaveTimesheet, toast, userList}) => {
+  const [search, sSearch] = useState("");
+  const [expandedOpp, sExpanded] = useState(null);
+  const [openMonths, sOpenMonths] = useState({}); // {oppCode: {taskId: bool}}
+
+  // Won opps with jobCode only
+  const wonOpps = useMemo(() =>
+    opps.filter(o => o.status === "Won" && o.jobCode && o.csCode)
+        .filter(o => {
+          const q = search.toLowerCase();
+          if(!q) return true;
+          const c = customers.find(x => x.id === o.custId);
+          return o.jobCode.toLowerCase().includes(q) ||
+                 o.oppCode.toLowerCase().includes(q) ||
+                 (c?.companyEN||"").toLowerCase().includes(q);
+        })
+        .sort((a,b) => (b.createdDate||"").localeCompare(a.createdDate||""))
+  , [opps, customers, search]);
+
+  // Get committed quote snapshot for an opp via csCode
+  const getQuoteSnapshot = (opp) => {
+    const cs = costSheets.find(x => x.serviceCode === opp.serviceCode);
+    if(!cs) return null;
+    const allLogs = cs.saveLog || [];
+    // Find the log entry whose quoteSnapshot matches this opp's csCode / oppCode
+    const entry = allLogs
+      .filter(e => e.quoteSnapshot)
+      .filter(e => e.quoteSnapshot.oppCode === opp.oppCode || e.quoteSnapshot.csCode === opp.csCode)
+      .sort((a,b) => (b.ts||"").localeCompare(a.ts||""))
+      [0];
+    return entry?.quoteSnapshot || null;
+  };
+
+  // Get or create timesheet record for an opp
+  const getTSRecord = (oppCode) =>
+    timesheets.find(t => t.oppCode === oppCode) || {id: uid(), oppCode, jobCode:"", startMonth:"", actualEntries:[]};
+
+  // Parse mm-yy string to Date
+  const parseMonthStr = (mmyy) => {
+    if(!mmyy) return null;
+    const [mm, yy] = mmyy.split("-").map(Number);
+    if(!mm||!yy) return null;
+    return new Date(2000+yy, mm-1, 1);
+  };
+
+  // Add N months to mm-yy
+  const addMonths = (mmyy, n) => {
+    const d = parseMonthStr(mmyy);
+    if(!d) return "";
+    d.setMonth(d.getMonth() + n);
+    const mm = String(d.getMonth()+1).padStart(2,"0");
+    const yy = String(d.getFullYear()).slice(-2);
+    return `${mm}-${yy}`;
+  };
+
+  // Format mm-yy for display
+  const fmtMonth = (mmyy) => {
+    const d = parseMonthStr(mmyy);
+    if(!d) return mmyy||"";
+    return d.toLocaleString("en-US",{month:"short",year:"2-digit"});
+  };
+
+  // Build plan rows from quote snapshot tasks
+  const buildPlanRows = (snapshot) => {
+    if(!snapshot) return [];
+    const tasks = safeArr(snapshot.tasks);
+    return tasks.map(t => {
+      // agents breakdown
+      const agents = Array.isArray(t.agents) && t.agents.length > 0 && typeof t.agents[0] === "object"
+        ? t.agents : [];
+      // per-agent rows
+      const agentRows = agents.map(a => {
+        const agentInfo = userList.find(u => u.id === a.uid) || {name: a.uid||"Unknown", id: a.uid||""};
+        const hrs = {
+          Manager: a.manager||0,
+          Senior:  a.senior||0,
+          Junior:  a.junior||0,
+        };
+        // find their dominant role
+        const role = hrs.Manager > 0 ? "Manager" : hrs.Senior > 0 ? "Senior" : "Junior";
+        const planHours = hrs.Manager + hrs.Senior + hrs.Junior;
+        return { uid: agentInfo.id, name: agentInfo.name, role, planHours, hrs };
+      });
+      // fallback if no agents — use task totals
+      const fallbackHours = (t.manager||0) + (t.senior||0) + (t.junior||0);
+      const totalPlanHours = agents.length > 0
+        ? agentRows.reduce((s,a) => s + a.planHours, 0)
+        : fallbackHours;
+      return {
+        id: t.id,
+        taskName: t.taskName||"(Unnamed Task)",
+        payMonth: t.payMonth||1,
+        totalPlanHours,
+        agentRows,
+        fallbackHours,
+        raw: t,
+      };
+    });
+  };
+
+  // Summary: per agent across all tasks
+  const buildSummary = (planRows, tsRecord) => {
+    const map = {};
+    planRows.forEach(row => {
+      row.agentRows.forEach(a => {
+        if(!map[a.uid]) map[a.uid] = {uid: a.uid, name: a.name, role: a.role, planHours: 0, actualHours: 0};
+        map[a.uid].planHours += a.planHours;
+      });
+    });
+    // add actual
+    safeArr(tsRecord.actualEntries).forEach(e => {
+      if(!map[e.agentUid]) map[e.agentUid] = {uid: e.agentUid, name: e.agentName||e.agentUid, role: e.role||"", planHours: 0, actualHours: 0};
+      map[e.agentUid].actualHours += (e.actualHours||0);
+    });
+    return Object.values(map);
+  };
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+        <Span s={20} w={800}>Time Sheet</Span>
+        <input value={search} onChange={e=>sSearch(e.target.value)}
+          placeholder="Search job code or company…"
+          style={{...SI, width:260, fontSize:13}}/>
+      </div>
+
+      {wonOpps.length === 0 && (
+        <Card style={{padding:40,textAlign:"center"}}>
+          <Span s={14} c="#94a3b8">{search ? "No matching projects found." : "No Won opportunities with job codes yet."}</Span>
+        </Card>
+      )}
+
+      {wonOpps.map(opp => {
+        const cust = customers.find(c => c.id === opp.custId);
+        const snapshot = getQuoteSnapshot(opp);
+        const tsRecord = getTSRecord(opp.oppCode);
+        const isOpen = expandedOpp === opp.oppCode;
+        const planRows = buildPlanRows(snapshot);
+        const summary = buildSummary(planRows, tsRecord);
+
+        // local editable state per project — lifted via ProjectCard
+        return (
+          <ProjectCard
+            key={opp.oppCode}
+            opp={opp} cust={cust} snapshot={snapshot}
+            tsRecord={tsRecord} planRows={planRows} summary={summary}
+            isOpen={isOpen} onToggle={()=>sExpanded(isOpen?null:opp.oppCode)}
+            fmtMonth={fmtMonth} addMonths={addMonths} parseMonthStr={parseMonthStr}
+            onSave={onSaveTimesheet} toast={toast} user={user} userList={userList}
+          />
+        );
+      })}
+    </div>
+  );
+};
+
+// ── ProjectCard — isolated so local edits don't re-render siblings ──
+const ProjectCard = ({opp, cust, snapshot, tsRecord, planRows, summary, isOpen, onToggle,
+                      fmtMonth, addMonths, parseMonthStr, onSave, toast, user, userList}) => {
+  const [startMonth, sStartMonth] = useState(tsRecord.startMonth||"");
+  const [actualEntries, sActual]  = useState(safeArr(tsRecord.actualEntries));
+  const [openTasks, sOpenTasks]   = useState({});
+  const [tab, sTab]               = useState("plan"); // plan | summary
+
+  // Sync if tsRecord changes (e.g. after load)
+  useEffect(()=>{
+    sStartMonth(tsRecord.startMonth||"");
+    sActual(safeArr(tsRecord.actualEntries));
+  },[tsRecord.oppCode]);
+
+  const getActual = (taskId, agentUid, monthStr) =>
+    actualEntries.find(e => e.taskId===taskId && e.agentUid===agentUid && e.month===monthStr)?.actualHours ?? "";
+
+  const setActual = (taskId, taskName, agentUid, agentName, role, monthStr, val) => {
+    const hours = val===""||isNaN(+val) ? 0 : +val;
+    sActual(prev => {
+      const without = prev.filter(e => !(e.taskId===taskId && e.agentUid===agentUid && e.month===monthStr));
+      if(hours===0) return without;
+      return [...without, {taskId, taskName, agentUid, agentName, role, month: monthStr, actualHours: hours}];
+    });
+  };
+
+  const handleSave = () => {
+    const record = {
+      ...tsRecord,
+      jobCode:   opp.jobCode,
+      startMonth,
+      actualEntries,
+      savedTs:   nowTS(),
+      savedBy:   user.id,
+    };
+    onSave(record);
+    toast("Time Sheet saved", `${opp.jobCode} saved by ${user.name}`);
+  };
+
+  // Group planRows by payMonth
+  const byMonth = useMemo(()=>{
+    const m = {};
+    planRows.forEach(r=>{ if(!m[r.payMonth]) m[r.payMonth]=[]; m[r.payMonth].push(r); });
+    return m;
+  },[planRows]);
+
+  const monthNums = Object.keys(byMonth).map(Number).sort((a,b)=>a-b);
+
+  // Summary calc
+  const summaryRows = useMemo(()=>{
+    const map = {};
+    planRows.forEach(row=>{
+      row.agentRows.forEach(a=>{
+        if(!map[a.uid]) map[a.uid]={uid:a.uid,name:a.name,role:a.role,planHours:0,actualHours:0};
+        map[a.uid].planHours += a.planHours;
+      });
+    });
+    actualEntries.forEach(e=>{
+      if(!map[e.agentUid]) map[e.agentUid]={uid:e.agentUid,name:e.agentName||e.agentUid,role:e.role||"",planHours:0,actualHours:0};
+      map[e.agentUid].actualHours += (e.actualHours||0);
+    });
+    return Object.values(map);
+  },[planRows, actualEntries]);
+
+  const totalPlan   = summaryRows.reduce((s,r)=>s+r.planHours,0);
+  const totalActual = summaryRows.reduce((s,r)=>s+r.actualHours,0);
+
+  return (
+    <Card style={{marginBottom:12,overflow:"hidden"}}>
+      {/* Project Header */}
+      <div onClick={onToggle} style={{padding:"14px 20px",display:"flex",justifyContent:"space-between",
+        alignItems:"center",cursor:"pointer",background:isOpen?"#f8fafc":"#fff",
+        borderBottom:isOpen?"1px solid #e2e8f0":"none"}}>
+        <div style={{display:"flex",gap:16,alignItems:"center"}}>
+          <Span s={13} w={800} c="#0f172a">{opp.jobCode}</Span>
+          <Span s={12} c="#64748b">{cust?.companyEN||opp.custId}</Span>
+          <Span s={11} c="#94a3b8">{opp.serviceType}</Span>
+          {!snapshot && <span style={{fontSize:10,color:"#dc2626",background:"#fee2e2",padding:"1px 8px",borderRadius:8}}>No quote snapshot</span>}
+        </div>
+        <div style={{display:"flex",gap:16,alignItems:"center"}}>
+          <Span s={12} c="#16a34a" w={700}>฿{fmtM(opp.salesPrice||0)}</Span>
+          <Span s={18} c="#94a3b8">{isOpen?"▲":"▼"}</Span>
+        </div>
+      </div>
+
+      {isOpen && (
+        <div style={{padding:20}}>
+          {/* Controls row */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <div style={{display:"flex",gap:10,alignItems:"center"}}>
+              {/* Tab switcher */}
+              {["plan","summary"].map(t=>(
+                <button key={t} onClick={()=>sTab(t)}
+                  style={{padding:"5px 14px",border:"none",background:"none",cursor:"pointer",
+                    fontSize:12,fontWeight:tab===t?800:500,
+                    color:tab===t?"#0f172a":"#94a3b8",
+                    borderBottom:tab===t?"2px solid #0f172a":"2px solid transparent"}}>
+                  {t==="plan"?"Plan / Actual":"Summary"}
+                </button>
+              ))}
+              <div style={{width:1,height:20,background:"#e2e8f0",margin:"0 4px"}}/>
+              {/* Start month picker */}
+              <label style={{fontSize:12,color:"#64748b"}}>Start Month</label>
+              <input type="month" value={startMonth ? `20${startMonth.split("-")[1]}-${startMonth.split("-")[0]}` : ""}
+                onChange={e=>{
+                  const [yyyy,mm] = (e.target.value||"").split("-");
+                  if(yyyy&&mm) sStartMonth(`${mm}-${String(yyyy).slice(-2)}`);
+                  else sStartMonth("");
+                }}
+                style={{...SI,fontSize:12,padding:"4px 8px",width:150}}/>
+              {startMonth && <Span s={11} c="#94a3b8">M1 = {fmtMonth(startMonth)}</Span>}
+            </div>
+            <Btn onClick={handleSave} style={{fontSize:12,padding:"5px 16px"}}>Save Time Sheet</Btn>
+          </div>
+
+          {!snapshot && (
+            <div style={{padding:20,textAlign:"center",color:"#dc2626",fontSize:13}}>
+              No committed quote snapshot found for this project. Please save a quotation in Cost Sheet first.
+            </div>
+          )}
+
+          {snapshot && tab==="plan" && (
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                <thead>
+                  <tr style={{background:"#f8fafc"}}>
+                    <th style={{padding:"8px 10px",textAlign:"left",borderBottom:"2px solid #e2e8f0",width:60,color:"#64748b",fontWeight:700}}>Month</th>
+                    <th style={{padding:"8px 10px",textAlign:"left",borderBottom:"2px solid #e2e8f0",color:"#64748b",fontWeight:700}}>Task / Agent</th>
+                    <th style={{padding:"8px 10px",textAlign:"right",borderBottom:"2px solid #e2e8f0",color:"#64748b",fontWeight:700}}>Plan (hrs)</th>
+                    <th style={{padding:"8px 10px",textAlign:"right",borderBottom:"2px solid #e2e8f0",color:"#1e40af",fontWeight:700}}>Actual (hrs)</th>
+                    <th style={{padding:"8px 10px",textAlign:"right",borderBottom:"2px solid #e2e8f0",color:"#64748b",fontWeight:700}}>Month</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthNums.map(mNum=>{
+                    const monthStr = startMonth ? addMonths(startMonth, mNum-1) : "";
+                    const rows = byMonth[mNum]||[];
+                    const monthPlan = rows.reduce((s,r)=>s+r.totalPlanHours,0);
+                    const monthActual = actualEntries
+                      .filter(e=>rows.some(r=>r.id===e.taskId))
+                      .reduce((s,e)=>s+(e.actualHours||0),0);
+                    return (
+                      <React.Fragment key={mNum}>
+                        {/* Month group header */}
+                        <tr style={{background:"#f1f5f9"}}>
+                          <td colSpan={2} style={{padding:"6px 10px",fontWeight:800,fontSize:12,color:"#0f172a"}}>
+                            M{mNum}
+                          </td>
+                          <td style={{padding:"6px 10px",textAlign:"right",fontWeight:700,color:"#0f172a"}}>{monthPlan}h</td>
+                          <td style={{padding:"6px 10px",textAlign:"right",fontWeight:700,color:"#1e40af"}}>{monthActual>0?`${monthActual}h`:"-"}</td>
+                          <td style={{padding:"6px 10px",textAlign:"right",fontSize:11,color:"#64748b"}}>{monthStr?fmtMonth(monthStr):""}</td>
+                        </tr>
+                        {/* Tasks in this month */}
+                        {rows.map(row=>{
+                          const isTaskOpen = openTasks[row.id];
+                          const taskActual = actualEntries
+                            .filter(e=>e.taskId===row.id)
+                            .reduce((s,e)=>s+(e.actualHours||0),0);
+                          return (
+                            <React.Fragment key={row.id}>
+                              {/* Task row */}
+                              <tr onClick={()=>sOpenTasks(p=>({...p,[row.id]:!p[row.id]}))}
+                                style={{cursor:"pointer",borderBottom:"1px solid #f1f5f9",
+                                  background:isTaskOpen?"#fafafa":"#fff"}}>
+                                <td style={{padding:"7px 10px",color:"#94a3b8",fontSize:11}}>
+                                  {row.agentRows.length>0 && <span style={{marginRight:4}}>{isTaskOpen?"▼":"▶"}</span>}
+                                </td>
+                                <td style={{padding:"7px 10px",fontWeight:600,color:"#374151"}}>
+                                  {row.taskName}
+                                  {row.agentRows.length>0 && (
+                                    <span style={{marginLeft:8,fontSize:10,color:"#94a3b8"}}>
+                                      {row.agentRows.length} agent{row.agentRows.length>1?"s":""}
+                                    </span>
+                                  )}
+                                </td>
+                                <td style={{padding:"7px 10px",textAlign:"right",color:"#374151"}}>{row.totalPlanHours}h</td>
+                                <td style={{padding:"7px 10px",textAlign:"right",color:"#1e40af"}}>
+                                  {taskActual>0?`${taskActual}h`:"-"}
+                                </td>
+                                <td style={{padding:"7px 10px",textAlign:"right",fontSize:11,color:"#94a3b8"}}>{monthStr?fmtMonth(monthStr):""}</td>
+                              </tr>
+                              {/* Agent sub-rows */}
+                              {isTaskOpen && row.agentRows.map(a=>{
+                                const aActual = getActual(row.id, a.uid, monthStr);
+                                return (
+                                  <tr key={a.uid} style={{background:"#fafcff",borderBottom:"1px solid #f1f5f9"}}>
+                                    <td style={{padding:"6px 10px"}}/>
+                                    <td style={{padding:"6px 10px 6px 28px",color:"#0f172a",fontSize:12}}>
+                                      <span style={{color:"#94a3b8",marginRight:6}}>↳</span>
+                                      {a.name}
+                                      <span style={{marginLeft:6,fontSize:10,color:
+                                        a.role==="Manager"?"#0ea5e9":a.role==="Senior"?"#7c3aed":"#16a34a",
+                                        fontWeight:600}}>{a.role}</span>
+                                    </td>
+                                    <td style={{padding:"6px 10px",textAlign:"right",color:"#64748b"}}>{a.planHours}h</td>
+                                    <td style={{padding:"6px 4px",textAlign:"right"}}>
+                                      <input
+                                        type="number" min="0" step="0.5"
+                                        value={aActual}
+                                        onChange={e=>setActual(row.id, row.taskName, a.uid, a.name, a.role, monthStr, e.target.value)}
+                                        placeholder="0"
+                                        style={{width:64,padding:"3px 6px",border:"1px solid #cbd5e1",
+                                          borderRadius:4,fontSize:12,textAlign:"right",
+                                          background:"#fff"}}
+                                      />
+                                    </td>
+                                    <td style={{padding:"6px 10px",textAlign:"right",fontSize:11,color:"#94a3b8"}}>{monthStr?fmtMonth(monthStr):""}</td>
+                                  </tr>
+                                );
+                              })}
+                              {/* Fallback: no agents */}
+                              {isTaskOpen && row.agentRows.length===0 && (
+                                <tr style={{background:"#fafcff",borderBottom:"1px solid #f1f5f9"}}>
+                                  <td colSpan={4} style={{padding:"6px 28px",color:"#94a3b8",fontSize:11,fontStyle:"italic"}}>
+                                    No agents assigned — hours unallocated
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Summary Tab */}
+          {snapshot && tab==="summary" && (
+            <div>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                <thead>
+                  <tr style={{background:"#f8fafc"}}>
+                    <th style={{padding:"8px 12px",textAlign:"left",borderBottom:"2px solid #e2e8f0",color:"#64748b",fontWeight:700}}>Agent</th>
+                    <th style={{padding:"8px 12px",textAlign:"left",borderBottom:"2px solid #e2e8f0",color:"#64748b",fontWeight:700}}>Role</th>
+                    <th style={{padding:"8px 12px",textAlign:"right",borderBottom:"2px solid #e2e8f0",color:"#64748b",fontWeight:700}}>Plan (hrs)</th>
+                    <th style={{padding:"8px 12px",textAlign:"right",borderBottom:"2px solid #e2e8f0",color:"#64748b",fontWeight:700}}>Plan (฿)</th>
+                    <th style={{padding:"8px 12px",textAlign:"right",borderBottom:"2px solid #e2e8f0",color:"#1e40af",fontWeight:700}}>Actual (hrs)</th>
+                    <th style={{padding:"8px 12px",textAlign:"right",borderBottom:"2px solid #e2e8f0",color:"#1e40af",fontWeight:700}}>Actual (฿)</th>
+                    <th style={{padding:"8px 12px",textAlign:"right",borderBottom:"2px solid #e2e8f0",color:"#64748b",fontWeight:700}}>Variance (hrs)</th>
+                    <th style={{padding:"8px 12px",textAlign:"right",borderBottom:"2px solid #e2e8f0",color:"#64748b",fontWeight:700}}>Variance (฿)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summaryRows.map(r=>{
+                    const rate = RATE_PER_HOUR[r.role]||948;
+                    const planTHB   = r.planHours   * rate;
+                    const actualTHB = r.actualHours * rate;
+                    const varHrs = r.actualHours - r.planHours;
+                    const varTHB = actualTHB - planTHB;
+                    return (
+                      <tr key={r.uid} style={{borderBottom:"1px solid #f1f5f9"}}>
+                        <td style={{padding:"8px 12px",fontWeight:600,color:"#0f172a"}}>{r.name}</td>
+                        <td style={{padding:"8px 12px"}}>
+                          <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,
+                            background:r.role==="Manager"?"#dbeafe":r.role==="Senior"?"#ede9fe":"#dcfce7",
+                            color:r.role==="Manager"?"#1e40af":r.role==="Senior"?"#7c3aed":"#16a34a"}}>
+                            {r.role||"—"}
+                          </span>
+                        </td>
+                        <td style={{padding:"8px 12px",textAlign:"right",color:"#374151"}}>{r.planHours}h</td>
+                        <td style={{padding:"8px 12px",textAlign:"right",color:"#374151"}}>฿{fmt(planTHB)}</td>
+                        <td style={{padding:"8px 12px",textAlign:"right",color:"#1e40af",fontWeight:600}}>{r.actualHours}h</td>
+                        <td style={{padding:"8px 12px",textAlign:"right",color:"#1e40af",fontWeight:600}}>฿{fmt(actualTHB)}</td>
+                        <td style={{padding:"8px 12px",textAlign:"right",
+                          color:varHrs<0?"#16a34a":varHrs>0?"#dc2626":"#64748b",fontWeight:600}}>
+                          {varHrs>0?"+":""}{varHrs}h
+                        </td>
+                        <td style={{padding:"8px 12px",textAlign:"right",
+                          color:varTHB<0?"#16a34a":varTHB>0?"#dc2626":"#64748b",fontWeight:600}}>
+                          {varTHB>0?"+":""}฿{fmt(Math.abs(varTHB))}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {/* Totals row */}
+                  <tr style={{background:"#f8fafc",fontWeight:800,borderTop:"2px solid #e2e8f0"}}>
+                    <td colSpan={2} style={{padding:"8px 12px",color:"#0f172a"}}>Total</td>
+                    <td style={{padding:"8px 12px",textAlign:"right"}}>{totalPlan}h</td>
+                    <td style={{padding:"8px 12px",textAlign:"right"}}>฿{fmt(summaryRows.reduce((s,r)=>s+r.planHours*(RATE_PER_HOUR[r.role]||948),0))}</td>
+                    <td style={{padding:"8px 12px",textAlign:"right",color:"#1e40af"}}>{totalActual}h</td>
+                    <td style={{padding:"8px 12px",textAlign:"right",color:"#1e40af"}}>฿{fmt(summaryRows.reduce((s,r)=>s+r.actualHours*(RATE_PER_HOUR[r.role]||948),0))}</td>
+                    <td style={{padding:"8px 12px",textAlign:"right",
+                      color:(totalActual-totalPlan)<0?"#16a34a":(totalActual-totalPlan)>0?"#dc2626":"#64748b"}}>
+                      {(totalActual-totalPlan)>0?"+":""}{totalActual-totalPlan}h
+                    </td>
+                    <td style={{padding:"8px 12px",textAlign:"right",
+                      color:(summaryRows.reduce((s,r)=>s+r.actualHours*(RATE_PER_HOUR[r.role]||948),0)-summaryRows.reduce((s,r)=>s+r.planHours*(RATE_PER_HOUR[r.role]||948),0))<0?"#16a34a":"#dc2626"}}>
+                      ฿{fmt(Math.abs(summaryRows.reduce((s,r)=>s+(r.actualHours-r.planHours)*(RATE_PER_HOUR[r.role]||948),0)))}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+};
+
 const SetupPage = () => (
   <div style={{maxWidth:760}}>
     <Span s={22} w={900} c="#0f172a" style={{display:"block",marginBottom:4,letterSpacing:"-0.03em"}}>Setup Guide</Span>
@@ -3559,6 +4025,7 @@ const NAV = [
   {key:"costsheet",label:"Cost Sheet"},
   {key:"opps",label:"Opportunities"},
   {key:"delivery",label:"Delivery"},
+  {key:"timesheet",label:"Time Sheet"},
   {key:"setup",label:"Setup"},
 ];
 
@@ -3584,6 +4051,7 @@ function App() {
   const [initCustId,sCustId]   = useState(null);
   const [initOppCode,sOppCode] = useState(null);
   const [kpiSplits,sKPI]     = useState({2569:DEFAULT_SPLIT.slice(),2570:DEFAULT_SPLIT.slice(),2571:DEFAULT_SPLIT.slice()});
+  const [timesheets,sTS]     = useState([]);
   const [gsStatus,sGSStatus] = useState("idle"); // "idle"|"loading"|"synced"|"error"
   const [userList,sUserList] = useState([]);      // S2: safe user list {id,name,role} loaded from GS
   const {toasts,show:toast}  = useToast();
@@ -3632,8 +4100,9 @@ const stripJsonSuffix = obj => {
       gsGet("costsheets"),
       gsGet("kpi"),
       gsGet("users"),
-      gsGet("costsheet_quotes"), // FIX: load quote snapshots from dedicated tab (created by migrateCostsheetsV6)
-    ]).then(([c,o,d,cs,k,u,cq])=>{
+      gsGet("costsheet_quotes"),
+      gsGet("timesheet"),
+    ]).then(([c,o,d,cs,k,u,cq,ts])=>{
       if(c.length) sCusts(c.map(x=>stripJsonSuffix({...x,id:String(x.id||"")})));
       if(o.length) sOpps(o.map(x=>stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")})));
       if(d.length) sDlv(d.map(x=>stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")})));
@@ -3746,6 +4215,9 @@ const stripJsonSuffix = obj => {
         });
         if(Object.keys(kpiObj).length) sKPI(p=>({...p,...kpiObj}));
       }
+      if(ts&&ts.length){
+        sTS(ts.map(r=>stripJsonSuffix({...r})));
+      }
       sGSStatus("synced");
     }).catch(()=>sGSStatus("error"));
   },[user]);
@@ -3823,6 +4295,13 @@ const stripJsonSuffix = obj => {
     });
   };
 
+  //  saveTimesheet: upsert by id 
+  const saveTimesheet = record => {
+    const norm = {...record, id: String(record.id||uid())};
+    sTS(prev => prev.find(x=>x.id===norm.id) ? prev.map(x=>x.id===norm.id?norm:x) : [...prev,norm]);
+    gsSave("timesheet", norm);
+  };
+
   //  Sync status badge 
   const SyncBadge = () => {
     const map = {
@@ -3869,6 +4348,7 @@ const stripJsonSuffix = obj => {
         {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} onDelete={deleteItem(sOpps,"opportunities")} onSaveCS={saveCS} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} onDeleteDelivery={deleteItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)} userList={userList}/>}
         {page==="delivery"  && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}} userList={userList}/>}
         {page==="costsheet" && <CostSheetPage costSheets={costSheets} onSave={saveCS} customers={customers} opps={opps} user={user} onSaveOpp={saveOpp} toast={toast} initSvcCode={initSvcCode} onSvcReady={()=>sSvcCode(null)} initCsCode={initCsCode} onCsReady={()=>sCsCode(null)}/>}
+        {page==="timesheet" && <TimesheetPage user={user} opps={opps} customers={customers} costSheets={costSheets} timesheets={timesheets} onSaveTimesheet={saveTimesheet} toast={toast} userList={userList}/>}
         {page==="setup"     && <SetupPage/>}
       </div>
       <Toast toasts={toasts}/>
