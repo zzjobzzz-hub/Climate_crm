@@ -221,7 +221,7 @@ const gsGet = async (collection) => {
 
 // Normalize a record before saving — moves plain JSON fields into _json twins
 // This ensures the sheet never has data split across both "contacts" and "contacts_json"
-const GS_JSON_FIELDS = ["contacts","workLog","saveLog","activityLog","internalCosts","externalCosts","tasks","quoteOverrides","quotationData","installments","splits"];
+const GS_JSON_FIELDS = ["contacts","workLog","saveLog","activityLog","internalCosts","externalCosts","tasks","quoteOverrides","quotationData","installments","splits","actualEntries"];
 const normalizeForGS = record => {
   const out = {...record};
   GS_JSON_FIELDS.forEach(field => {
@@ -658,8 +658,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const [hovPos,sHovPos]=useState({x:0,y:0});
   const SC = ({label,val,sub,c="#0f172a",tooltip}) => (
     <Card style={{padding:"14px 18px",position:"relative",cursor:tooltip?"default":"auto"}}
-      onMouseEnter={tooltip?e=>{sHovSC(label);sHovPos({x:e.clientX,y:e.clientY})}:undefined}
-      onMouseMove={tooltip?e=>sHovPos({x:e.clientX,y:e.clientY}):undefined}
+      onMouseEnter={tooltip?e=>{const r=e.currentTarget.getBoundingClientRect();sHovSC(label);sHovPos({x:r.left,y:r.bottom+8})}:undefined}
       onMouseLeave={tooltip?()=>sHovSC(null):undefined}>
       <Span s={10} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:4}}>{label}</Span>
       <div style={{fontSize:22,fontWeight:900,color:c,letterSpacing:"-0.02em",lineHeight:1.1}}>{val}</div>
@@ -667,7 +666,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     </Card>
   );
   const SCTooltip = () => hovSC ? (
-    <div style={{position:"fixed",left:hovPos.x+14,top:hovPos.y-10,zIndex:9999,
+    <div style={{position:"fixed",left:hovPos.x,top:hovPos.y,zIndex:9999,
       background:"#1e293b",color:"#fff",borderRadius:8,padding:"10px 14px",
       boxShadow:"0 4px 20px rgba(0,0,0,0.25)",minWidth:220,pointerEvents:"none"}}>
       <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>
@@ -3823,7 +3822,7 @@ const TSProjectCard = ({opp,cust,snapshot,tsRecord,planRows,onSave,toast,user}) 
   };
 
   const handleSave = () => {
-    const actualEntries = Object.values(actual).filter(e=>e.actualHours>0);
+    const actualEntries = Object.values(actual).filter(e=>e.actualHours>0).map(({_raw,...e})=>e);
     const rec = {...tsRecord,jobCode:opp.jobCode,startMonth,actualEntries,savedTs:nowTS(),savedBy:user.id};
     onSave(rec);
     toast("Time Sheet saved",`${opp.jobCode} · saved by ${user.name}`);
