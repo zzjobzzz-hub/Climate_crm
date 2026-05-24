@@ -268,12 +268,13 @@ const gsDelete = (collection, id) => {
 const SI = {width:"100%",border:"1px solid #e2e8f0",borderRadius:5,padding:"8px 11px",fontSize:14,color:"#1e293b",background:"#fafafa",outline:"none",boxSizing:"border-box"};
 const Inp  = ({style,...p}) => <input {...p} style={{...SI,...style}}/>;
 // Numeric input that shows commas and allows empty/partial editing
-const NumInp = ({value,onChange,style,...p}) => {
+const NumInp = ({value,onChange,style,showZero,...p}) => {
   const [focused,setFocused] = React.useState(false);
   const ref = React.useRef();
-  const [raw,setRaw] = React.useState(value===0?"":String(value));
-  React.useEffect(()=>{ if(!focused) setRaw(value===0?"":String(value)); },[value,focused]);
-  const display = focused ? raw : (value===0?"":Number(value).toLocaleString("en-US"));
+  const zeroStr = showZero ? "0" : "";
+  const [raw,setRaw] = React.useState(value===0?zeroStr:String(value));
+  React.useEffect(()=>{ if(!focused) setRaw(value===0?zeroStr:String(value)); },[value,focused]);
+  const display = focused ? raw : (value===0?zeroStr:Number(value).toLocaleString("en-US"));
   return <input ref={ref} {...p} type="text" inputMode="numeric"
     value={display}
     onFocus={()=>{setFocused(true);setRaw(value===0?"":String(value));}}
@@ -903,7 +904,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
               {MONTHS.map((m,i)=>(
                 <div key={m} style={{textAlign:"center",minWidth:62}}>
                   <Span s={10} c="#64748b" style={{display:"block",marginBottom:3}}>{m}</Span>
-                  <NumInp value={splits[i]} onChange={v=>upSplit(i,v)} style={{textAlign:"center",padding:"4px",fontSize:12}}/>
+                  <NumInp value={splits[i]} onChange={v=>upSplit(i,v)} showZero style={{textAlign:"center",padding:"4px",fontSize:12}}/>
                   <Span s={9} c="#94a3b8" style={{display:"block",marginTop:2}}>฿{fmtM(Math.round(annual*splits[i]/100))}</Span>
                 </div>
               ))}
