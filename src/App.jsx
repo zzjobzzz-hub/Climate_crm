@@ -3765,7 +3765,7 @@ const TSProjectCard = ({opp,cust,snapshot,tsRecord,planRows,onSave,toast,user}) 
                     <th style={{...thL,width:56}}>Month</th>
                     <th style={thL}>Task / Agent</th>
                     <th style={thStyle}>Plan (hrs)</th>
-                    <th style={thStyle,color:"#1e40af"}}>Actual (hrs)</th>
+                    <th style={{...thStyle,color:"#1e40af"}}>Actual (hrs)</th>
                     <th style={thStyle}>mm-yy</th>
                   </tr>
                 </thead>
