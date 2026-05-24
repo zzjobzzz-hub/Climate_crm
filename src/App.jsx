@@ -787,10 +787,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
           ))}
         </div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-          {/* Req 14 */}
-          <MultiSelect label="Status"  options={OPP_STATUSES.map(s=>({value:s,label:s}))}       selected={fSt}  onChange={setFSt}  width={150}/>
-          <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fSvc} onChange={setFSvc} width={150}/>
-          <MultiSelect label="Agents"  options={SALES_USERS.map(u=>({value:u.id,label:u.name.split(" ")[0]}))} selected={fAg} onChange={setFAg} width={150}/>
+          {tab==="dash"&&<MultiSelect label="Agents" options={SALES_USERS.map(u=>({value:u.id,label:u.name.split(" ")[0]}))} selected={fAg} onChange={setFAg} width={150}/>}
           {tab==="kpi"&&<><Sel value={year} onChange={e=>sYear(+e.target.value)} style={{width:88}}>{[2569,2570,2571].map(y=><option key={y}>{y}</option>)}</Sel><NumInp value={annual} onChange={v=>sAnn(v)} style={{width:160}}/></>}
         </div>
       </div>
@@ -798,11 +795,12 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
       {tab==="dash"&&(
         <>
           <Card style={{padding:20,marginBottom:14}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:6}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
               <Span s={13} w={700}>Annual KPI Progress</Span>
-              <div style={{display:"flex",alignItems:"baseline",gap:12}}>
-                <Span s={18} w={700} c={kpiPct>=75?"#16a34a":kpiPct>=50?"#d97706":"#dc2626"}>{kpiPct.toFixed(1)}%</Span>
-                <Span s={12} c="#64748b">฿{fmtM(totalWon)} / ฿{fmtM(annual)}</Span>
+              <div style={{display:"flex",alignItems:"baseline",gap:10}}>
+                <Span s={13} w={600} c="#0f172a">{kpiPct.toFixed(1)}%</Span>
+                <Span s={18} w={800} c="#0f172a">฿{fmtM(totalWon)}</Span>
+                <Span s={13} c="#94a3b8">/ ฿{fmtM(annual)}</Span>
               </div>
             </div>
             <div style={{background:"#f1f5f9",borderRadius:5,height:10}}><div style={{background:kpiPct>=75?"#16a34a":kpiPct>=50?"#f59e0b":"#0f172a",height:"100%",width:`${kpiPct}%`,borderRadius:5,transition:"width .5s"}}/></div>
