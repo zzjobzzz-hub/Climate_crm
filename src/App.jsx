@@ -307,7 +307,7 @@ const Btn = ({variant="primary",style,children,...p}) => (
   <button {...p} style={{padding:"8px 16px",borderRadius:5,fontSize:14,cursor:"pointer",fontWeight:600,...BV[variant],...style}}>{children}</button>
 );
 
-const Card  = ({children,style}) => <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,...style}}>{children}</div>;
+const Card  = ({children,style,...rest}) => <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,...style}} {...rest}>{children}</div>;
 const Span  = ({s=14,w=400,c="#374151",style,children}) => <span style={{fontSize:s,fontWeight:w,color:c,...style}}>{children}</span>;
 const FRow  = ({label,children,tip}) => (
   <div style={{marginBottom:16}}>
@@ -3811,7 +3811,7 @@ const TSProjectCard = ({opp,cust,snapshot,tsRecord,planRows,onSave,toast,user}) 
 
   useEffect(()=>{ sSM(tsRecord.startMonth||""); },[tsRecord.oppCode]);
 
-  const getA = (taskId,uid,mmyy) => actual[`${taskId}_${uid}_${mmyy}`]??null;
+  const getA = (taskId,uid,mmyy) => { const e=actual[`${taskId}_${uid}_${mmyy}`]; return e==null?null:(e._raw!==undefined?e._raw:e.actualHours); };
   const setA = (taskId,taskName,uid,name,role,mmyy,val) => {
     const key=`${taskId}_${uid}_${mmyy}`;
     if(val===null||val===""){
