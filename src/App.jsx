@@ -3725,6 +3725,29 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
       {/* ══ TAB: By Month ═══════════════════════════════════════════════ */}
       {pageTab==="bymonth"&&(
         <div>
+          {byMonthData.length>0&&(
+            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+              <Btn onClick={()=>{
+                const rows=[["Month","Agent","Role","Project","Company","Plan hrs","Plan THB","Actual hrs","Actual THB","Var hrs","Var THB"]];
+                byMonthData.forEach(({mmyy,rows:rs})=>{
+                  rs.forEach(r=>{
+                    const rate=RATE_PER_HOUR[r.role]||948;
+                    const pB=r.planHours*rate, aB=r.actualHours*rate;
+                    rows.push([fmtMonthStr(mmyy),r.name,r.role,r.project,r.company,r.planHours,pB,r.actualHours,aB,r.actualHours-r.planHours,aB-pB]);
+                  });
+                });
+                const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("
+");
+                const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});
+                const a=document.createElement("a");
+                a.href=URL.createObjectURL(blob);
+                a.download=`timesheet_by_month_${new Date().toISOString().slice(0,10)}.csv`;
+                a.click();
+              }} style={{fontSize:12,padding:"5px 16px",background:"#f1f5f9",color:"#0f172a",border:"1px solid #e2e8f0"}}>
+                ⬇ Export CSV
+              </Btn>
+            </div>
+          )}
           {byMonthData.length===0&&(
             <Card style={{padding:40,textAlign:"center"}}>
               <Span s={14} c="#94a3b8">No data yet. Set start months and save time sheets in Projects tab.</Span>
@@ -3805,24 +3828,25 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
 const TSProjectCard = ({opp,cust,snapshot,tsRecord,planRows,onSave,toast,user}) => {
   const [isOpen,  sOpen]  = useState(false);
   const [startMonth, sSM] = useState(tsRecord.startMonth||"");
+  const actualRef = React.useRef({});  // persists across parent re-renders
   const [actual,  sActual]= useState({});  // {taskId_agentUid_mmyy: hrs} — blank each session
   const [openTask,sOT]    = useState({});
 
-  useEffect(()=>{ sSM(tsRecord.startMonth||""); },[tsRecord.oppCode]);
+  useEffect(()=>{ sSM(tsRecord.startMonth||""); },[tsRecord.oppCode]); // Note: actual state intentionally NOT reset on save — preserves typed values
 
-  const getA = (taskId,uid,mmyy) => { const e=actual[`${taskId}_${uid}_${mmyy}`]; return e==null?null:(e._raw!==undefined?e._raw:e.actualHours); };
+  const getA = (taskId,uid,mmyy) => { const e=actualRef.current[`${taskId}_${uid}_${mmyy}`]; return e==null?null:(e._raw!==undefined?e._raw:e.actualHours); };
   const setA = (taskId,taskName,uid,name,role,mmyy,val) => {
     const key=`${taskId}_${uid}_${mmyy}`;
     if(val===null||val===""){
-      sActual(p=>Object.fromEntries(Object.entries(p).filter(([k])=>k!==key)));
+      delete actualRef.current[key];
     } else {
-      // store raw string while typing so "1." or "1.5" works; parse on save
-      sActual(p=>({...p,[key]:{taskId,taskName,agentUid:uid,agentName:name,role,month:mmyy,actualHours:parseFloat(val)||0,_raw:val}}));
+      actualRef.current[key]={taskId,taskName,agentUid:uid,agentName:name,role,month:mmyy,actualHours:parseFloat(val)||0,_raw:val};
     }
+    sActual({...actualRef.current}); // trigger re-render with current ref snapshot
   };
 
   const handleSave = () => {
-    const actualEntries = Object.values(actual).filter(e=>e.actualHours>0).map(({_raw,...e})=>e);
+    const actualEntries = Object.values(actualRef.current).filter(e=>e.actualHours>0).map(({_raw,...e})=>e);
     const rec = {...tsRecord,jobCode:opp.jobCode,startMonth,actualEntries,savedTs:nowTS(),savedBy:user.id};
     onSave(rec);
     toast("Time Sheet saved",`${opp.jobCode} · saved by ${user.name}`);
@@ -3837,12 +3861,12 @@ const TSProjectCard = ({opp,cust,snapshot,tsRecord,planRows,onSave,toast,user}) 
         map[a.uid].planHours+=a.planHours;
       });
     });
-    Object.values(actual).forEach(e=>{
+    Object.values(actualRef.current).forEach(e=>{
       if(!map[e.agentUid]) map[e.agentUid]={uid:e.agentUid,name:e.agentName||e.agentUid,role:e.role||"",planHours:0,actualHours:0};
       map[e.agentUid].actualHours+=(e.actualHours||0);
     });
     return Object.values(map);
-  },[planRows,actual]);
+  },[planRows,actual]);  // actual state triggers re-memo when ref snapshot changes
 
   const thS={padding:"7px 10px",borderBottom:"2px solid #e2e8f0",color:"#64748b",fontWeight:700,fontSize:11};
   const thR={...thS,textAlign:"right"};
