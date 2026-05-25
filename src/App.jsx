@@ -3727,7 +3727,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
         <div>
           {byMonthData.length>0&&(
             <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
-              <Btn onClick={()=>{
+              <Btn variant="export" onClick={()=>{
                 const rows=[["Month","Agent","Role","Project","Company","Plan hrs","Plan THB","Actual hrs","Actual THB","Var hrs","Var THB"]];
                 byMonthData.forEach(({mmyy,rows:rs})=>{
                   rs.forEach(r=>{
@@ -3742,9 +3742,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                 a.href=URL.createObjectURL(blob);
                 a.download=`timesheet_by_month_${new Date().toISOString().slice(0,10)}.csv`;
                 a.click();
-              }} style={{fontSize:12,padding:"5px 16px",background:"#f1f5f9",color:"#0f172a",border:"1px solid #e2e8f0"}}>
-                ⬇ Export CSV
-              </Btn>
+              }}>↓ CSV</Btn>
             </div>
           )}
           {byMonthData.length===0&&(
@@ -3831,7 +3829,18 @@ const TSProjectCard = ({opp,cust,snapshot,tsRecord,planRows,onSave,toast,user}) 
   const [actual,  sActual]= useState({});  // {taskId_agentUid_mmyy: hrs} — blank each session
   const [openTask,sOT]    = useState({});
 
-  useEffect(()=>{ sSM(tsRecord.startMonth||""); },[tsRecord.oppCode]); // Note: actual state intentionally NOT reset on save — preserves typed values
+  useEffect(()=>{
+    sSM(tsRecord.startMonth||"");
+    // Restore saved actualEntries into ref on mount / oppCode change
+    const saved={};
+    safeArr(tsRecord.actualEntries).forEach(e=>{
+      if(!e.taskId||!e.agentUid||!e.month) return;
+      const key=`${e.taskId}_${e.agentUid}_${e.month}`;
+      saved[key]={...e,_raw:String(e.actualHours)};
+    });
+    actualRef.current=saved;
+    sActual({...saved});
+  },[tsRecord.oppCode]);
 
   const getA = (taskId,uid,mmyy) => { const e=actualRef.current[`${taskId}_${uid}_${mmyy}`]; return e==null?null:(e._raw!==undefined?e._raw:e.actualHours); };
   const setA = (taskId,taskName,uid,name,role,mmyy,val) => {
