@@ -2850,6 +2850,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
 
 
       {/* Installment Schedule */}
+      </div>
       <div>
         <div style={{padding:"8px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#f8fafc",borderBottom:"1px solid #e2e8f0"}}>
           <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
@@ -2888,6 +2889,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
           <Btn onClick={handleSave}>Save</Btn>
         </div>
       </div>
+    </div>
     </Card>
   );
 };
