@@ -397,92 +397,13 @@ const MultiSelect = ({label,options,selected,onChange,width=180}) => {
 };
 
 //  Activity log 
-// ── render note text with @mentions highlighted ───────────────
-const renderNoteWithMentions = (text) => {
-  if(!text) return null;
-  const parts = text.split(/(@\w+(?:\s\w+)?)/g);
-  return parts.map((p,i) => p.startsWith("@")
-    ? <span key={i} style={{color:"#1e40af",fontWeight:700,background:"#dbeafe",borderRadius:3,padding:"0 3px"}}>{p}</span>
-    : <span key={i}>{p}</span>
-  );
-};
-
-const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a note…",users=[],onNotify,context,recordId}) => {
-  const [note,sN]         = useState("");
-  const [editId,setEditId]   = useState(null);
-  const [editText,setEditText]= useState("");
-  const [atMenu,sAtMenu]     = useState(null); // {query, caretPos}
-  const textareaRef          = React.useRef(null);
+const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a note…",users=[]}) => {
+  const [note,sN] = useState("");
+  const [editId,setEditId] = useState(null);
+  const [editText,setEditText] = useState("");
   const findUser = id => users.find(x=>x.id===id) || USERS.find(x=>x.id===id);
-
-  const allUsers = users.length>0 ? users : USERS;
-
-  const handleNoteChange = e => {
-    const val = e.target.value;
-    sN(val);
-    // Detect @ at start of word
-    const pos = e.target.selectionStart;
-    const textBefore = val.slice(0, pos);
-    const match = textBefore.match(/(^|\s)@(\w*)$/);
-    if(match) {
-      const query = match[2].toLowerCase();
-      sAtMenu({query, pos});
-    } else {
-      sAtMenu(null);
-    }
-  };
-
-  const insertMention = (user) => {
-    if(!atMenu) return;
-    const pos = atMenu.pos;
-    const textBefore = note.slice(0, pos);
-    const textAfter  = note.slice(pos);
-    const match = textBefore.match(/(^|\s)@(\w*)$/);
-    if(!match) return;
-    const startIdx = textBefore.lastIndexOf("@");
-    const newNote = note.slice(0, startIdx) + `@${user.name} ` + textAfter;
-    sN(newNote);
-    sAtMenu(null);
-    setTimeout(()=>{ if(textareaRef.current){ const p=startIdx+user.name.length+2; textareaRef.current.selectionStart=p; textareaRef.current.selectionEnd=p; textareaRef.current.focus(); }}, 10);
-  };
-
-  const filteredUsers = atMenu
-    ? allUsers.filter(u=>u.name.toLowerCase().includes(atMenu.query))
-    : [];
-
-  const extractMentions = (text) => {
-    const found = [];
-    const re = /@([\w]+ ?[\w]+)/g;
-    let m;
-    while((m=re.exec(text))!==null){
-      const name = m[1].trim();
-      const u = allUsers.find(x=>x.name===name);
-      if(u && u.id!==currentUser.id) found.push(u);
-    }
-    return found;
-  };
-
-  const handleAdd = () => {
-    if(!note.trim()) return;
-    const entry = {id:uid(),ts:nowTS(),author:currentUser.id,note:note.trim()};
-    if(onAdd) onAdd(entry);
-    // Fire notifications for @mentions
-    if(onNotify){
-      extractMentions(note.trim()).forEach(u=>{
-        onNotify({
-          id:uid(), toUserId:u.id, fromUserId:currentUser.id,
-          fromName:currentUser.name||currentUser.id,
-          context: context||"note", recordId: recordId||"",
-          message:`${currentUser.name||currentUser.id} mentioned you: "${note.trim().slice(0,80)}${note.length>80?"…":""}"`,
-          ts:nowTS(), read:false,
-        });
-      });
-    }
-    sN(""); sAtMenu(null);
-  };
-
   return (
-    <div style={{position:"relative"}}>
+    <div>
       <div style={{maxHeight:260,overflow:"auto",marginBottom:12,display:"flex",flexDirection:"column",gap:8}}>
         {(!logs||!logs.length) && <div style={{padding:20,textAlign:"center",color:"#94a3b8",fontSize:13}}>No activity logged yet.</div>}
         {[...(logs||[])].reverse().map(l => { const u=findUser(l.author); return (
@@ -503,41 +424,13 @@ const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a 
                     <button onClick={()=>{onEdit(l.id,editText);setEditId(null);}} style={{border:"none",background:"#3b82f6",color:"#fff",borderRadius:4,padding:"4px 10px",cursor:"pointer",fontSize:12}}>Save</button>
                     <button onClick={()=>setEditId(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:12,color:"#64748b"}}>✕</button>
                   </div>
-                : <div style={{fontSize:13,lineHeight:1.5}}>{renderNoteWithMentions(l.note)}</div>
+                : <Span s={13}>{l.note}</Span>
               }
             </div>
           </div>
         );})}
       </div>
-      {onAdd&&(
-        <div style={{position:"relative"}}>
-          {atMenu&&filteredUsers.length>0&&(
-            <div style={{position:"absolute",bottom:"100%",left:0,zIndex:500,background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,0.12)",minWidth:200,marginBottom:4,maxHeight:180,overflow:"auto"}}>
-              {filteredUsers.map(u=>(
-                <div key={u.id} onMouseDown={e=>{e.preventDefault();insertMention(u);}}
-                  style={{padding:"8px 12px",cursor:"pointer",display:"flex",gap:8,alignItems:"center",borderBottom:"1px solid #f1f5f9"}}
-                  onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"}
-                  onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
-                  <div style={{width:24,height:24,background:"#0f172a",color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:10,flexShrink:0}}>{(u.name||"?")[0]}</div>
-                  <div>
-                    <div style={{fontSize:12,fontWeight:700,color:"#0f172a"}}>{u.name}</div>
-                    <div style={{fontSize:10,color:"#94a3b8"}}>{u.role||u.email||""}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          <Txta ref={textareaRef} value={note} onChange={handleNoteChange}
-            onKeyDown={e=>{
-              if(atMenu&&filteredUsers.length>0&&(e.key==="ArrowDown"||e.key==="ArrowUp")) e.preventDefault();
-              if(e.key==="Escape"&&atMenu){sAtMenu(null);return;}
-              if(e.key==="Enter"&&!e.shiftKey&&!atMenu&&note.trim()){handleAdd();e.preventDefault();}
-            }}
-            placeholder={placeholder+" (type @ to mention someone)"}
-            style={{minHeight:44,fontSize:13,marginBottom:4}}/>
-          <Span s={10} c="#94a3b8">Enter to send · Shift+Enter for new line · @ to mention</Span>
-        </div>
-      )}
+      {onAdd&&<Txta value={note} onChange={e=>sN(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&note.trim()){onAdd({id:uid(),ts:nowTS(),author:currentUser.id,note:note.trim()});sN("");e.preventDefault();}}} placeholder={placeholder} style={{minHeight:44,fontSize:13,marginBottom:4}}/>}
     </div>
   );
 };
@@ -567,62 +460,6 @@ const StepProgress = ({steps,current,onStep}) => {
 };
 
 const ExportBar = ({onCSV,onGS}) => <div style={{display:"flex",gap:6}}><Btn variant="export" onClick={onCSV}>↓ CSV</Btn><Btn variant="export" onClick={onGS}> GS</Btn></div>;
-
-// ── Notification Bell ─────────────────────────────────────────
-const NotifBell = ({notifs,currentUser,onMarkRead,onMarkAllRead,onNavigate}) => {
-  const [open,sOpen] = useState(false);
-  const myNotifs = notifs.filter(n=>n.toUserId===currentUser.id).sort((a,b)=>(b.ts||"").localeCompare(a.ts||""));
-  const unread   = myNotifs.filter(n=>!n.read).length;
-  return (
-    <div style={{position:"relative"}}>
-      <button onClick={()=>sOpen(p=>!p)}
-        style={{position:"relative",border:"none",background:"none",cursor:"pointer",padding:"4px 6px",fontSize:20,lineHeight:1,color:unread>0?"#dc2626":"#94a3b8"}}>
-        🔔
-        {unread>0&&(
-          <span style={{position:"absolute",top:0,right:0,background:"#dc2626",color:"#fff",
-            borderRadius:"50%",fontSize:9,fontWeight:800,width:16,height:16,
-            display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>
-            {unread>9?"9+":unread}
-          </span>
-        )}
-      </button>
-      {open&&(
-        <>
-          <div style={{position:"fixed",inset:0,zIndex:998}} onClick={()=>sOpen(false)}/>
-          <div style={{position:"absolute",right:0,top:"calc(100% + 6px)",zIndex:999,
-            background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,
-            boxShadow:"0 8px 32px rgba(0,0,0,0.14)",width:340,maxHeight:440,overflow:"hidden",
-            display:"flex",flexDirection:"column"}}>
-            <div style={{padding:"12px 16px",borderBottom:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <span style={{fontSize:13,fontWeight:800,color:"#0f172a"}}>Notifications</span>
-              {unread>0&&<button onClick={onMarkAllRead} style={{fontSize:11,color:"#1e40af",border:"none",background:"none",cursor:"pointer",padding:0}}>Mark all read</button>}
-            </div>
-            <div style={{overflow:"auto",flex:1}}>
-              {myNotifs.length===0&&(
-                <div style={{padding:24,textAlign:"center",color:"#94a3b8",fontSize:13}}>No notifications yet</div>
-              )}
-              {myNotifs.map(n=>(
-                <div key={n.id} onClick={()=>{onMarkRead(n.id);if(n.context&&onNavigate)onNavigate(n.context);sOpen(false);}}
-                  style={{padding:"10px 16px",borderBottom:"1px solid #f1f5f9",cursor:"pointer",
-                    background:n.read?"#fff":"#eff6ff",transition:"background .15s"}}
-                  onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"}
-                  onMouseLeave={e=>e.currentTarget.style.background=n.read?"#fff":"#eff6ff"}>
-                  <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
-                    <div style={{width:8,height:8,borderRadius:"50%",background:n.read?"transparent":"#3b82f6",flexShrink:0,marginTop:5}}/>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:12,color:"#0f172a",lineHeight:1.4}}>{n.message}</div>
-                      <div style={{fontSize:10,color:"#94a3b8",marginTop:3,fontFamily:"monospace"}}>{n.ts}</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
 const GSGuideModal = ({module,headers,onClose}) => (
   <Modal title={`Google Sheets Guide — ${module}`} width={600} onClose={onClose}>
     <FRow label="Tab Name"><div style={{fontFamily:"monospace",padding:"6px 10px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:5,fontWeight:700}}>{module}</div></FRow>
@@ -1990,7 +1827,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
   );
 };
 
-const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS,onDelete,initTab="detail",userList=[],onNotify}) => {
+const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS,onDelete,initTab="detail",userList=[]}) => {
   const newOppCode=genOppCode(opps); const newQtNo=genQuoteNo(opps);
   const blank={id:newOppCode,custId:customers[0]?.id||"",oppCode:newOppCode,quoteNo:newQtNo,jobCode:"",serviceCode:SERVICES[0].code,serviceType:SERVICES[0].name,salesPrice:SERVICES[0].stdPrice,totalCost:SERVICES[0].stdCost,status:"Proposal",assignedTo:SALES_USERS[0]?.id||"",createdDate:today(),lostReason:"",activityLog:[],remark:"",ranking:"Medium",successRate:""};
   const [f,sF] = useState(initial?{...initial,activityLog:initial.activityLog||[]}:blank);
@@ -2083,7 +1920,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
           
         </>
       )}
-      {tab==="log"&&<ActivityLog logs={f.activityLog||[]} currentUser={user} users={userList} context="opps" recordId={f.oppCode} onNotify={onNotify} onEdit={(id,text)=>sF(p=>({...p,activityLog:(p.activityLog||[]).map(x=>x.id===id?{...x,note:text}:x)}))} onDelete={id=>sF(p=>({...p,activityLog:(p.activityLog||[]).filter(x=>x.id!==id)}))}/>}
+      {tab==="log"&&<ActivityLog logs={f.activityLog||[]} currentUser={user} users={userList} onEdit={(id,text)=>sF(p=>({...p,activityLog:(p.activityLog||[]).map(x=>x.id===id?{...x,note:text}:x)}))} onDelete={id=>sF(p=>({...p,activityLog:(p.activityLog||[]).filter(x=>x.id!==id)}))}/>}
       {tab==="quotation"&&<QuotationPreview opp={f} customer={customers.find(c=>c.id===f.custId)} costSheets={costSheets||[]} onClose={onClose} onSaveQuotation={qd=>{const updated={...f,quotationData:qd,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""};onSave(updated);}}/>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
         {initial&&onDelete&&<Btn variant="danger" style={{marginRight:"auto"}} onClick={()=>setDelConfirm(true)}>Delete</Btn>}
@@ -2126,7 +1963,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
 };
 
 const OPP_HDR = ["OPP Code","Quote No.","CS Code","Job Code","Company","Service Code","Service Type","Sales Price","Total Cost","Margin%","Margin ฿","Status","Agent","Created","Lost Reason"];
-const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSaveDelivery,onDeleteDelivery,toast,costSheets,onGoToCS,initOppCode,onOppReady,userList=[],onNotify}) => {
+const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSaveDelivery,onDeleteDelivery,toast,costSheets,onGoToCS,initOppCode,onOppReady,userList=[]}) => {
   const [search,sS]=useState(""); const [fSt,setFSt]=useState([]); const [fAg,setFAg]=useState([]); const [fSvc,setFSvc]=useState([]);
   const [view,sView]=useState("kanban"); const [form,sF]=useState(false); const [edit,sE]=useState(null);
   const [kanbanSort,setKanbanSort]=useState("recent"); // recent | oldest
@@ -2365,7 +2202,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
       )}
       {view==="kanban"&&kanbanView}
 
-      {form&&<OppForm initial={edit} customers={customers} opps={opps} user={user} onSave={handleSave} onClose={()=>{sF(false);sE(null);sQT(null);}} costSheets={costSheets} onGoToCS={onGoToCS} userList={userList} onNotify={onNotify} onDelete={o=>{
+      {form&&<OppForm initial={edit} customers={customers} opps={opps} user={user} onSave={handleSave} onClose={()=>{sF(false);sE(null);sQT(null);}} costSheets={costSheets} onGoToCS={onGoToCS} userList={userList} onDelete={o=>{
         onDelete(o.id);
         // Clean CS: remove saveLog entries + quoteOverrides matching this quoteNo/oppCode
         if(onSaveCS&&(o.quoteNo||o.oppCode)){
@@ -2547,7 +2384,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
   return (
     <Modal title={initial?`Edit — ${f.jobCode||f.id}`:"Add Delivery"} width={1000} onClose={onClose}>
       <div style={{display:"flex",gap:0,borderBottom:"2px solid #e2e8f0",marginBottom:16}}>
-        {[["detail","Contract & Billing"],["cost","Pricing Breakdown"]].map(([k,l])=>(
+        {[["detail","Contract & Billing"],["steps","Progress Steps"],["log",`Work Log (${f.workLog?.length||0})`],["cost","Pricing Breakdown"]].map(([k,l])=>(
           <button key={k} onClick={()=>sTab(k)} style={{padding:"8px 16px",border:"none",background:"none",cursor:"pointer",fontSize:12,fontWeight:tab===k?800:500,color:tab===k?"#0f172a":"#94a3b8",borderBottom:tab===k?"2.5px solid #0f172a":"2.5px solid transparent",marginBottom:-2,whiteSpace:"nowrap"}}>{l}</button>
         ))}
       </div>
@@ -2845,12 +2682,51 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
           ))}
         </div>
 
+        {/* Progress Steps + Work Log side by side */}
+        <div style={{marginTop:12,display:"grid",gridTemplateColumns:"1fr auto",gap:12,alignItems:"start"}}>
+          <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,overflow:"hidden"}}>
+            <div style={{padding:"9px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <Span s={12} w={700}>Progress Steps</Span>
+              <Span s={11} c="#64748b">Step {DLV_STEPS.indexOf(localD.currentStep||DLV_STEPS[0])+1}/{DLV_STEPS.length} — {localD.currentStep||DLV_STEPS[0]}</Span>
+            </div>
+            <div style={{padding:"8px 14px 12px",borderTop:"1px solid #f1f5f9"}}>
+              <StepProgress steps={DLV_STEPS} current={localD.currentStep||DLV_STEPS[0]} onStep={s=>set("currentStep",s)}/>
+            </div>
+          </div>
 
+        </div>
 
-
+        {/* Work Log modal-style dropdown */}
+        <div style={{marginTop:8,background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,overflow:"hidden"}}>
+          <div style={{padding:"9px 14px",borderBottom:"1px solid #f1f5f9"}}><Span s={12} w={700}>Work Log</Span></div>
+            <div style={{padding:"12px 14px"}}>
+              <div style={{maxHeight:180,overflow:"auto",display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
+                {[...safeArr(d.workLog)].reverse().map(l=>{const u=USERS.find(x=>x.id===l.author);return(
+                  <div key={l.id} style={{padding:"7px 10px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:5,display:"flex",gap:8,alignItems:"flex-start"}}>
+                    <div style={{width:24,height:24,background:"#0f172a",color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:11,flexShrink:0}}>{(u?.name||"?")[0]}</div>
+                    <div style={{flex:1}}>
+                      <div style={{display:"flex",gap:6,marginBottom:1,flexWrap:"wrap",alignItems:"center"}}>
+                        <Span s={11} w={700} c="#0f172a">{u?.name||l.author}</Span>
+                        <span style={{background:"#f1f5f9",color:"#64748b",fontSize:9,padding:"1px 5px",borderRadius:3,fontFamily:"monospace"}}>{l.ts}</span>
+                        <div style={{marginLeft:"auto",display:"flex",gap:2}}>
+                          <button onClick={()=>{if(!window.confirm("Delete this entry?"))return;const updated={...d,workLog:safeArr(d.workLog).filter(x=>x.id!==l.id)};onSave(updated);}} style={{border:"none",background:"none",cursor:"pointer",color:"#fca5a5",fontSize:12,padding:"0 3px",lineHeight:1}} title="Delete">✕</button>
+                        </div>
+                      </div>
+                      <Span s={12}>{l.note}</Span>
+                    </div>
+                  </div>
+                );})}
+                {safeArr(d.workLog).length===0&&<Span s={12} c="#94a3b8">No entries yet.</Span>}
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <input value={newNote} onChange={e=>setNewNote(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){addLog();e.preventDefault();}}} placeholder="Add entry… (Enter to save)" style={{flex:1,padding:"6px 10px",fontSize:12,border:"1px solid #e2e8f0",borderRadius:5}}/>
+                <button onClick={addLog} style={{padding:"6px 14px",background:"#0f172a",color:"#fff",border:"none",borderRadius:5,fontSize:12,cursor:"pointer"}}>+ Add</button>
+              </div>
+            </div>
+          </div>
+      </div>
 
       {/* Installment Schedule */}
-      </div>
       <div>
         <div style={{padding:"8px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#f8fafc",borderBottom:"1px solid #e2e8f0"}}>
           <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
@@ -3409,12 +3285,6 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
 
 const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,initSvcCode,onSvcReady,initCsCode,onCsReady}) => {
   const [selCode,sCode] = useState(SERVICES[0].code);
-  const [dupModal,sDupModal] = useState(false); // {sourceCS}
-  const [dupCode,sDupCode]   = useState("");
-  const [dupName,sDupName]   = useState("");
-  const [createModal,sCreateModal] = useState(false);
-  const [newCode,sNewCode]   = useState("");
-  const [newName,sNewName]   = useState("");
   const [highlightCs,sHighlightCs] = useState(null);
   const csRefs = React.useRef({});
   useEffect(()=>{if(initSvcCode){sCode(initSvcCode);sView("quote");if(onSvcReady)onSvcReady();}},[initSvcCode]);
@@ -3610,87 +3480,11 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
 
 
 
-  const handleDuplicate = () => {
-    const src = editCS;
-    if(!dupCode.trim()||!dupName.trim()){toast("Error","Please enter both service code and name.");return;}
-    if(costSheets.find(c=>c.serviceCode===dupCode.trim())){toast("Error",`Service code "${dupCode.trim()}" already exists.`);return;}
-    const newCS = {
-      ...src,
-      serviceCode: dupCode.trim(),
-      serviceType: dupName.trim(),
-      stdPrice: src.stdPrice||0,
-      internalCosts: (src.internalCosts||[]).map(r=>({...r,id:uid()})),
-      externalCosts: (src.externalCosts||[]).map(r=>({...r,id:uid()})),
-      tasks:         (src.tasks||[]).map(t=>({...t,id:uid()})),
-      saveLog: [],
-      quoteOverrides: [],
-    };
-    onSave(newCS);
-    sCode(dupCode.trim());
-    sDupModal(false);
-    sDupCode(""); sDupName("");
-    toast("Duplicated",`Cost Sheet duplicated as ${dupCode.trim()}`);
-  };
-
-  const handleCreateNew = () => {
-    if(!newCode.trim()||!newName.trim()){toast("Error","Please enter both service code and name.");return;}
-    if(costSheets.find(c=>c.serviceCode===newCode.trim())){toast("Error",`Service code "${newCode.trim()}" already exists.`);return;}
-    const fresh = buildDefaultCS({code:newCode.trim(),name:newName.trim()});
-    onSave({...fresh,serviceCode:newCode.trim(),serviceType:newName.trim()});
-    sCode(newCode.trim());
-    sCreateModal(false);
-    sNewCode(""); sNewName("");
-    toast("Created",`New Cost Sheet "${newCode.trim()}" created`);
-  };
-
   return (
     <div>
-      {/* Duplicate Modal */}
-      {dupModal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center"}}
-          onClick={e=>{if(e.target===e.currentTarget)sDupModal(false);}}>
-          <div style={{background:"#fff",borderRadius:10,padding:28,width:380,boxShadow:"0 8px 32px rgba(0,0,0,0.18)"}}>
-            <Span s={16} w={800} style={{display:"block",marginBottom:4}}>Duplicate Cost Sheet</Span>
-            <Span s={12} c="#64748b" style={{display:"block",marginBottom:16}}>Copying from: <b>{editCS.serviceCode}</b> — {editCS.serviceType}</Span>
-            <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:4}}>New Service Code</label>
-            <input value={dupCode} onChange={e=>sDupCode(e.target.value.toUpperCase())} placeholder="e.g. CFO-2"
-              style={{...SI,width:"100%",marginBottom:12,fontSize:13}}/>
-            <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:4}}>Service Name</label>
-            <input value={dupName} onChange={e=>sDupName(e.target.value)} placeholder="e.g. Carbon Footprint (Version 2)"
-              style={{...SI,width:"100%",marginBottom:20,fontSize:13}}/>
-            <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-              <Btn variant="ghost" onClick={()=>sDupModal(false)}>Cancel</Btn>
-              <Btn onClick={handleDuplicate}>Duplicate</Btn>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Create New Modal */}
-      {createModal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center"}}
-          onClick={e=>{if(e.target===e.currentTarget)sCreateModal(false);}}>
-          <div style={{background:"#fff",borderRadius:10,padding:28,width:380,boxShadow:"0 8px 32px rgba(0,0,0,0.18)"}}>
-            <Span s={16} w={800} style={{display:"block",marginBottom:4}}>New Cost Sheet</Span>
-            <Span s={12} c="#64748b" style={{display:"block",marginBottom:16}}>Create a blank cost sheet from scratch</Span>
-            <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:4}}>Service Code</label>
-            <input value={newCode} onChange={e=>sNewCode(e.target.value.toUpperCase())} placeholder="e.g. CUSTOM1"
-              style={{...SI,width:"100%",marginBottom:12,fontSize:13}}/>
-            <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:4}}>Service Name</label>
-            <input value={newName} onChange={e=>sNewName(e.target.value)} placeholder="e.g. Custom Advisory"
-              style={{...SI,width:"100%",marginBottom:20,fontSize:13}}/>
-            <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-              <Btn variant="ghost" onClick={()=>sCreateModal(false)}>Cancel</Btn>
-              <Btn onClick={handleCreateNew}>Create</Btn>
-            </div>
-          </div>
-        </div>
-      )}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Cost Sheet & Pricing</Span>
-        <div style={{display:"flex",gap:8}}>
-          <Btn variant="ghost" onClick={()=>{sDupCode(selCode+"-2");sDupName(editCS.serviceType+" (Copy)");sDupModal(true);}}>⧉ Duplicate</Btn>
-          <Btn onClick={()=>sCreateModal(true)}>+ New Cost Sheet</Btn>
-        </div>
+        <div></div>
       </div>
 
       <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:14}}>
@@ -3818,7 +3612,6 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
   const [pageTab, sPageTab] = useState("projects"); // projects | bymonth
   const [search,  sSearch]  = useState("");
   const [fSvc,    setFSvc]  = useState([]);
-  const [sortTS,  sSortTS]  = useState(""); // "jobAsc"|"jobDesc"|"compAsc"|"compDesc"
 
   const wonOpps = useMemo(()=>
     opps.filter(o=>o.status==="Won"&&o.jobCode&&o.csCode)
@@ -3829,13 +3622,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
           const matchSvc = fSvc.length===0||fSvc.includes(o.serviceCode);
           return matchSearch&&matchSvc;
         })
-        .sort((a,b)=>{
-          if(sortTS==="jobAsc")  return (a.jobCode||"").localeCompare(b.jobCode||"");
-          if(sortTS==="jobDesc") return (b.jobCode||"").localeCompare(a.jobCode||"");
-          if(sortTS==="compAsc"){const ca=customers.find(x=>x.id===a.custId);const cb=customers.find(x=>x.id===b.custId);return (ca?.companyEN||"").localeCompare(cb?.companyEN||"");}
-          if(sortTS==="compDesc"){const ca=customers.find(x=>x.id===a.custId);const cb=customers.find(x=>x.id===b.custId);return (cb?.companyEN||"").localeCompare(ca?.companyEN||"");}
-          return (b.createdDate||"").localeCompare(a.createdDate||"");
-        })
+        .sort((a,b)=>(b.createdDate||"").localeCompare(a.createdDate||""))
   ,[opps,customers,search,fSvc]);
 
   const getQuoteSnapshot = opp => {
@@ -3906,17 +3693,9 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fSvc} onChange={setFSvc} width={150}/>
-          <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-            {[["jobAsc","Job ↑"],["jobDesc","Job ↓"],["compAsc","Company ↑"],["compDesc","Company ↓"]].map(([k,l])=>(
-              <button key={k} onClick={()=>sSortTS(p=>p===k?"":k)}
-                style={{padding:"6px 10px",border:"none",borderRight:"1px solid #e2e8f0",
-                  background:sortTS===k?"#334155":"#fff",color:sortTS===k?"#fff":"#64748b",
-                  cursor:"pointer",fontSize:11,fontWeight:sortTS===k?600:400,whiteSpace:"nowrap"}}>{l}</button>
-            ))}
-          </div>
           <input value={search} onChange={e=>sSearch(e.target.value)}
             placeholder="Search job code or company…"
-            style={{...SI,width:200,fontSize:13}}/>
+            style={{...SI,width:230,fontSize:13}}/>
         </div>
       </div>
 
@@ -4118,7 +3897,7 @@ const TSProjectCard = ({opp,cust,snapshot,tsRecord,planRows,onSave,toast,user}) 
           {!snapshot&&<span style={{fontSize:10,color:"#dc2626",background:"#fee2e2",padding:"2px 8px",borderRadius:4}}>No quote snapshot</span>}
         </div>
         <div style={{display:"flex",gap:10,alignItems:"center"}}>
-          <span style={{fontSize:12,color:"#94a3b8",fontWeight:400}}>{isOpen?"▲":"▼"}</span>
+          <span style={{fontSize:13,fontWeight:700,color:isOpen?"#0f172a":"#94a3b8"}}>{isOpen?"▲":"▼"}</span>
         </div>
       </div>
 
@@ -4353,7 +4132,6 @@ function App() {
   const [initOppCode,sOppCode] = useState(null);
   const [kpiSplits,sKPI]     = useState({2569:DEFAULT_SPLIT.slice(),2570:DEFAULT_SPLIT.slice(),2571:DEFAULT_SPLIT.slice()});
   const [timesheets,sTS]     = useState([]);
-  const [notifs,sNotifs]     = useState([]);
   const [gsStatus,sGSStatus] = useState("idle"); // "idle"|"loading"|"synced"|"error"
   const [userList,sUserList] = useState([]);      // S2: safe user list {id,name,role} loaded from GS
   const {toasts,show:toast}  = useToast();
@@ -4404,8 +4182,7 @@ const stripJsonSuffix = obj => {
       gsGet("users"),
       gsGet("costsheet_quotes"),
       gsGet("timesheet"),
-      gsGet("notifications"),
-    ]).then(([c,o,d,cs,k,u,cq,ts,nf])=>{
+    ]).then(([c,o,d,cs,k,u,cq,ts])=>{
       if(c.length) sCusts(c.map(x=>stripJsonSuffix({...x,id:String(x.id||"")})));
       if(o.length) sOpps(o.map(x=>stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")})));
       if(d.length) sDlv(d.map(x=>stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")})));
@@ -4521,9 +4298,6 @@ const stripJsonSuffix = obj => {
       if(ts&&ts.length){
         sTS(ts.map(r=>stripJsonSuffix({...r})));
       }
-      if(nf&&nf.length){
-        sNotifs(nf.map(r=>({...r,read:r.read==="true"||r.read===true})));
-      }
       sGSStatus("synced");
     }).catch(()=>sGSStatus("error"));
   },[user]);
@@ -4608,20 +4382,6 @@ const stripJsonSuffix = obj => {
     gsSave("timesheet", norm);
   };
 
-  const saveNotif = notif => {
-    sNotifs(prev=>[notif,...prev.filter(n=>n.id!==notif.id)]);
-    gsSave("notifications", notif);
-  };
-  const markNotifRead = id => {
-    sNotifs(prev=>prev.map(n=>n.id===id?{...n,read:true}:n));
-    const n=notifs.find(x=>x.id===id);
-    if(n) gsSave("notifications",{...n,read:true});
-  };
-  const markAllRead = () => {
-    sNotifs(prev=>prev.map(n=>({...n,read:true})));
-    notifs.filter(n=>!n.read).forEach(n=>gsSave("notifications",{...n,read:true}));
-  };
-
   //  Sync status badge 
   const SyncBadge = () => {
     const map = {
@@ -4654,9 +4414,6 @@ const stripJsonSuffix = obj => {
           </nav>
           <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
             <SyncBadge/>
-            <NotifBell notifs={notifs} currentUser={user}
-              onMarkRead={markNotifRead} onMarkAllRead={markAllRead}
-              onNavigate={ctx=>{ if(ctx==="opps"||ctx==="activity")sPage("opps"); else if(ctx==="delivery"||ctx==="worklog")sPage("delivery"); else if(ctx)sPage(ctx); }}/>
             <div style={{textAlign:"right"}}>
               <div style={{fontSize:13,fontWeight:700,color:"#374151"}}>{user.name}</div>
               <div style={{fontSize:10,color:user.role==="md"?"#0ea5e9":user.role==="admin"?"#16a34a":user.role==="operation"?"#7c3aed":"#1e40af",textTransform:"uppercase",letterSpacing:"0.06em"}}>{user.role}</div>
@@ -4668,10 +4425,10 @@ const stripJsonSuffix = obj => {
       <div style={{maxWidth:1440,margin:"0 auto",padding:24}}>
         {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI} toast={toast} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}}/>}
         {page==="customers" && <CustomersPage user={user} customers={customers} opps={opps} onSave={saveItem(sCusts,"customers")} onDelete={deleteItem(sCusts,"customers")} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)} userList={userList}/>}
-        {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} onDelete={deleteItem(sOpps,"opportunities")} onSaveCS={saveCS} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} onDeleteDelivery={deleteItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)} userList={userList} onNotify={saveNotif}/>}
+        {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} onDelete={deleteItem(sOpps,"opportunities")} onSaveCS={saveCS} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} onDeleteDelivery={deleteItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)} userList={userList}/>}
         {page==="delivery"  && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}} userList={userList}/>}
         {page==="costsheet" && <CostSheetPage costSheets={costSheets} onSave={saveCS} customers={customers} opps={opps} user={user} onSaveOpp={saveOpp} toast={toast} initSvcCode={initSvcCode} onSvcReady={()=>sSvcCode(null)} initCsCode={initCsCode} onCsReady={()=>sCsCode(null)}/>}
-        {page==="timesheet" && <TimesheetPage user={user} opps={opps} customers={customers} costSheets={costSheets} timesheets={timesheets} onSaveTimesheet={saveTimesheet} toast={toast} userList={userList} onNotify={saveNotif}/>}
+        {page==="timesheet" && <TimesheetPage user={user} opps={opps} customers={customers} costSheets={costSheets} timesheets={timesheets} onSaveTimesheet={saveTimesheet} toast={toast} userList={userList}/>}
         {page==="setup"     && <SetupPage/>}
       </div>
       <Toast toasts={toasts}/>
