@@ -2889,7 +2889,6 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
           <Btn onClick={handleSave}>Save</Btn>
         </div>
       </div>
-    </div>
     </Card>
   );
 };
