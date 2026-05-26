@@ -2845,19 +2845,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
           ))}
         </div>
 
-        {/* Progress Steps + Work Log side by side */}
-        <div style={{marginTop:12,display:"grid",gridTemplateColumns:"1fr auto",gap:12,alignItems:"start"}}>
-          <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,overflow:"hidden"}}>
-            <div style={{padding:"9px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <Span s={12} w={700}>Progress Steps</Span>
 
-            </div>
-            <div style={{padding:"8px 14px 12px",borderTop:"1px solid #f1f5f9"}}>
-
-            </div>
-          </div>
-
-        </div>
 
 
 
