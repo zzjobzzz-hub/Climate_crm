@@ -536,6 +536,8 @@ const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a 
   const [editText,setEditText] = useState("");
   const [replyOpen, setReplyOpen] = useState({});
   const [replyText, setReplyText] = useState({});
+  const [replyEditId,  setReplyEditId]  = useState(null);  // "logId:replyId"
+  const [replyEditText,setReplyEditText]= useState("");
   const findUser = id => users.find(x=>x.id===id) || USERS.find(x=>x.id===id);
   const allUsers = users.length > 0 ? users : USERS;
 
@@ -587,9 +589,9 @@ const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a 
                   <Span s={12} w={700} c="#0f172a">{u?.name||l.author}</Span>
                   <span style={{background:"#f1f5f9",color:"#64748b",fontSize:10,padding:"1px 6px",borderRadius:3,fontFamily:"monospace"}}>{l.ts}</span>
                   {(onEdit||onDelete)&&<div style={{marginLeft:"auto",display:"flex",gap:4}}>
+                    <button onClick={()=>setReplyOpen(p=>({...p,[l.id]:!p[l.id]}))} style={{border:"none",background:"none",cursor:"pointer",color:"#1e40af",fontSize:13,padding:"0 4px",lineHeight:1}} title="Reply">↩</button>
                     {onEdit&&<button onClick={()=>{setEditId(l.id);setEditText(l.note);}} style={{border:"none",background:"none",cursor:"pointer",color:"#94a3b8",fontSize:12,padding:"0 3px",lineHeight:1}} title="Edit">✎</button>}
                     {onDelete&&<button onClick={()=>{if(!window.confirm("Delete this log entry?"))return;onDelete(l.id);}} style={{border:"none",background:"none",cursor:"pointer",color:"#fca5a5",fontSize:12,padding:"0 3px",lineHeight:1}} title="Delete">✕</button>}
-                    <button onClick={()=>setReplyOpen(p=>({...p,[l.id]:!p[l.id]}))} style={{border:"none",background:"none",cursor:"pointer",color:"#1e40af",fontSize:13,padding:"0 4px",lineHeight:1}} title="Reply">↩</button>
                   </div>}
                 </div>
                 {editId===l.id
@@ -605,15 +607,54 @@ const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a 
                   <div style={{marginTop:8,paddingLeft:14,borderLeft:"2px solid #e2e8f0",display:"flex",flexDirection:"column",gap:6}}>
                     {(l.replies||[]).map(r => {
                       const ru = findUser(r.author);
+                      const rEditKey = `${l.id}:${r.id}`;
+                      const isEditingReply = replyEditId === rEditKey;
+                      const canActReply = r.author === currentUser.id || onDelete;
                       return (
                         <div key={r.id} style={{display:"flex",gap:6,alignItems:"flex-start"}}>
                           <div style={{width:22,height:22,background:"#334155",color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,flexShrink:0}}>{(ru?.name||"?")[0]}</div>
                           <div style={{flex:1}}>
-                            <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginBottom:1}}>
+                            <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginBottom:2}}>
                               <Span s={11} w={700} c="#0f172a">{ru?.name||r.author}</Span>
                               <span style={{fontSize:9,color:"#94a3b8",fontFamily:"monospace"}}>{r.ts}</span>
+                              {canActReply && !isEditingReply && (
+                                <div style={{marginLeft:"auto",display:"flex",gap:2}}>
+                                  {r.author===currentUser.id && onEdit && (
+                                    <button onClick={()=>{setReplyEditId(rEditKey);setReplyEditText(r.note);}}
+                                      style={{border:"none",background:"none",cursor:"pointer",color:"#94a3b8",fontSize:11,padding:"0 3px",lineHeight:1}} title="Edit reply">✎</button>
+                                  )}
+                                  {(r.author===currentUser.id||onDelete) && onEdit && (
+                                    <button onClick={()=>{
+                                      if(!window.confirm("Delete this reply?")) return;
+                                      const updatedReplies = (l.replies||[]).filter(x=>x.id!==r.id);
+                                      onEdit(l.id, l.note, updatedReplies);
+                                    }} style={{border:"none",background:"none",cursor:"pointer",color:"#fca5a5",fontSize:11,padding:"0 3px",lineHeight:1}} title="Delete reply">✕</button>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                            <div style={{fontSize:12,color:"#374151"}}><RenderMentionText text={r.note} users={allUsers}/></div>
+                            {isEditingReply
+                              ? <div style={{display:"flex",gap:6,marginTop:2}}>
+                                  <input autoFocus value={replyEditText}
+                                    onChange={e=>setReplyEditText(e.target.value)}
+                                    onKeyDown={e=>{
+                                      if(e.key==="Enter"){
+                                        const updatedReplies=(l.replies||[]).map(x=>x.id===r.id?{...x,note:replyEditText}:x);
+                                        onEdit(l.id,l.note,updatedReplies);
+                                        setReplyEditId(null);
+                                      }
+                                      if(e.key==="Escape") setReplyEditId(null);
+                                    }}
+                                    style={{flex:1,fontSize:12,padding:"3px 7px",border:"1px solid #3b82f6",borderRadius:4,outline:"none"}}/>
+                                  <button onClick={()=>{
+                                    const updatedReplies=(l.replies||[]).map(x=>x.id===r.id?{...x,note:replyEditText}:x);
+                                    onEdit(l.id,l.note,updatedReplies);
+                                    setReplyEditId(null);
+                                  }} style={{border:"none",background:"#3b82f6",color:"#fff",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontSize:11}}>Save</button>
+                                  <button onClick={()=>setReplyEditId(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:4,padding:"3px 6px",cursor:"pointer",fontSize:11,color:"#64748b"}}>✕</button>
+                                </div>
+                              : <div style={{fontSize:12,color:"#374151"}}><RenderMentionText text={r.note} users={allUsers}/></div>
+                            }
                           </div>
                         </div>
                       );
@@ -3703,16 +3744,22 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                       return acc;
                     },{})
                   ).sort((a,b)=>(b.ts||"").localeCompare(a.ts||"")).map(l=>(
-                    <div key={l.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:7,marginBottom:6}}>
+                    <div key={l.id} onClick={()=>{
+                        sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid()}]}));
+                        const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} for editing`};
+                        sECS(p=>({...p,saveLog:[...(p.saveLog||[]),logEntry]}));
+                      }} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:7,marginBottom:6,cursor:'pointer',transition:'background 0.1s'}}
+                      onMouseEnter={e=>e.currentTarget.style.background='#f8fafc'}
+                      onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
                       <span style={{fontSize:12,color:'#94a3b8',whiteSpace:'nowrap'}}>{l.ts}</span>
                       <span style={{fontSize:12,fontWeight:700,fontFamily:'monospace',color:'#92400e',background:'#fef3c7',padding:'2px 8px',borderRadius:4,border:'1px solid #fde68a'}}>{l.quoteSnapshot.csCode}</span>
                       <span style={{fontSize:12,color:'#374151',flex:1}}>{l.quoteSnapshot.quoteNo} {customers.find(c=>c.id===l.quoteSnapshot.custId)?.companyEN||l.quoteSnapshot.custId}</span>
-                      <Btn style={{fontSize:12,padding:'4px 14px',background:'#0f172a',color:'#fff',border:'none'}} onClick={()=>{
+                      <Btn style={{fontSize:12,padding:'4px 14px',background:'#0f172a',color:'#fff',border:'none'}} onClick={e=>{e.stopPropagation();
                         sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid()}]}));
                         const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} for editing`};
                         sECS(p=>({...p,saveLog:[...(p.saveLog||[]),logEntry]}));
                       }}>Edit</Btn>
-                      <Btn variant='ghost' style={{fontSize:11,padding:'3px 10px',color:'#64748b',borderColor:'#e2e8f0'}} onClick={()=>duplicateQO(l.quoteSnapshot)}>Duplicate</Btn>
+                      <Btn variant='ghost' style={{fontSize:11,padding:'3px 10px',color:'#64748b',borderColor:'#e2e8f0'}} onClick={e=>{e.stopPropagation();duplicateQO(l.quoteSnapshot);}}>Duplicate</Btn>
                     </div>
                   ))}
                 </div>
