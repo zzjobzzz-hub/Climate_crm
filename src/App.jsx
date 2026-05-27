@@ -420,7 +420,7 @@ const gsSaveNotification = (toUserId, fromUser, context, recordId, message) => {
 };
 
 //  MentionTextarea: textarea with @mention dropdown 
-const MentionTextarea = ({value, onChange, onKeyDown, placeholder, style, users=[], minHeight=44}) => {
+const MentionTextarea = ({value, onChange, onKeyDown, placeholder, style, users=[], minHeight=44, autoFocus=false}) => {
   const [showPicker, setShowPicker] = useState(false);
   const [pickerQ,    setPickerQ]    = useState("");
   const [pickerIdx,  setPickerIdx]  = useState(0);
@@ -487,6 +487,7 @@ const MentionTextarea = ({value, onChange, onKeyDown, placeholder, style, users=
         onKeyDown={handleKeyDown}
         onBlur={()=>{ /* small delay so onMouseDown on picker fires first */ setTimeout(()=>setShowPicker(false), 150); }}
         placeholder={placeholder}
+        autoFocus={autoFocus}
         style={{...SI, resize:"vertical", minHeight, fontSize:13, ...style}}
       />
       {showPicker && filtered.length > 0 && (
@@ -620,17 +621,21 @@ const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a 
                   </div>
                 )}
                 {replyOpen[l.id] && (
-                  <div style={{marginTop:6,paddingLeft:42,display:"flex",gap:6,alignItems:"center"}}>
-                    <input
-                      autoFocus
-                      value={replyText[l.id]||""}
-                      onChange={e=>setReplyText(p=>({...p,[l.id]:e.target.value}))}
-                      onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();submitReply(l.id);}if(e.key==="Escape")setReplyOpen(p=>({...p,[l.id]:false}));}}
-                      placeholder="Reply… (Enter to send)"
-                      style={{flex:1,fontSize:12,padding:"4px 8px",border:"1px solid #bfdbfe",borderRadius:4,outline:"none",background:"#f8fbff"}}
-                    />
-                    <button onClick={()=>submitReply(l.id)} style={{padding:"4px 10px",background:"#0f172a",color:"#fff",border:"none",borderRadius:4,fontSize:11,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap"}}>Send</button>
-                    <button onClick={()=>setReplyOpen(p=>({...p,[l.id]:false}))} style={{border:"none",background:"none",cursor:"pointer",color:"#94a3b8",fontSize:13,lineHeight:1,padding:"0 2px"}}>✕</button>
+                  <div style={{marginTop:6,paddingLeft:42,display:"flex",gap:6,alignItems:"flex-end"}}>
+                    <div style={{flex:1}}>
+                      <MentionTextarea
+                        autoFocus
+                        value={replyText[l.id]||""}
+                        onChange={v=>setReplyText(p=>({...p,[l.id]:v}))}
+                        onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();submitReply(l.id);}if(e.key==="Escape")setReplyOpen(p=>({...p,[l.id]:false}));}}
+                        placeholder="Reply… (@mention, Enter to send)"
+                        style={{fontSize:12,padding:"4px 8px",border:"1px solid #bfdbfe",borderRadius:4,background:"#f8fbff",minHeight:0}}
+                        users={allUsers}
+                        minHeight={30}
+                      />
+                    </div>
+                    <button onClick={()=>submitReply(l.id)} style={{padding:"4px 10px",background:"#0f172a",color:"#fff",border:"none",borderRadius:4,fontSize:11,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap",height:30}}>Send</button>
+                    <button onClick={()=>setReplyOpen(p=>({...p,[l.id]:false}))} style={{border:"none",background:"none",cursor:"pointer",color:"#94a3b8",fontSize:13,lineHeight:1,padding:"0 2px",height:30}}>✕</button>
                   </div>
                 )}
               </div>
