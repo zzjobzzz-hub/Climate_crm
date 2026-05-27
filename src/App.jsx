@@ -422,10 +422,10 @@ const gsSaveNotification = (toUserId, fromUser, context, recordId, message) => {
 //  MentionTextarea: textarea with @mention dropdown 
 const MentionTextarea = ({value, onChange, onKeyDown, placeholder, style, users=[], minHeight=44}) => {
   const [showPicker, setShowPicker] = useState(false);
-  const [pickerQ, setPickerQ]       = useState("");
-  const [pickerIdx, setPickerIdx]   = useState(0);
-  const textareaRef = useRef();
-  const mentionStart = useRef(-1);
+  const [pickerQ,    setPickerQ]    = useState("");
+  const [pickerIdx,  setPickerIdx]  = useState(0);
+  const textareaRef  = useRef();
+  const mentionStart = useRef(-1); // index of the @ character
 
   const allUsers = users.length > 0 ? users : USERS;
   const filtered = pickerQ
@@ -433,9 +433,8 @@ const MentionTextarea = ({value, onChange, onKeyDown, placeholder, style, users=
     : allUsers;
 
   const handleChange = e => {
-    const v = e.target.value;
+    const v   = e.target.value;
     const pos = e.target.selectionStart;
-    // detect @ trigger
     const before = v.slice(0, pos);
     const atMatch = before.match(/@(\w*)$/);
     if(atMatch) {
@@ -445,19 +444,28 @@ const MentionTextarea = ({value, onChange, onKeyDown, placeholder, style, users=
       setPickerIdx(0);
     } else {
       setShowPicker(false);
+      setPickerQ("");
     }
     onChange(v);
   };
 
   const insertMention = u => {
-    const ta = textareaRef.current;
-    const pos = ta ? ta.selectionStart : value.length;
-    const before = value.slice(0, mentionStart.current);
-    const after  = value.slice(pos);
-    const newVal = `${before}@${u.name.replace(/\s+/g,".")} ${after}`;
+    // Use mentionStart ref + current pickerQ length to know what to replace
+    const start = mentionStart.current;
+    const qLen  = pickerQ.length; // chars typed after @
+    const before = value.slice(0, start);
+    const after  = value.slice(start + 1 + qLen); // skip @ + typed chars
+    const inserted = `@${u.name.replace(/\s+/g,".")} `;
+    const newVal = before + inserted + after;
     onChange(newVal);
     setShowPicker(false);
-    setTimeout(()=>{ if(ta){ const p=before.length+u.name.replace(/\s+/g,".").length+2; ta.setSelectionRange(p,p); ta.focus(); }},0);
+    setPickerQ("");
+    // Restore cursor after inserted mention
+    const newPos = before.length + inserted.length;
+    setTimeout(()=>{
+      const ta = textareaRef.current;
+      if(ta){ ta.setSelectionRange(newPos, newPos); ta.focus(); }
+    }, 0);
   };
 
   const handleKeyDown = e => {
@@ -465,7 +473,7 @@ const MentionTextarea = ({value, onChange, onKeyDown, placeholder, style, users=
       if(e.key==="ArrowDown"){ e.preventDefault(); setPickerIdx(i=>Math.min(i+1,filtered.length-1)); return; }
       if(e.key==="ArrowUp"){   e.preventDefault(); setPickerIdx(i=>Math.max(i-1,0)); return; }
       if(e.key==="Enter"||e.key==="Tab"){ e.preventDefault(); insertMention(filtered[pickerIdx]||filtered[0]); return; }
-      if(e.key==="Escape"){ setShowPicker(false); return; }
+      if(e.key==="Escape"){ setShowPicker(false); setPickerQ(""); return; }
     }
     if(onKeyDown) onKeyDown(e);
   };
@@ -477,16 +485,18 @@ const MentionTextarea = ({value, onChange, onKeyDown, placeholder, style, users=
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
+        onBlur={()=>{ /* small delay so onMouseDown on picker fires first */ setTimeout(()=>setShowPicker(false), 150); }}
         placeholder={placeholder}
         style={{...SI, resize:"vertical", minHeight, fontSize:13, ...style}}
       />
       {showPicker && filtered.length > 0 && (
-        <div style={{position:"absolute",left:0,bottom:"calc(100% + 4px)",zIndex:800,background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,boxShadow:"0 8px 24px rgba(0,0,0,.15)",minWidth:220,maxHeight:180,overflow:"auto"}}>
+        <div style={{position:"absolute",left:0,bottom:"calc(100% + 4px)",zIndex:800,background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,boxShadow:"0 8px 24px rgba(0,0,0,.18)",minWidth:220,maxHeight:200,overflow:"auto"}}>
           <div style={{padding:"4px 10px",fontSize:10,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.06em",borderBottom:"1px solid #f1f5f9"}}>Mention user</div>
           {filtered.map((u,i)=>(
-            <div key={u.id} onMouseDown={()=>insertMention(u)}
+            <div key={u.id}
+              onMouseDown={e=>{ e.preventDefault(); insertMention(u); }}
               style={{padding:"7px 12px",cursor:"pointer",background:i===pickerIdx?"#eff6ff":"transparent",display:"flex",gap:8,alignItems:"center"}}>
-              <div style={{width:22,height:22,background:"#0f172a",color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>{u.name[0]}</div>
+              <div style={{width:24,height:24,background:"#0f172a",color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,flexShrink:0}}>{u.name[0]}</div>
               <div>
                 <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>{u.name}</div>
                 <div style={{fontSize:10,color:"#94a3b8"}}>{u.role}</div>
@@ -2788,7 +2798,6 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
           <SvcBadge code={d.serviceCode}/>
           <span style={{fontSize:12,color:"#64748b"}}>{cust?.companyEN||d.custId}</span>
           <span style={{fontSize:11,fontFamily:"monospace",color:"#94a3b8"}}>{d.quoteNo||""}</span>
-          {d.currentStep&&<span style={{fontSize:10,background:"#f1f5f9",color:"#374151",padding:"2px 8px",borderRadius:10,fontWeight:600}}>{d.currentStep}</span>}
           {lastLog&&<span style={{fontSize:10,color:"#94a3b8"}}>Last saved: {lastLog.ts}</span>}
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",pointerEvents:"none"}}>
@@ -2919,7 +2928,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
 
 const DLV_HDR = ["Delivery ID","Customer","OPP Code","Quote No.","Job Code","Contract No.","Contract Date","Service Type","Contract Value","Status","Step","Delivery Date","Total Received","Balance"];
 const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,onGoToCS,onGoToCust,onGoToOpp,userList=[]}) => {
-  const [search,sS]=useState(""); const [fDS,setFDS]=useState([]); const [fStep,setFStep]=useState([]); const [fDSvc,setFDSvc]=useState([]);
+  const [search,sS]=useState(""); const [fDS,setFDS]=useState([]); const [fDSvc,setFDSvc]=useState([]);
   const [form,sF]=useState(false); const [edit,sE]=useState(null); const [gs,sGS]=useState(false);
   const [initTab,sInitTab]=useState("detail"); // which tab to open in DeliveryForm
   const [quotationOpp,sQT]=useState(null); // for inline Quotation Preview modal
@@ -2927,7 +2936,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
   // Req 9: expandable sections per delivery card
 
   const list=deliveries
-    .filter(d=>{const c=customers.find(x=>x.id===d.custId);const q=search.toLowerCase();return(!search||(d.jobCode||"").toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||(d.contractNo||"").toLowerCase().includes(q)||(d.oppCode||"").toLowerCase().includes(q))&&(fDS.length===0||fDS.includes(d.deliveryStatus))&&(fStep.length===0||fStep.includes(d.currentStep))&&(fDSvc.length===0||fDSvc.includes(d.serviceCode));})
+    .filter(d=>{const c=customers.find(x=>x.id===d.custId);const q=search.toLowerCase();return(!search||(d.jobCode||"").toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||(d.contractNo||"").toLowerCase().includes(q)||(d.oppCode||"").toLowerCase().includes(q))&&(fDS.length===0||fDS.includes(d.deliveryStatus))&&(fDSvc.length===0||fDSvc.includes(d.serviceCode));})
     .sort((a,b)=>{
       if(sortBy==="oldest"){
         const ta=a.contractDate||a.saveLog?.[0]?.ts||"";
@@ -2957,7 +2966,6 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:200,minWidth:140}}/>
         <MultiSelect label="Status"  options={DLV_STATUSES.map(s=>({value:s,label:s}))} selected={fDS}    onChange={setFDS}    width={140}/>
-        <MultiSelect label="Step"    options={DLV_STEPS.map(s=>({value:s,label:s}))}    selected={fStep}  onChange={setFStep}  width={155}/>
         <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fDSvc} onChange={setFDSvc} width={140}/>
         <div style={{flex:1}}/>
         <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
@@ -3699,7 +3707,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                         const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} for editing`};
                         sECS(p=>({...p,saveLog:[...(p.saveLog||[]),logEntry]}));
                       }}>Edit</Btn>
-                      <Btn variant='ghost' style={{fontSize:11,padding:'3px 10px',color:'#64748b',borderColor:'#e2e8f0'}} onClick={()=>duplicateQO(l.quoteSnapshot)}>⎘ Duplicate</Btn>
+                      <Btn variant='ghost' style={{fontSize:11,padding:'3px 10px',color:'#64748b',borderColor:'#e2e8f0'}} onClick={()=>duplicateQO(l.quoteSnapshot)}>Duplicate</Btn>
                     </div>
                   ))}
                 </div>
@@ -3894,7 +3902,7 @@ const TSWeekGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, isManager
           <span style={{fontSize:12,color:"#64748b"}}>{cust?.companyEN||opp.custId}</span>
           <span style={{fontSize:11,color:"#94a3b8"}}>{opexMonths.length} month{opexMonths.length!==1?"s":""} · {displayTasks.length} task{displayTasks.length!==1?"s":""}</span>
         </div>
-        <span style={{fontSize:13,color:"#94a3b8"}}>▼</span>
+        <span style={{fontSize:22,color:"#94a3b8",transform:"rotate(-90deg)",display:"inline-block"}}>›</span>
       </div>
     </Card>
   );
@@ -3914,7 +3922,7 @@ const TSWeekGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, isManager
           <span style={{fontSize:12,color:"#64748b"}}>{cust?.companyEN||opp.custId}</span>
           {!isManager&&<span style={{fontSize:11,background:"#eff6ff",color:"#1e40af",padding:"2px 8px",borderRadius:10,fontWeight:700}}>Agent View</span>}
         </div>
-        <button onClick={()=>setOpen(false)} style={{border:"none",background:"none",cursor:"pointer",fontSize:18,color:"#94a3b8",padding:"0 4px",lineHeight:1}}>▲</button>
+        <button onClick={()=>setOpen(false)} style={{border:"none",background:"none",cursor:"pointer",fontSize:22,color:"#94a3b8",padding:"0 4px",lineHeight:1,transform:"rotate(90deg)",display:"inline-block"}}>›</button>
       </div>
 
       {displayTasks.length===0&&(
@@ -4662,7 +4670,7 @@ const stripJsonSuffix = obj => {
             <SyncBadge/>
             {/* Notification Bell */}
             <div ref={bellRef} style={{position:"relative"}}>
-              <button onClick={()=>sBellOpen(p=>!p)} style={{position:"relative",border:"1px solid #e2e8f0",borderRadius:6,background:bellOpen?"#f1f5f9":"#fff",padding:"6px 10px",cursor:"pointer",fontSize:16,lineHeight:1,display:"flex",alignItems:"center",gap:4}}>
+              <button onClick={()=>sBellOpen(p=>!p)} style={{position:"relative",border:"none",borderRadius:6,background:"none",padding:"4px 6px",cursor:"pointer",fontSize:18,lineHeight:1,display:"flex",alignItems:"center"}}>
                 🔔
                 {unreadCount>0&&<span style={{position:"absolute",top:-4,right:-4,background:"#ef4444",color:"#fff",borderRadius:"50%",fontSize:9,fontWeight:900,minWidth:16,height:16,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadCount>9?"9+":unreadCount}</span>}
               </button>
