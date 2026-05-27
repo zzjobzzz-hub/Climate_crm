@@ -198,7 +198,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // S4: All requests include GS_AUTH_TOKEN verified server-side
 // 
-const GS_URL = "https://script.google.com/macros/s/AKfycbwZkoj8KiXV1zfzNouWwaezzGC9P-w7u_xRIy2kUR3bsdmSOgb51tOCKFMwD3PPm7etRA/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbzoakP414OPnRKIJJ9l7SDrnzZi5JfjGV-kGGdjnG8bTKoQK5CYhsdVycAM3wC5tgh5Jg/exec";
 
 // S1: Server-side login — credentials validated in GAS, never in browser
 const gsLogin = async (email, password) => {
@@ -578,7 +578,7 @@ const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a 
                   {(onEdit||onDelete)&&<div style={{marginLeft:"auto",display:"flex",gap:4}}>
                     {onEdit&&<button onClick={()=>{setEditId(l.id);setEditText(l.note);}} style={{border:"none",background:"none",cursor:"pointer",color:"#94a3b8",fontSize:12,padding:"0 3px",lineHeight:1}} title="Edit">✎</button>}
                     {onDelete&&<button onClick={()=>{if(!window.confirm("Delete this log entry?"))return;onDelete(l.id);}} style={{border:"none",background:"none",cursor:"pointer",color:"#fca5a5",fontSize:12,padding:"0 3px",lineHeight:1}} title="Delete">✕</button>}
-                    <button onClick={()=>setReplyOpen(p=>({...p,[l.id]:!p[l.id]}))} style={{border:"none",background:"none",cursor:"pointer",color:"#1e40af",fontSize:11,padding:"0 4px",lineHeight:1}}>↩ Reply</button>
+                    <button onClick={()=>setReplyOpen(p=>({...p,[l.id]:!p[l.id]}))} style={{border:"none",background:"none",cursor:"pointer",color:"#1e40af",fontSize:13,padding:"0 4px",lineHeight:1}} title="Reply">↩</button>
                   </div>}
                 </div>
                 {editId===l.id
@@ -610,17 +610,17 @@ const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a 
                   </div>
                 )}
                 {replyOpen[l.id] && (
-                  <div style={{marginTop:8,paddingLeft:14,borderLeft:"2px solid #3b82f6",display:"flex",gap:6}}>
-                    <MentionTextarea
+                  <div style={{marginTop:6,paddingLeft:42,display:"flex",gap:6,alignItems:"center"}}>
+                    <input
+                      autoFocus
                       value={replyText[l.id]||""}
-                      onChange={v=>setReplyText(p=>({...p,[l.id]:v}))}
-                      onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();submitReply(l.id);}if(e.key==="Escape")setReplyOpen(p=>({...p,[l.id]:false}));}}
+                      onChange={e=>setReplyText(p=>({...p,[l.id]:e.target.value}))}
+                      onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();submitReply(l.id);}if(e.key==="Escape")setReplyOpen(p=>({...p,[l.id]:false}));}}
                       placeholder="Reply… (Enter to send)"
-                      style={{fontSize:12,minHeight:32}}
-                      users={allUsers}
-                      minHeight={32}
+                      style={{flex:1,fontSize:12,padding:"4px 8px",border:"1px solid #bfdbfe",borderRadius:4,outline:"none",background:"#f8fbff"}}
                     />
-                    <button onClick={()=>submitReply(l.id)} style={{padding:"4px 10px",background:"#0f172a",color:"#fff",border:"none",borderRadius:4,fontSize:11,cursor:"pointer",flexShrink:0}}>Send</button>
+                    <button onClick={()=>submitReply(l.id)} style={{padding:"4px 10px",background:"#0f172a",color:"#fff",border:"none",borderRadius:4,fontSize:11,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap"}}>Send</button>
+                    <button onClick={()=>setReplyOpen(p=>({...p,[l.id]:false}))} style={{border:"none",background:"none",cursor:"pointer",color:"#94a3b8",fontSize:13,lineHeight:1,padding:"0 2px"}}>✕</button>
                   </div>
                 )}
               </div>
@@ -776,7 +776,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     },0);
   },[deliveries]);
 
-  // Invoiced: sum of installment.amount where invoiceDate is in the current CE year AND status="Received"
+  // Invoice Received: sum of installment.amount where invoiceDate is in the current CE year AND status="Received"
   const invoiceReceived = useMemo(()=>{
     const ceYear = new Date().getFullYear();
     const prefix = String(ceYear);
@@ -881,7 +881,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
       background:"#1e293b",color:"#fff",borderRadius:8,padding:"10px 14px",
       boxShadow:"0 4px 20px rgba(0,0,0,0.25)",minWidth:220,pointerEvents:"none"}}>
       <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>
-        Invoiced {new Date().getFullYear()}
+        Invoice Received {new Date().getFullYear()}
       </div>
       {invoiceBreakdown.map(([name,amt])=>(
         <div key={name} style={{display:"flex",justifyContent:"space-between",gap:16,marginBottom:3}}>
@@ -1060,7 +1060,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
             <SC label="Customers"        val={customers.length}           sub={`${customers.filter(c=>c.ranking==="High").length} High Priority`}/>
             <SC label="Revenue"          val={`฿${fmtM(revenue)}`}       sub={`Expected ${new Date().getFullYear()}`} c="#0ea5e9"/>
             <SC label="Won YTD"          val={`฿${fmtM(totalWon)}`}      sub={`${wonOpps.length} deals closed`} c="#16a34a"/>
-            <SC label="Invoiced" val={`฿${fmtM(invoiceReceived)}`} sub={`By invoice date ${new Date().getFullYear()}`} c="#f59e0b" tooltip/>
+            <SC label="Invoice Received" val={`฿${fmtM(invoiceReceived)}`} sub={`By invoice date ${new Date().getFullYear()}`} c="#f59e0b" tooltip/>
             <SC label="Opportunities"    val={`฿${fmtM(oppsPipeline)}`}  sub={`${oppsPipelineCount} deals active`} c="#a78bfa"/>
             <SC label="Pipeline"         val={`฿${fmtM(pipeline)}`}      sub={`${filteredOpps.filter(o=>!["Won","Lost"].includes(o.status)).length} active`}/>
           </div>
@@ -2131,7 +2131,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
           
         </>
       )}
-      {tab==="log"&&<ActivityLog logs={f.activityLog||[]} currentUser={user} users={userList} onEdit={(id,text)=>sF(p=>({...p,activityLog:(p.activityLog||[]).map(x=>x.id===id?{...x,note:text}:x)}))} onDelete={id=>sF(p=>({...p,activityLog:(p.activityLog||[]).filter(x=>x.id!==id)}))}/>}
+      {tab==="log"&&<ActivityLog logs={f.activityLog||[]} currentUser={user} users={userList} onEdit={(id,text,replies)=>sF(p=>({...p,activityLog:(p.activityLog||[]).map(x=>x.id===id?{...x,note:text,replies:replies||x.replies||[]}:x)}))} onDelete={id=>sF(p=>({...p,activityLog:(p.activityLog||[]).filter(x=>x.id!==id)}))}/>}
       {tab==="quotation"&&<QuotationPreview opp={f} customer={customers.find(c=>c.id===f.custId)} costSheets={costSheets||[]} onClose={onClose} onSaveQuotation={qd=>{const updated={...f,quotationData:qd,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""};onSave(updated);}}/>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
         {initial&&onDelete&&<Btn variant="danger" style={{marginRight:"auto"}} onClick={()=>setDelConfirm(true)}>Delete</Btn>}
@@ -3694,12 +3694,12 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                       <span style={{fontSize:12,color:'#94a3b8',whiteSpace:'nowrap'}}>{l.ts}</span>
                       <span style={{fontSize:12,fontWeight:700,fontFamily:'monospace',color:'#92400e',background:'#fef3c7',padding:'2px 8px',borderRadius:4,border:'1px solid #fde68a'}}>{l.quoteSnapshot.csCode}</span>
                       <span style={{fontSize:12,color:'#374151',flex:1}}>{l.quoteSnapshot.quoteNo} {customers.find(c=>c.id===l.quoteSnapshot.custId)?.companyEN||l.quoteSnapshot.custId}</span>
-                      <Btn variant='ghost' style={{fontSize:13,padding:'4px 14px'}} onClick={()=>{
+                      <Btn style={{fontSize:12,padding:'4px 14px',background:'#0f172a',color:'#fff',border:'none'}} onClick={()=>{
                         sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid()}]}));
                         const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} for editing`};
                         sECS(p=>({...p,saveLog:[...(p.saveLog||[]),logEntry]}));
                       }}>Edit</Btn>
-                      <Btn variant='ghost' style={{fontSize:13,padding:'4px 14px',color:'#1e40af',borderColor:'#bfdbfe'}} onClick={()=>duplicateQO(l.quoteSnapshot)}>Duplicate</Btn>
+                      <Btn variant='ghost' style={{fontSize:11,padding:'3px 10px',color:'#64748b',borderColor:'#e2e8f0'}} onClick={()=>duplicateQO(l.quoteSnapshot)}>⎘ Duplicate</Btn>
                     </div>
                   ))}
                 </div>
@@ -3781,108 +3781,109 @@ const buildWeekColumns = (opexMonths) => {
 
 const MONTH_ABBR = ["J","F","M","A","M","J","J","A","S","O","N","D"];
 
-// ── TSWeekGrid: the collapsible OPP card ──
+// ── TSWeekGrid: collapsible OPP card with per-task expand ──
 const TSWeekGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, isManager, canEdit}) => {
-  const [open, setOpen] = useState(false);
-  const [noteText, setNoteText] = useState("");
-  const [saveLog, setSaveLog] = useState([]);
-  const [localData, setLocalData] = useState({}); // {taskId_agentUid_year_month_week: {plan,actual}}
+  const [open,      setOpen]     = useState(false);
+  const [expanded,  setExpanded] = useState({}); // {taskId: bool}
+  const [noteText,  setNoteText] = useState("");
+  const [saveLog,   setSaveLog]  = useState([]);
+  const [localData, setLocalData]= useState({}); // {taskId_agentUid_year_month_week: {plan,actual}}
 
   const tasks = useMemo(()=>safeArr(snapshot?.tasks||[]),[snapshot]);
+  const opexMonths = useMemo(()=>getOPEXMonths(tasks, null),[tasks]);
+  const weekCols   = useMemo(()=>buildWeekColumns(opexMonths),[opexMonths]);
 
-  // Resolve delivery contract start
-  const contractStart = null; // could pass from deliveries if needed
-
-  // Get OPEX months from tasks
-  const opexMonths = useMemo(()=>getOPEXMonths(tasks, contractStart),[tasks]);
-  const weekCols = useMemo(()=>buildWeekColumns(opexMonths),[opexMonths]);
-
-  // Load existing TS rows into localData
+  // Load saved rows + pre-fill plan from OPEX if no saved plan exists
   useEffect(()=>{
     const init = {};
     (tsRows||[]).forEach(r=>{
       const k = `${r.taskId}_${r.agentUid}_${r.year}_${r.month}_${r.week}`;
       init[k] = {plan: r.planHours||0, actual: r.actualHours||0};
     });
+    const hasSavedPlan = Object.values(init).some(v=>v.plan>0);
+    if(!hasSavedPlan) {
+      tasks.forEach(task=>{
+        const agents = Array.isArray(task.agents)&&task.agents.length>0&&typeof task.agents[0]==="object"?task.agents:[];
+        const opexMonth = opexMonths.find(m=>m.payMonth===(task.payMonth||1));
+        if(!opexMonth) return;
+        agents.forEach(a=>{
+          const totalHrs = (a.manager||0)+(a.senior||0)+(a.junior||0);
+          if(!totalHrs) return;
+          const perWeek = Math.round((totalHrs/4)*10)/10;
+          for(let w=1;w<=4;w++){
+            const k = `${task.id}_${a.uid}_${opexMonth.year}_${opexMonth.month}_${w}`;
+            if(!init[k]) init[k]={plan:0,actual:0};
+            init[k].plan = perWeek;
+          }
+        });
+      });
+    }
     setLocalData(init);
-    // Load save log from most recent row
-    const logs = (tsRows||[]).filter(r=>r.saveLog).flatMap(r=>safeArr(r.saveLog));
+    const logs=(tsRows||[]).filter(r=>r.saveLog).flatMap(r=>safeArr(r.saveLog));
     if(logs.length>0) setSaveLog(logs.slice(-5));
   },[tsRows, opp.oppCode]);
 
-  const getKey = (taskId, agentUid, year, month, week) => `${taskId}_${agentUid}_${year}_${month}_${week}`;
-  const getVal = (taskId, agentUid, year, month, week, field) => {
-    const k = getKey(taskId,agentUid,year,month,week);
-    return localData[k]?.[field]||0;
-  };
-  const setVal = (taskId, agentUid, year, month, week, field, val) => {
+  const getKey = (taskId,agentUid,year,month,week) => `${taskId}_${agentUid}_${year}_${month}_${week}`;
+  const getVal = (taskId,agentUid,year,month,week,field) => localData[getKey(taskId,agentUid,year,month,week)]?.[field]||0;
+  const setVal = (taskId,agentUid,year,month,week,field,val) => {
     const k = getKey(taskId,agentUid,year,month,week);
     setLocalData(p=>({...p,[k]:{...(p[k]||{plan:0,actual:0}),[field]:parseFloat(val)||0}}));
   };
+  const rowSum = (taskId,agentUid,field) =>
+    weekCols.reduce((s,c)=>s+getVal(taskId,agentUid,c.year,c.month,c.week,field),0);
 
   const handleSave = () => {
-    const rows = [];
+    const rows=[];
     Object.entries(localData).forEach(([k,v])=>{
-      const [taskId, agentUid, year, month, week] = k.split("_");
+      const parts=k.split("_");
+      if(parts.length<5) return;
+      const [taskId,agentUid,year,month,week]=parts;
       if(!taskId||!agentUid) return;
-      const task = tasks.find(t=>t.id===taskId);
+      const task=tasks.find(t=>t.id===taskId);
       rows.push({
-        id: `${opp.oppCode}_${k}`,
-        oppCode: opp.oppCode,
-        jobCode: opp.jobCode,
-        taskId, taskName: task?.taskName||"",
+        id:`${opp.oppCode}_${k}`,
+        oppCode:opp.oppCode, jobCode:opp.jobCode,
+        taskId, taskName:task?.taskName||"",
         agentUid, year:+year, month:+month, week:+week,
-        planHours: v.plan||0,
-        actualHours: v.actual||0,
-        savedTs: nowTS(), savedBy: user.id,
+        planHours:v.plan||0, actualHours:v.actual||0,
+        savedTs:nowTS(), savedBy:user.id,
       });
     });
-    const entry = {ts:nowTS(), author:user.id, note: noteText||`Saved by ${user.name}`};
-    const newLog = [...saveLog, entry].slice(-5);
-    rows.forEach(r=>onSave({...r, saveLog: newLog}));
-    setSaveLog(newLog);
-    setNoteText("");
+    const entry={ts:nowTS(),author:user.id,note:noteText||`Saved by ${user.name}`};
+    const newLog=[...saveLog,entry].slice(-5);
+    rows.forEach(r=>onSave({...r,saveLog:newLog}));
+    setSaveLog(newLog); setNoteText("");
     toast("Saved",opp.jobCode);
   };
 
-  // By Agent summary across all tasks/weeks
   const agentSummary = useMemo(()=>{
-    const map = {};
+    const map={};
     tasks.forEach(task=>{
-      const agents = Array.isArray(task.agents)&&task.agents.length>0&&typeof task.agents[0]==="object"
-        ? task.agents : [];
+      const agents=Array.isArray(task.agents)&&task.agents.length>0&&typeof task.agents[0]==="object"?task.agents:[];
       agents.forEach(a=>{
-        if(!map[a.uid]) {
-          const u = USERS.find(x=>x.id===a.uid);
-          map[a.uid] = {uid:a.uid, name:u?.name||a.uid, role:"", planHours:0, actualHours:0};
-          if(a.manager>0) map[a.uid].role="Manager";
-          else if(a.senior>0) map[a.uid].role="Senior";
-          else map[a.uid].role="Junior";
+        if(!map[a.uid]){
+          const u=USERS.find(x=>x.id===a.uid);
+          const role=(a.manager||0)>0?"Manager":(a.senior||0)>0?"Senior":"Junior";
+          map[a.uid]={uid:a.uid,name:u?.name||a.uid,role,planHours:0,actualHours:0};
         }
       });
     });
     Object.entries(localData).forEach(([k,v])=>{
-      const parts = k.split("_");
-      const agentUid = parts[1];
-      if(agentUid && map[agentUid]){
-        map[agentUid].planHours += v.plan||0;
-        map[agentUid].actualHours += v.actual||0;
-      }
+      const agentUid=k.split("_")[1];
+      if(agentUid&&map[agentUid]){ map[agentUid].planHours+=v.plan||0; map[agentUid].actualHours+=v.actual||0; }
     });
     return Object.values(map);
-  },[tasks, localData]);
+  },[tasks,localData]);
 
-  // Filter tasks for this agent (Agent View)
-  const agentTasks = useMemo(()=>{
+  const displayTasks = useMemo(()=>{
     if(isManager) return tasks;
     return tasks.filter(t=>{
-      const agents = Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];
+      const agents=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];
       return agents.some(a=>a.uid===user.id);
     });
-  },[tasks, isManager, user.id]);
+  },[tasks,isManager,user.id]);
 
-  const displayTasks = isManager ? tasks : agentTasks;
-  const numWeeks = weekCols.length;
+  const toggleTask = taskId => setExpanded(p=>({...p,[taskId]:!p[taskId]}));
 
   if(!open) return (
     <Card style={{marginBottom:8,overflow:"hidden"}}>
@@ -3891,25 +3892,27 @@ const TSWeekGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, isManager
           <span style={{fontFamily:"monospace",fontWeight:900,fontSize:15,color:"#0f172a"}}>{opp.jobCode}</span>
           <SvcBadge code={opp.serviceCode}/>
           <span style={{fontSize:12,color:"#64748b"}}>{cust?.companyEN||opp.custId}</span>
-          <span style={{fontSize:11,color:"#94a3b8"}}>{opexMonths.length} months · {displayTasks.length} tasks</span>
+          <span style={{fontSize:11,color:"#94a3b8"}}>{opexMonths.length} month{opexMonths.length!==1?"s":""} · {displayTasks.length} task{displayTasks.length!==1?"s":""}</span>
         </div>
         <span style={{fontSize:13,color:"#94a3b8"}}>▼</span>
       </div>
     </Card>
   );
 
-  // col widths
-  const taskColW = 180;
-  const weekColW = Math.max(28, Math.min(44, Math.floor((1200 - taskColW - 60) / Math.max(numWeeks,1))));
+  const taskColW  = 200;
+  const rowLblW   = 64;
+  const numCols   = weekCols.length;
+  const weekColW  = Math.max(30, Math.min(46, Math.floor((window.innerWidth - taskColW - rowLblW - 120) / Math.max(numCols,1))));
 
   return (
     <Card style={{marginBottom:10,overflow:"hidden"}}>
-      {/* Card header */}
+      {/* Header */}
       <div style={{padding:"12px 18px",background:"#f8fafc",borderBottom:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
         <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
           <span style={{fontFamily:"monospace",fontWeight:900,fontSize:15,color:"#0f172a"}}>{opp.jobCode}</span>
           <SvcBadge code={opp.serviceCode}/>
           <span style={{fontSize:12,color:"#64748b"}}>{cust?.companyEN||opp.custId}</span>
+          {!isManager&&<span style={{fontSize:11,background:"#eff6ff",color:"#1e40af",padding:"2px 8px",borderRadius:10,fontWeight:700}}>Agent View</span>}
         </div>
         <button onClick={()=>setOpen(false)} style={{border:"none",background:"none",cursor:"pointer",fontSize:18,color:"#94a3b8",padding:"0 4px",lineHeight:1}}>▲</button>
       </div>
@@ -3920,97 +3923,144 @@ const TSWeekGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, isManager
         </div>
       )}
 
-      {displayTasks.length>0&&weekCols.length>0&&(
-        <div style={{overflowX:"auto",padding:"12px 0 0 0"}}>
-          <table style={{borderCollapse:"collapse",fontSize:11,minWidth:"100%"}}>
+      {displayTasks.length>0&&(
+        <div style={{overflowX:"auto"}}>
+          <table style={{borderCollapse:"collapse",fontSize:11,minWidth:"100%",tableLayout:"fixed"}}>
+            <colgroup>
+              <col style={{width:taskColW}}/>
+              <col style={{width:rowLblW}}/>
+              {weekCols.map((_,i)=><col key={i} style={{width:weekColW}}/>)}
+              <col style={{width:54}}/>
+            </colgroup>
             <thead>
-              {/* Month row */}
               <tr style={{background:"#f1f5f9"}}>
-                <th style={{padding:"4px 10px",textAlign:"left",fontWeight:700,color:"#0f172a",fontSize:11,width:taskColW,minWidth:taskColW,position:"sticky",left:0,background:"#f1f5f9",zIndex:2,borderBottom:"1px solid #e2e8f0"}}>Task</th>
+                <th style={{padding:"4px 10px",textAlign:"left",fontWeight:700,color:"#0f172a",fontSize:11,position:"sticky",left:0,background:"#f1f5f9",zIndex:3,borderBottom:"1px solid #e2e8f0"}}>Task</th>
+                <th style={{padding:"4px 6px",borderBottom:"1px solid #e2e8f0",background:"#f1f5f9"}}/>
                 {opexMonths.map(({year,month})=>(
-                  <th key={`${year}-${month}`} colSpan={4} style={{textAlign:"center",fontWeight:700,color:"#0f172a",fontSize:11,borderLeft:"1px solid #e2e8f0",borderBottom:"1px solid #e2e8f0",padding:"3px 0",background:"#f1f5f9"}}>
-                    {MONTH_ABBR[month-1]}{String(year).slice(-2)}
+                  <th key={`${year}-${month}`} colSpan={4}
+                    style={{textAlign:"center",fontWeight:800,color:"#0f172a",fontSize:11,
+                      borderLeft:"2px solid #cbd5e1",borderBottom:"1px solid #e2e8f0",
+                      padding:"4px 0",background:"#f1f5f9"}}>
+                    {MONTHS[month-1]} {year}
                   </th>
                 ))}
-                <th style={{padding:"4px 8px",textAlign:"right",fontWeight:700,color:"#64748b",fontSize:11,borderLeft:"1px solid #e2e8f0",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>Hrs</th>
+                <th style={{textAlign:"right",padding:"4px 8px",color:"#64748b",fontSize:10,fontWeight:700,
+                  borderLeft:"2px solid #e2e8f0",borderBottom:"1px solid #e2e8f0",background:"#f1f5f9",whiteSpace:"nowrap"}}>Man hrs</th>
               </tr>
-              {/* Week row */}
               <tr style={{background:"#f8fafc"}}>
-                <th style={{padding:"2px 10px",position:"sticky",left:0,background:"#f8fafc",zIndex:2,borderBottom:"2px solid #e2e8f0"}}/>
+                <th style={{position:"sticky",left:0,background:"#f8fafc",zIndex:3,borderBottom:"2px solid #e2e8f0",padding:"2px 10px"}}/>
+                <th style={{borderBottom:"2px solid #e2e8f0",background:"#f8fafc"}}/>
                 {weekCols.map((c,i)=>(
-                  <th key={i} style={{width:weekColW,minWidth:weekColW,textAlign:"center",fontSize:10,color:"#94a3b8",fontWeight:600,borderLeft:c.week===1?"1px solid #e2e8f0":"none",borderBottom:"2px solid #e2e8f0",padding:"2px 0"}}>{c.label}</th>
+                  <th key={i} style={{textAlign:"center",fontSize:9,color:"#94a3b8",fontWeight:600,
+                    borderLeft:c.week===1?"2px solid #cbd5e1":"none",
+                    borderBottom:"2px solid #e2e8f0",padding:"2px 0",background:"#f8fafc"}}>
+                    Wk{c.week}
+                  </th>
                 ))}
-                <th style={{borderLeft:"1px solid #e2e8f0",borderBottom:"2px solid #e2e8f0"}}/>
+                <th style={{borderLeft:"2px solid #e2e8f0",borderBottom:"2px solid #e2e8f0",background:"#f8fafc"}}/>
               </tr>
             </thead>
             <tbody>
               {displayTasks.map((task,ti)=>{
                 const agents = Array.isArray(task.agents)&&task.agents.length>0&&typeof task.agents[0]==="object"?task.agents:[];
-                const relevantAgents = isManager ? agents : agents.filter(a=>a.uid===user.id);
-                const rowTypes = isManager
-                  ? [{type:"plan"},{type:"actual"}]
-                  : [{type:"actual"}];
+                const myAgents = isManager ? agents : agents.filter(a=>a.uid===user.id);
+                const isExp = !!expanded[task.id];
+                const taskPlanTotal   = myAgents.reduce((s,a)=>s+rowSum(task.id,a.uid,"plan"),0);
+                const taskActualTotal = myAgents.reduce((s,a)=>s+rowSum(task.id,a.uid,"actual"),0);
 
-                return rowTypes.map(({type})=>{
-                  const rowSum = weekCols.reduce((s,c)=>{
-                    if(type==="plan") {
-                      // plan: sum across all agents
-                      return s + agents.reduce((as,a)=>as+getVal(task.id,a.uid,c.year,c.month,c.week,"plan"),0);
-                    }
-                    // actual: sum across relevant agents
-                    return s + relevantAgents.reduce((as,a)=>as+getVal(task.id,a.uid,c.year,c.month,c.week,"actual"),0);
-                  },0);
-
-                  return (
-                    <tr key={`${task.id}_${type}`} style={{background:type==="plan"?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}>
-                      <td style={{padding:"3px 10px",fontWeight:type==="plan"?600:400,fontSize:11,color:type==="plan"?"#0f172a":"#1e40af",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:taskColW,position:"sticky",left:0,background:type==="plan"?"#f8fafc":"#fff",zIndex:1}}>
-                        {type==="plan"
-                          ? <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:"#94a3b8",fontSize:9}}>↳</span> Plan</span>
-                          : <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:"#94a3b8",fontSize:9}}>↳</span> <span style={{color:"#1e40af"}}>Actual</span></span>
-                        }
-                        <span style={{fontSize:9,color:"#94a3b8",display:"block",marginTop:1,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis"}}>{task.taskName}</span>
+                return (
+                  <React.Fragment key={task.id}>
+                    {/* Task header row — click to expand */}
+                    <tr onClick={()=>toggleTask(task.id)} style={{cursor:"pointer",background:isExp?"#f0f9ff":"#fff",borderTop:ti===0?"1px solid #e2e8f0":"1px solid #f1f5f9"}}>
+                      <td style={{padding:"7px 10px",position:"sticky",left:0,background:isExp?"#f0f9ff":"#fff",zIndex:1,fontWeight:700,fontSize:12,color:"#0f172a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                        <span style={{color:"#94a3b8",fontSize:10,marginRight:5,display:"inline-block",width:10}}>{isExp?"▼":"▶"}</span>
+                        <span style={{fontSize:10,color:"#94a3b8",marginRight:4,fontWeight:600}}>{ti+1}.</span>
+                        {task.taskName||"(Unnamed)"}
                       </td>
+                      <td style={{background:isExp?"#f0f9ff":"#fff"}}/>
                       {weekCols.map((c,ci)=>{
-                        if(type==="plan") {
-                          // Manager editable per agent — show aggregate or per-agent
-                          const agentSum = agents.reduce((as,a)=>as+getVal(task.id,a.uid,c.year,c.month,c.week,"plan"),0);
-                          return (
-                            <td key={ci} style={{padding:"1px 1px",textAlign:"center",borderLeft:c.week===1?"1px solid #f1f5f9":"none",background:"#f8fafc"}}>
-                              {agents.length===1&&isManager
-                                ? <input type="number" min="0" step="0.5" value={getVal(task.id,agents[0].uid,c.year,c.month,c.week,"plan")||""}
-                                    onChange={e=>setVal(task.id,agents[0].uid,c.year,c.month,c.week,"plan",e.target.value)}
-                                    style={{width:weekColW-2,padding:"2px 1px",fontSize:10,textAlign:"center",border:"1px solid #e2e8f0",borderRadius:2,background:"#fff",outline:"none"}}/>
-                                : <span style={{fontSize:10,color:"#94a3b8"}}>{agentSum||""}</span>
-                              }
-                            </td>
-                          );
-                        } else {
-                          // Actual: editable per agent
-                          if(relevantAgents.length===0) return <td key={ci} style={{borderLeft:c.week===1?"1px solid #f1f5f9":"none"}}/>;
-                          if(relevantAgents.length===1) {
-                            const a = relevantAgents[0];
-                            const editOk = canEdit && (isManager || a.uid===user.id);
-                            return (
-                              <td key={ci} style={{padding:"1px 1px",textAlign:"center",borderLeft:c.week===1?"1px solid #f1f5f9":"none"}}>
-                                {editOk
-                                  ? <input type="number" min="0" step="0.5" value={getVal(task.id,a.uid,c.year,c.month,c.week,"actual")||""}
-                                      onChange={e=>setVal(task.id,a.uid,c.year,c.month,c.week,"actual",e.target.value)}
-                                      style={{width:weekColW-2,padding:"2px 1px",fontSize:10,textAlign:"center",border:"1px solid #bfdbfe",borderRadius:2,background:"#eff6ff",outline:"none"}}/>
-                                  : <span style={{fontSize:10,color:"#1e40af"}}>{getVal(task.id,a.uid,c.year,c.month,c.week,"actual")||""}</span>
-                                }
-                              </td>
-                            );
-                          }
-                          const sum = relevantAgents.reduce((as,a)=>as+getVal(task.id,a.uid,c.year,c.month,c.week,"actual"),0);
-                          return <td key={ci} style={{textAlign:"center",fontSize:10,color:"#1e40af",borderLeft:c.week===1?"1px solid #f1f5f9":"none"}}>{sum||""}</td>;
-                        }
+                        const agSum=myAgents.reduce((s,a)=>s+getVal(task.id,a.uid,c.year,c.month,c.week,"plan"),0);
+                        return (
+                          <td key={ci} style={{textAlign:"center",fontSize:10,color:"#94a3b8",
+                            borderLeft:c.week===1?"2px solid #e8f4fd":"none",
+                            background:isExp?"#f0f9ff":"#fff"}}>
+                            {agSum>0?agSum:""}
+                          </td>
+                        );
                       })}
-                      <td style={{padding:"2px 8px",textAlign:"right",fontWeight:700,fontSize:11,borderLeft:"1px solid #e2e8f0",color:type==="actual"?"#1e40af":"#64748b",whiteSpace:"nowrap"}}>
-                        {rowSum>0?`${rowSum}h`:""}
+                      <td style={{textAlign:"right",padding:"2px 8px",fontWeight:700,fontSize:11,borderLeft:"2px solid #e2e8f0",background:isExp?"#f0f9ff":"#fff",whiteSpace:"nowrap"}}>
+                        {taskPlanTotal>0&&<span style={{color:"#374151"}}>{Math.round(taskPlanTotal*10)/10}h</span>}
+                        {taskActualTotal>0&&<span style={{color:"#1e40af",marginLeft:3}}>({Math.round(taskActualTotal*10)/10})</span>}
                       </td>
                     </tr>
-                  );
-                });
+
+                    {/* Expanded: per-agent sub-rows */}
+                    {isExp && myAgents.map(a=>{
+                      const u = USERS.find(x=>x.id===a.uid);
+                      const agentName = u?.name||a.uid;
+                      const agentRole = (a.manager||0)>0?"Manager":(a.senior||0)>0?"Senior":"Junior";
+                      const roleClr   = agentRole==="Manager"?"#1e40af":agentRole==="Senior"?"#7c3aed":"#16a34a";
+                      const roleBg    = agentRole==="Manager"?"#dbeafe":agentRole==="Senior"?"#ede9fe":"#dcfce7";
+                      const opexHrs   = (a.manager||0)+(a.senior||0)+(a.junior||0);
+                      const subRows   = isManager ? ["plan","actual"] : ["actual"];
+
+                      return (
+                        <React.Fragment key={a.uid}>
+                          {/* Agent name label row */}
+                          <tr style={{background:"#fafcff",borderTop:"1px solid #e8f4fd"}}>
+                            <td colSpan={2+numCols+1} style={{padding:"3px 10px 2px 26px",fontSize:10}}>
+                              <span style={{color:"#94a3b8",marginRight:4}}>↳</span>
+                              <span style={{fontWeight:700,color:"#0f172a",marginRight:6}}>{agentName}</span>
+                              <span style={{fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:3,background:roleBg,color:roleClr}}>{agentRole}</span>
+                              {isManager&&opexHrs>0&&<span style={{fontSize:9,color:"#94a3b8",marginLeft:6}}>OPEX: {opexHrs}h</span>}
+                            </td>
+                          </tr>
+
+                          {subRows.map(rowType=>{
+                            const isPlan = rowType==="plan";
+                            const rSum   = rowSum(task.id,a.uid,rowType);
+                            const editable = canEdit && (isPlan ? isManager : (!isManager||a.uid===user.id||isManager));
+                            return (
+                              <tr key={rowType} style={{background:isPlan?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}>
+                                <td style={{padding:"2px 6px 2px 36px",position:"sticky",left:0,background:isPlan?"#f8fafc":"#fff",zIndex:1,whiteSpace:"nowrap",fontSize:10,color:isPlan?"#374151":"#1e40af",fontWeight:600}}>
+                                  ↳ {isPlan?"Plan":"Actual"}
+                                </td>
+                                <td style={{background:isPlan?"#f8fafc":"#fff"}}/>
+                                {weekCols.map((c,ci)=>{
+                                  const val = getVal(task.id,a.uid,c.year,c.month,c.week,rowType);
+                                  return (
+                                    <td key={ci} style={{padding:"1px",textAlign:"center",borderLeft:c.week===1?"2px solid #e8f4fd":"none",background:isPlan?"#f8fafc":"#fff"}}>
+                                      {editable
+                                        ? <input type="number" min="0" step="0.5"
+                                            value={val||""}
+                                            onChange={e=>setVal(task.id,a.uid,c.year,c.month,c.week,rowType,e.target.value)}
+                                            style={{width:weekColW-4,padding:"2px 1px",fontSize:10,textAlign:"center",
+                                              border:`1px solid ${isPlan?"#e2e8f0":"#bfdbfe"}`,borderRadius:2,
+                                              background:isPlan?"#fff":"#eff6ff",outline:"none"}}/>
+                                        : <span style={{fontSize:10,color:isPlan?"#94a3b8":"#1e40af",fontWeight:val>0?600:400}}>{val||""}</span>
+                                      }
+                                    </td>
+                                  );
+                                })}
+                                <td style={{textAlign:"right",padding:"2px 8px",fontWeight:700,fontSize:10,borderLeft:"2px solid #e2e8f0",color:isPlan?"#374151":"#1e40af",whiteSpace:"nowrap",background:isPlan?"#f8fafc":"#fff"}}>
+                                  {rSum>0?`${Math.round(rSum*10)/10}h`:""}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </React.Fragment>
+                      );
+                    })}
+
+                    {isExp&&myAgents.length===0&&(
+                      <tr style={{background:"#fffbeb"}}>
+                        <td colSpan={2+numCols+1} style={{padding:"6px 26px",fontSize:11,color:"#d97706",fontStyle:"italic"}}>
+                          No agents assigned — add agents in Cost Sheet OPEX tasks.
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
               })}
             </tbody>
           </table>
@@ -4023,7 +4073,7 @@ const TSWeekGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, isManager
           style={{...SI,flex:1,minWidth:180,fontSize:12,padding:"6px 10px"}}/>
         <Btn onClick={handleSave} style={{fontSize:12,padding:"6px 16px"}}>Save Time Sheet</Btn>
         {saveLog.length>0&&(
-          <div style={{width:"100%",marginTop:6,display:"flex",flexDirection:"column",gap:3}}>
+          <div style={{width:"100%",marginTop:4,display:"flex",flexDirection:"column",gap:2}}>
             {[...saveLog].reverse().slice(0,5).map((e,i)=>(
               <span key={i} style={{fontSize:10,color:"#94a3b8"}}>{e.ts} · {USERS.find(u=>u.id===e.author)?.name||e.author}: {e.note}</span>
             ))}
@@ -4031,10 +4081,10 @@ const TSWeekGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, isManager
         )}
       </div>
 
-      {/* By Agent Summary */}
-      {agentSummary.length>0&&(
+      {/* By Agent Summary — manager only */}
+      {isManager&&agentSummary.length>0&&(
         <div style={{padding:"10px 16px",borderTop:"2px solid #f1f5f9"}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>By Agent Summary</div>
+          <div style={{fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>By Agent Summary</div>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
             <thead>
               <tr style={{background:"#f8fafc"}}>
@@ -4053,13 +4103,15 @@ const TSWeekGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, isManager
                   <tr key={r.uid} style={{borderBottom:"1px solid #f1f5f9"}}>
                     <td style={{padding:"5px 8px",fontWeight:600}}>{r.name}</td>
                     <td style={{padding:"5px 8px"}}>
-                      <span style={{fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:3,background:r.role==="Manager"?"#dbeafe":r.role==="Senior"?"#ede9fe":"#dcfce7",color:r.role==="Manager"?"#1e40af":r.role==="Senior"?"#7c3aed":"#16a34a"}}>{r.role||"—"}</span>
+                      <span style={{fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:3,
+                        background:r.role==="Manager"?"#dbeafe":r.role==="Senior"?"#ede9fe":"#dcfce7",
+                        color:r.role==="Manager"?"#1e40af":r.role==="Senior"?"#7c3aed":"#16a34a"}}>{r.role||"—"}</span>
                     </td>
                     <td style={{padding:"5px 8px",textAlign:"right"}}>{r.planHours}h</td>
                     <td style={{padding:"5px 8px",textAlign:"right"}}>฿{fmt(pB)}</td>
                     <td style={{padding:"5px 8px",textAlign:"right",color:"#1e40af",fontWeight:600}}>{r.actualHours}h</td>
                     <td style={{padding:"5px 8px",textAlign:"right",color:"#1e40af",fontWeight:600}}>฿{fmt(aB)}</td>
-                    <td style={{padding:"5px 8px",textAlign:"right",fontWeight:700,color:vc}}>{vH>0?"+":""}{vH}h</td>
+                    <td style={{padding:"5px 8px",textAlign:"right",fontWeight:700,color:vc}}>{vH>0?"+":""}{Math.round(vH*10)/10}h</td>
                     <td style={{padding:"5px 8px",textAlign:"right",fontWeight:700,color:vc}}>{vB>0?"+":""}฿{fmt(Math.abs(vB))}</td>
                   </tr>
                 );
@@ -4071,6 +4123,7 @@ const TSWeekGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, isManager
     </Card>
   );
 };
+
 
 // ── TimesheetPage v2 ──────────────────────────────────────────────────────────
 const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimesheet,toast,userList}) => {
