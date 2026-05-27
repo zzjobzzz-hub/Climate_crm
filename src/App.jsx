@@ -538,6 +538,8 @@ const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a 
   const [replyText, setReplyText] = useState({});
   const [replyEditId,  setReplyEditId]  = useState(null);  // "logId:replyId"
   const [replyEditText,setReplyEditText]= useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // logId pending delete
+  const [replyDeleteConfirm, setReplyDeleteConfirm] = useState(null); // "logId:replyId"
   const findUser = id => users.find(x=>x.id===id) || USERS.find(x=>x.id===id);
   const allUsers = users.length > 0 ? users : USERS;
 
@@ -591,7 +593,14 @@ const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a 
                   {(onEdit||onDelete)&&<div style={{marginLeft:"auto",display:"flex",gap:4}}>
                     <button onClick={()=>setReplyOpen(p=>({...p,[l.id]:!p[l.id]}))} style={{border:"none",background:"none",cursor:"pointer",color:"#1e40af",fontSize:13,padding:"0 4px",lineHeight:1}} title="Reply">↩</button>
                     {onEdit&&<button onClick={()=>{setEditId(l.id);setEditText(l.note);}} style={{border:"none",background:"none",cursor:"pointer",color:"#94a3b8",fontSize:12,padding:"0 3px",lineHeight:1}} title="Edit">✎</button>}
-                    {onDelete&&<button onClick={()=>{if(!window.confirm("Delete this log entry?"))return;onDelete(l.id);}} style={{border:"none",background:"none",cursor:"pointer",color:"#fca5a5",fontSize:12,padding:"0 3px",lineHeight:1}} title="Delete">✕</button>}
+                    {onDelete&&(deleteConfirm===l.id
+                      ? <span style={{display:"flex",gap:3,alignItems:"center"}}>
+                          <span style={{fontSize:10,color:"#ef4444",fontWeight:600,whiteSpace:"nowrap"}}>Delete?</span>
+                          <button onClick={()=>{onDelete(l.id);setDeleteConfirm(null);}} style={{border:"none",background:"#ef4444",color:"#fff",borderRadius:3,padding:"1px 6px",cursor:"pointer",fontSize:10,fontWeight:700}}>Yes</button>
+                          <button onClick={()=>setDeleteConfirm(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:3,padding:"1px 6px",cursor:"pointer",fontSize:10,color:"#64748b"}}>No</button>
+                        </span>
+                      : <button onClick={()=>setDeleteConfirm(l.id)} style={{border:"none",background:"none",cursor:"pointer",color:"#fca5a5",fontSize:12,padding:"0 3px",lineHeight:1}} title="Delete">✕</button>
+                    )}
                   </div>}
                 </div>
                 {editId===l.id
@@ -624,11 +633,18 @@ const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a 
                                       style={{border:"none",background:"none",cursor:"pointer",color:"#94a3b8",fontSize:11,padding:"0 3px",lineHeight:1}} title="Edit reply">✎</button>
                                   )}
                                   {(r.author===currentUser.id||onDelete) && onEdit && (
-                                    <button onClick={()=>{
-                                      if(!window.confirm("Delete this reply?")) return;
-                                      const updatedReplies = (l.replies||[]).filter(x=>x.id!==r.id);
-                                      onEdit(l.id, l.note, updatedReplies);
-                                    }} style={{border:"none",background:"none",cursor:"pointer",color:"#fca5a5",fontSize:11,padding:"0 3px",lineHeight:1}} title="Delete reply">✕</button>
+                                    replyDeleteConfirm===`${l.id}:${r.id}`
+                                    ? <span style={{display:"flex",gap:3,alignItems:"center"}}>
+                                        <span style={{fontSize:10,color:"#ef4444",fontWeight:600,whiteSpace:"nowrap"}}>Delete?</span>
+                                        <button onClick={()=>{
+                                          const updatedReplies=(l.replies||[]).filter(x=>x.id!==r.id);
+                                          onEdit(l.id,l.note,updatedReplies);
+                                          setReplyDeleteConfirm(null);
+                                        }} style={{border:"none",background:"#ef4444",color:"#fff",borderRadius:3,padding:"1px 6px",cursor:"pointer",fontSize:10,fontWeight:700}}>Yes</button>
+                                        <button onClick={()=>setReplyDeleteConfirm(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:3,padding:"1px 6px",cursor:"pointer",fontSize:10,color:"#64748b"}}>No</button>
+                                      </span>
+                                    : <button onClick={()=>setReplyDeleteConfirm(`${l.id}:${r.id}`)}
+                                        style={{border:"none",background:"none",cursor:"pointer",color:"#fca5a5",fontSize:11,padding:"0 3px",lineHeight:1}} title="Delete reply">✕</button>
                                   )}
                                 </div>
                               )}
@@ -4723,7 +4739,9 @@ const stripJsonSuffix = obj => {
             {/* Notification Bell */}
             <div ref={bellRef} style={{position:"relative"}}>
               <button onClick={()=>sBellOpen(p=>!p)} style={{position:"relative",border:"none",borderRadius:6,background:"none",padding:"4px 6px",cursor:"pointer",fontSize:18,lineHeight:1,display:"flex",alignItems:"center"}}>
-                🔔
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{color:"#0f172a",display:"block"}}>
+                  <path d="M12 2C10.9 2 10 2.9 10 4c0 .1 0 .2.01.3A7.002 7.002 0 0 0 5 11v5l-2 2v1h18v-1l-2-2v-5a7.002 7.002 0 0 0-5.01-6.7C13.99 4.2 14 4.1 14 4c0-1.1-.9-2-2-2zm0 20c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2z"/>
+                </svg>
                 {unreadCount>0&&<span style={{position:"absolute",top:-4,right:-4,background:"#ef4444",color:"#fff",borderRadius:"50%",fontSize:9,fontWeight:900,minWidth:16,height:16,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadCount>9?"9+":unreadCount}</span>}
               </button>
               {bellOpen&&(
