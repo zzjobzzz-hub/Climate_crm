@@ -529,6 +529,91 @@ const RenderMentionText = ({text, users=[]}) => {
   );
 };
 
+// ── NoteLog: plain-text append log with ✎ edit + ✕ delete per entry ──
+const NoteLog = ({value, onChange, user, placeholder="Add note… (Enter to save)"}) => {
+  const [input,    setInput]   = useState("");
+  const [editIdx,  setEditIdx] = useState(null);
+  const [editText, setEditText]= useState("");
+  const [delIdx,   setDelIdx]  = useState(null);
+
+  const lines = (value||"").split("\n").filter(Boolean);
+
+  const addLine = () => {
+    if(!input.trim()) return;
+    const entry = `[${nowTS()} · ${user.name}] ${input.trim()}`;
+    onChange(value ? value+"\n"+entry : entry);
+    setInput("");
+  };
+
+  const deleteLine = idx => {
+    onChange(lines.filter((_,i)=>i!==idx).join("\n"));
+    setDelIdx(null);
+  };
+
+  const saveEdit = idx => {
+    if(!editText.trim()) return;
+    const m = lines[idx].match(/^(\[[^\]]+\])\s*(.*)/);
+    const prefix = m ? m[1]+" " : "";
+    const updated = lines.map((l,i)=>i===idx ? prefix+editText.trim() : l);
+    onChange(updated.join("\n"));
+    setEditIdx(null);
+  };
+
+  return (
+    <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
+      {[...lines].reverse().map((line,ri)=>{
+        const origIdx = lines.length-1-ri;
+        const m = line.match(/^\[([^\]]+)\]\s*(.*)/);
+        const meta = m?m[1]:""; const body = m?m[2]:line;
+        const datePart = meta.split("·")[0].trim();
+        const authorPart = meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
+        const isEditing = editIdx===origIdx;
+        const isDeleting = delIdx===origIdx;
+        return (
+          <div key={origIdx} style={{padding:"6px 8px 6px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa"}}>
+            <div style={{display:"flex",alignItems:"flex-start",gap:6}}>
+              <div style={{flex:1,lineHeight:1.5}}>
+                <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
+                {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
+                {!isEditing&&<span>{body}</span>}
+              </div>
+              {!isEditing&&!isDeleting&&(
+                <div style={{display:"flex",gap:2,flexShrink:0}}>
+                  <button onClick={()=>{setEditIdx(origIdx);setEditText(body);setDelIdx(null);}}
+                    style={{border:"none",background:"none",cursor:"pointer",color:"#94a3b8",fontSize:12,padding:"0 3px",lineHeight:1}} title="Edit">✎</button>
+                  <button onClick={()=>{setDelIdx(origIdx);setEditIdx(null);}}
+                    style={{border:"none",background:"none",cursor:"pointer",color:"#fca5a5",fontSize:12,padding:"0 3px",lineHeight:1}} title="Delete">✕</button>
+                </div>
+              )}
+              {isDeleting&&(
+                <span style={{display:"flex",gap:3,alignItems:"center",flexShrink:0}}>
+                  <span style={{fontSize:10,color:"#ef4444",fontWeight:600,whiteSpace:"nowrap"}}>Delete?</span>
+                  <button onClick={()=>deleteLine(origIdx)} style={{border:"none",background:"#ef4444",color:"#fff",borderRadius:3,padding:"1px 6px",cursor:"pointer",fontSize:10,fontWeight:700}}>Yes</button>
+                  <button onClick={()=>setDelIdx(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:3,padding:"1px 6px",cursor:"pointer",fontSize:10,color:"#64748b"}}>No</button>
+                </span>
+              )}
+            </div>
+            {isEditing&&(
+              <div style={{display:"flex",gap:6,marginTop:4}}>
+                <input autoFocus value={editText} onChange={e=>setEditText(e.target.value)}
+                  onKeyDown={e=>{if(e.key==="Enter"){saveEdit(origIdx);}if(e.key==="Escape")setEditIdx(null);}}
+                  style={{flex:1,fontSize:12,padding:"3px 8px",border:"1px solid #3b82f6",borderRadius:4,outline:"none"}}/>
+                <button onClick={()=>saveEdit(origIdx)} style={{border:"none",background:"#3b82f6",color:"#fff",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontSize:11}}>Save</button>
+                <button onClick={()=>setEditIdx(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:4,padding:"3px 6px",cursor:"pointer",fontSize:11,color:"#64748b"}}>✕</button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      <div style={{display:"flex"}}>
+        <Inp value={input} onChange={e=>setInput(e.target.value)} placeholder={placeholder}
+          onKeyDown={e=>{if(e.key==="Enter"&&input.trim()){addLine();e.preventDefault();}}}
+          style={{borderRadius:0,background:"#fff",flex:1,border:"none",borderTop:lines.length?"1px solid #f1f5f9":"none"}}/>
+      </div>
+    </div>
+  );
+};
+
 //  Activity log 
 const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a note…",users=[],onMentionNotify,context="",recordId=""}) => {
   const [note,sN] = useState("");
@@ -590,35 +675,13 @@ const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a 
                 <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:3,flexWrap:"wrap"}}>
                   <Span s={12} w={700} c="#0f172a">{u?.name||l.author}</Span>
                   <span style={{background:"#f1f5f9",color:"#64748b",fontSize:10,padding:"1px 6px",borderRadius:3,fontFamily:"monospace"}}>{l.ts}</span>
-                  {(onEdit||onDelete)&&<div style={{marginLeft:"auto",display:"flex",gap:4}}>
-                    <button onClick={()=>setReplyOpen(p=>({...p,[l.id]:!p[l.id]}))} style={{border:"none",background:"none",cursor:"pointer",color:"#1e40af",fontSize:13,padding:"0 4px",lineHeight:1}} title="Reply">↩</button>
-                    {onEdit&&<button onClick={()=>{setEditId(l.id);setEditText(l.note);}} style={{border:"none",background:"none",cursor:"pointer",color:"#94a3b8",fontSize:12,padding:"0 3px",lineHeight:1}} title="Edit">✎</button>}
-                    {onDelete&&(deleteConfirm===l.id
-                      ? <span style={{display:"flex",gap:3,alignItems:"center"}}>
-                          <span style={{fontSize:10,color:"#ef4444",fontWeight:600,whiteSpace:"nowrap"}}>Delete?</span>
-                          <button onClick={()=>{onDelete(l.id);setDeleteConfirm(null);}} style={{border:"none",background:"#ef4444",color:"#fff",borderRadius:3,padding:"1px 6px",cursor:"pointer",fontSize:10,fontWeight:700}}>Yes</button>
-                          <button onClick={()=>setDeleteConfirm(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:3,padding:"1px 6px",cursor:"pointer",fontSize:10,color:"#64748b"}}>No</button>
-                        </span>
-                      : <button onClick={()=>setDeleteConfirm(l.id)} style={{border:"none",background:"none",cursor:"pointer",color:"#fca5a5",fontSize:12,padding:"0 3px",lineHeight:1}} title="Delete">✕</button>
-                    )}
-                  </div>}
                 </div>
-                {editId===l.id
-                  ? <div style={{display:"flex",gap:6,marginTop:4}}>
-                      <input autoFocus value={editText} onChange={e=>setEditText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){onEdit(l.id,editText,l.replies);setEditId(null);}if(e.key==="Escape")setEditId(null);}} style={{flex:1,fontSize:13,padding:"4px 8px",border:"1px solid #3b82f6",borderRadius:4,outline:"none"}}/>
-                      <button onClick={()=>{onEdit(l.id,editText,l.replies);setEditId(null);}} style={{border:"none",background:"#3b82f6",color:"#fff",borderRadius:4,padding:"4px 10px",cursor:"pointer",fontSize:12}}>Save</button>
-                      <button onClick={()=>setEditId(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:12,color:"#64748b"}}>✕</button>
-                    </div>
-                  : <div style={{fontSize:13,color:"#374151",lineHeight:1.5}}><RenderMentionText text={l.note} users={allUsers}/></div>
-                }
+                <div style={{fontSize:13,color:"#374151",lineHeight:1.5}}><RenderMentionText text={l.note} users={allUsers}/></div>
                 {/* Replies */}
                 {(l.replies||[]).length > 0 && (
                   <div style={{marginTop:8,paddingLeft:14,borderLeft:"2px solid #e2e8f0",display:"flex",flexDirection:"column",gap:6}}>
                     {(l.replies||[]).map(r => {
                       const ru = findUser(r.author);
-                      const rEditKey = `${l.id}:${r.id}`;
-                      const isEditingReply = replyEditId === rEditKey;
-                      const canActReply = r.author === currentUser.id || onDelete;
                       return (
                         <div key={r.id} style={{display:"flex",gap:6,alignItems:"flex-start"}}>
                           <div style={{width:22,height:22,background:"#334155",color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,flexShrink:0}}>{(ru?.name||"?")[0]}</div>
@@ -626,73 +689,12 @@ const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a 
                             <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginBottom:2}}>
                               <Span s={11} w={700} c="#0f172a">{ru?.name||r.author}</Span>
                               <span style={{fontSize:9,color:"#94a3b8",fontFamily:"monospace"}}>{r.ts}</span>
-                              {canActReply && !isEditingReply && (
-                                <div style={{marginLeft:"auto",display:"flex",gap:2}}>
-                                  {r.author===currentUser.id && onEdit && (
-                                    <button onClick={()=>{setReplyEditId(rEditKey);setReplyEditText(r.note);}}
-                                      style={{border:"none",background:"none",cursor:"pointer",color:"#94a3b8",fontSize:11,padding:"0 3px",lineHeight:1}} title="Edit reply">✎</button>
-                                  )}
-                                  {(r.author===currentUser.id||onDelete) && onEdit && (
-                                    replyDeleteConfirm===`${l.id}:${r.id}`
-                                    ? <span style={{display:"flex",gap:3,alignItems:"center"}}>
-                                        <span style={{fontSize:10,color:"#ef4444",fontWeight:600,whiteSpace:"nowrap"}}>Delete?</span>
-                                        <button onClick={()=>{
-                                          const updatedReplies=(l.replies||[]).filter(x=>x.id!==r.id);
-                                          onEdit(l.id,l.note,updatedReplies);
-                                          setReplyDeleteConfirm(null);
-                                        }} style={{border:"none",background:"#ef4444",color:"#fff",borderRadius:3,padding:"1px 6px",cursor:"pointer",fontSize:10,fontWeight:700}}>Yes</button>
-                                        <button onClick={()=>setReplyDeleteConfirm(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:3,padding:"1px 6px",cursor:"pointer",fontSize:10,color:"#64748b"}}>No</button>
-                                      </span>
-                                    : <button onClick={()=>setReplyDeleteConfirm(`${l.id}:${r.id}`)}
-                                        style={{border:"none",background:"none",cursor:"pointer",color:"#fca5a5",fontSize:11,padding:"0 3px",lineHeight:1}} title="Delete reply">✕</button>
-                                  )}
-                                </div>
-                              )}
                             </div>
-                            {isEditingReply
-                              ? <div style={{display:"flex",gap:6,marginTop:2}}>
-                                  <input autoFocus value={replyEditText}
-                                    onChange={e=>setReplyEditText(e.target.value)}
-                                    onKeyDown={e=>{
-                                      if(e.key==="Enter"){
-                                        const updatedReplies=(l.replies||[]).map(x=>x.id===r.id?{...x,note:replyEditText}:x);
-                                        onEdit(l.id,l.note,updatedReplies);
-                                        setReplyEditId(null);
-                                      }
-                                      if(e.key==="Escape") setReplyEditId(null);
-                                    }}
-                                    style={{flex:1,fontSize:12,padding:"3px 7px",border:"1px solid #3b82f6",borderRadius:4,outline:"none"}}/>
-                                  <button onClick={()=>{
-                                    const updatedReplies=(l.replies||[]).map(x=>x.id===r.id?{...x,note:replyEditText}:x);
-                                    onEdit(l.id,l.note,updatedReplies);
-                                    setReplyEditId(null);
-                                  }} style={{border:"none",background:"#3b82f6",color:"#fff",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontSize:11}}>Save</button>
-                                  <button onClick={()=>setReplyEditId(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:4,padding:"3px 6px",cursor:"pointer",fontSize:11,color:"#64748b"}}>✕</button>
-                                </div>
-                              : <div style={{fontSize:12,color:"#374151"}}><RenderMentionText text={r.note} users={allUsers}/></div>
-                            }
+                            <div style={{fontSize:12,color:"#374151"}}><RenderMentionText text={r.note} users={allUsers}/></div>
                           </div>
                         </div>
                       );
                     })}
-                  </div>
-                )}
-                {replyOpen[l.id] && (
-                  <div style={{marginTop:6,paddingLeft:42,display:"flex",gap:6,alignItems:"flex-end"}}>
-                    <div style={{flex:1}}>
-                      <MentionTextarea
-                        autoFocus
-                        value={replyText[l.id]||""}
-                        onChange={v=>setReplyText(p=>({...p,[l.id]:v}))}
-                        onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();submitReply(l.id);}if(e.key==="Escape")setReplyOpen(p=>({...p,[l.id]:false}));}}
-                        placeholder="Reply… (@mention, Enter to send)"
-                        style={{fontSize:12,padding:"4px 8px",border:"1px solid #bfdbfe",borderRadius:4,background:"#f8fbff",minHeight:0}}
-                        users={allUsers}
-                        minHeight={30}
-                      />
-                    </div>
-                    <button onClick={()=>submitReply(l.id)} style={{padding:"4px 10px",background:"#0f172a",color:"#fff",border:"none",borderRadius:4,fontSize:11,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap",height:30}}>Send</button>
-                    <button onClick={()=>setReplyOpen(p=>({...p,[l.id]:false}))} style={{border:"none",background:"none",cursor:"pointer",color:"#94a3b8",fontSize:13,lineHeight:1,padding:"0 2px",height:30}}>✕</button>
                   </div>
                 )}
               </div>
@@ -1500,9 +1502,12 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
               <TD style={{color:getLastContact(c.id)?"#374151":"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{getLastContact(c.id)||"—"}</TD>
               <TD style={{color:"#64748b",fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.remark||"—"}</TD>
               <TD><button onClick={e=>{e.stopPropagation();sLog(c);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11}}> {safeArr(c.workLog).length}</button></TD>
-              <TD style={{overflow:"visible",whiteSpace:"nowrap"}}>
-                <Btn variant="ghost" style={{fontSize:11,padding:"3px 8px"}} onClick={e=>{e.stopPropagation();sE(c);sF(true);}}>Edit</Btn>
-              </TD>
+                <TD style={{overflow:"visible",whiteSpace:"nowrap"}}>
+                  <button onClick={e=>{e.stopPropagation();sE(c);sF(true);}}
+                    onMouseEnter={e=>{e.target.style.color="#0f172a";e.target.style.textDecoration="underline";}}
+                    onMouseLeave={e=>{e.target.style.color="#94a3b8";e.target.style.textDecoration="none";}}
+                    style={{border:"none",background:"none",cursor:"pointer",fontSize:11,fontWeight:600,color:"#94a3b8",letterSpacing:"0.06em",textTransform:"uppercase",padding:"3px 4px"}}>Edit</button>
+                </TD>
             </TR>
           ))}</tbody>
         </table>
@@ -2168,30 +2173,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
             {isLost&&<div style={{gridColumn:"1/-1"}}><FRow label=" Lost Reason"><Sel value={f.lostReason} onChange={e=>set("lostReason",e.target.value)}><option value="">— Select Reason —</option>{LOST_REASONS.map(r=><option key={r}>{r}</option>)}</Sel></FRow></div>}
             <div style={{gridColumn:"1/-1"}}>
               <FRow label="Note Log">
-                <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-                  {f.remark&&(()=>{
-                    const lines=f.remark.split("\n").filter(Boolean);
-                    return [...lines].reverse().map((line,i)=>{
-                      const origIdx=lines.length-1-i;
-                      const m=line.match(/^\[([^\]]+)\]\s*(.*)/);
-                      const meta=m?m[1]:""; const body=m?m[2]:line;
-                      const datePart=meta.split("·")[0].trim(); const authorPart=meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
-                      return(
-                      <div key={origIdx} style={{padding:"5px 8px 5px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"flex-start",gap:6}}>
-                        <div style={{flex:1,lineHeight:1.5}}>
-                          <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
-                          {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
-                          <span>{body}</span>
-                        </div>
-                        <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
-                      </div>
-                    );});
-                  })()}                  <div style={{display:"flex",gap:0}}>
-                    <Inp value={noteInput} onChange={e=>sNoteInput(e.target.value)} placeholder="Add entry… (Enter to save)"
-                      onKeyDown={e=>{if(e.key==="Enter"&&noteInput.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);sNoteInput("");}}}
-                      style={{borderRadius:0,background:"#fff",flex:1,border:"none",borderTop:"1px solid #f1f5f9"}}/>
-                  </div>
-                </div>
+                <NoteLog value={f.remark} onChange={v=>set("remark",v)} user={user} placeholder="Add entry… (Enter to save)"/>
               </FRow>
             </div>
           </G2>
@@ -2477,7 +2459,10 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
               <TD>{oRank?<span style={{background:RANK_CLR[oRank]?.bg||"#f1f5f9",color:RANK_CLR[oRank]?.c||"#64748b",padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{oRank}</span>:"—"}</TD>
               <TD>{(()=>{const sr=calcSuccessRate(o);const clr=successRateColor(sr);return(<div style={{minWidth:72}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}><span style={{fontSize:11,fontWeight:800,color:clr}}>{sr}%</span></div><div style={{height:4,background:"#e2e8f0",borderRadius:99,overflow:"hidden"}}><div style={{height:"100%",width:`${sr}%`,background:clr,borderRadius:99}}/></div></div>);})()}</TD>
               <TD><button onClick={e=>{e.stopPropagation();sLog(o);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11}}> {o.activityLog?.length||0}</button></TD>
-              <TD><Btn variant="ghost" style={{fontSize:11,padding:"3px 10px"}} onClick={e=>{e.stopPropagation();sE(o);sF(true);}}>Edit</Btn></TD>
+              <TD><button onClick={e=>{e.stopPropagation();sE(o);sF(true);}}
+                onMouseEnter={e=>{e.target.style.color="#0f172a";e.target.style.textDecoration="underline";}}
+                onMouseLeave={e=>{e.target.style.color="#94a3b8";e.target.style.textDecoration="none";}}
+                style={{border:"none",background:"none",cursor:"pointer",fontSize:11,fontWeight:600,color:"#94a3b8",letterSpacing:"0.06em",textTransform:"uppercase",padding:"3px 4px"}}>Edit</button></TD>
             </TR>
           );})}
           </tbody>
@@ -2689,31 +2674,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
             <FRow label="Assigned Agent"><Sel value={f.assignedTo} onChange={e=>set("assignedTo",e.target.value)}>{USERS.filter(u=>u.role!=="operation").map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</Sel></FRow>
             <div style={{gridColumn:"1/-1"}}>
               <FRow label="Note Log">
-                <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-                  {f.remark&&(()=>{
-                    const lines=f.remark.split("\n").filter(Boolean);
-                    return [...lines].reverse().map((line,i)=>{
-                      const origIdx=lines.length-1-i;
-                      const m=line.match(/^\[([^\]]+)\]\s*(.*)/);
-                      const meta=m?m[1]:""; const body=m?m[2]:line;
-                      const datePart=meta.split("·")[0].trim(); const authorPart=meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
-                      return(
-                      <div key={origIdx} style={{padding:"5px 8px 5px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"flex-start",gap:6}}>
-                        <div style={{flex:1,lineHeight:1.5}}>
-                          <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
-                          {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
-                          <span>{body}</span>
-                        </div>
-                        <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
-                      </div>
-                    );});
-                  })()}
-                  <div style={{display:"flex",gap:0}}>
-                    <Inp value={noteInput} onChange={e=>sNoteInput(e.target.value)} placeholder={`Add note… (${today()})`}
-                      onKeyDown={e=>{if(e.key==="Enter"&&noteInput.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);sNoteInput("");}}}
-                      style={{borderRadius:0,background:"#fff",flex:1,border:"none",borderTop:"1px solid #f1f5f9"}}/>
-                  </div>
-                </div>
+                <NoteLog value={f.remark} onChange={v=>set("remark",v)} user={user} placeholder={`Add note… (${today()})`}/>
               </FRow>
             </div>
           </G2>
