@@ -776,7 +776,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     },0);
   },[deliveries]);
 
-  // Invoice Received: sum of installment.amount where invoiceDate is in the current CE year AND status="Received"
+  // Invoiced: sum of installment.amount where invoiceDate is in the current CE year AND status="Received"
   const invoiceReceived = useMemo(()=>{
     const ceYear = new Date().getFullYear();
     const prefix = String(ceYear);
@@ -881,7 +881,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
       background:"#1e293b",color:"#fff",borderRadius:8,padding:"10px 14px",
       boxShadow:"0 4px 20px rgba(0,0,0,0.25)",minWidth:220,pointerEvents:"none"}}>
       <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>
-        Invoice Received {new Date().getFullYear()}
+        Invoiced {new Date().getFullYear()}
       </div>
       {invoiceBreakdown.map(([name,amt])=>(
         <div key={name} style={{display:"flex",justifyContent:"space-between",gap:16,marginBottom:3}}>
@@ -1060,7 +1060,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
             <SC label="Customers"        val={customers.length}           sub={`${customers.filter(c=>c.ranking==="High").length} High Priority`}/>
             <SC label="Revenue"          val={`฿${fmtM(revenue)}`}       sub={`Expected ${new Date().getFullYear()}`} c="#0ea5e9"/>
             <SC label="Won YTD"          val={`฿${fmtM(totalWon)}`}      sub={`${wonOpps.length} deals closed`} c="#16a34a"/>
-            <SC label="Invoice Received" val={`฿${fmtM(invoiceReceived)}`} sub={`By invoice date ${new Date().getFullYear()}`} c="#f59e0b" tooltip/>
+            <SC label="Invoiced" val={`฿${fmtM(invoiceReceived)}`} sub={`By invoice date ${new Date().getFullYear()}`} c="#f59e0b" tooltip/>
             <SC label="Opportunities"    val={`฿${fmtM(oppsPipeline)}`}  sub={`${oppsPipelineCount} deals active`} c="#a78bfa"/>
             <SC label="Pipeline"         val={`฿${fmtM(pipeline)}`}      sub={`${filteredOpps.filter(o=>!["Won","Lost"].includes(o.status)).length} active`}/>
           </div>
