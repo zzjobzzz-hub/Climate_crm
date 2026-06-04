@@ -742,7 +742,14 @@ const StepProgress = ({steps,current,onStep}) => {
   );
 };
 
-const ExportBar = ({onCSV,onGS}) => <div style={{display:"flex",gap:6}}><Btn variant="export" onClick={onCSV}>↓ CSV</Btn><Btn variant="export" onClick={onGS}> GS</Btn></div>;
+const DlIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{display:"inline-block",verticalAlign:"middle",marginRight:4}}>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+    <polyline points="7 10 12 15 17 10"/>
+    <line x1="12" y1="15" x2="12" y2="3"/>
+  </svg>
+);
+const ExportBar = ({onCSV,onGS}) => <div style={{display:"flex",gap:6}}><Btn variant="export" onClick={onCSV}><DlIcon/>CSV</Btn><Btn variant="export" onClick={onGS}> GS</Btn></div>;
 const GSGuideModal = ({module,headers,onClose}) => (
   <Modal title={`Google Sheets Guide — ${module}`} width={600} onClose={onClose}>
     <FRow label="Tab Name"><div style={{fontFamily:"monospace",padding:"6px 10px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:5,fontWeight:700}}>{module}</div></FRow>
@@ -1417,7 +1424,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div><Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Customers</Span><Span s={13} c="#94a3b8" style={{marginLeft:8}}>{list.length} records</Span></div>
-        <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("customers.csv",CUST_HDR,list.map(c=>[c.id,c.companyEN,c.industry,c.province,(c.contacts||[]).map(ct=>ct.name).join("; "),USERS.find(u=>u.id===c.assignedTo)?.name||c.assignedTo,c.ranking,c.status,getLastContact(c.id),c.remark||""]))}>↓ CSV</Btn><Btn onClick={()=>{sE(null);sF(true);}}>+ Add Customer</Btn></div>
+        <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("customers.csv",CUST_HDR,list.map(c=>[c.id,c.companyEN,c.industry,c.province,(c.contacts||[]).map(ct=>ct.name).join("; "),USERS.find(u=>u.id===c.assignedTo)?.name||c.assignedTo,c.ranking,c.status,getLastContact(c.id),c.remark||""]))}><DlIcon/>CSV</Btn><Btn onClick={()=>{sE(null);sF(true);}}>+ Add Customer</Btn></div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
         <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:220}}/>
@@ -2404,7 +2411,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div><Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Opportunities</Span><Span s={13} c="#94a3b8" style={{marginLeft:8}}>{list.length} · Pipeline ฿{fmtM(totalPipeline)} · Won ฿{fmtM(totalWon)}</Span></div>
-        <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("opps.csv",OPP_HDR,list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);return[o.oppCode,o.quoteNo,o.csCode||"",o.jobCode||"",c?.companyEN||"",o.serviceCode,o.serviceType,o.salesPrice,o.totalCost||0,mg,marginAmt(o.salesPrice,o.totalCost||0),o.status,USERS.find(u=>u.id===o.assignedTo)?.name||"",o.createdDate,o.lostReason||""];}))}>↓ CSV</Btn></div>
+        <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("opps.csv",OPP_HDR,list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);return[o.oppCode,o.quoteNo,o.csCode||"",o.jobCode||"",c?.companyEN||"",o.serviceCode,o.serviceType,o.salesPrice,o.totalCost||0,mg,marginAmt(o.salesPrice,o.totalCost||0),o.status,USERS.find(u=>u.id===o.assignedTo)?.name||"",o.createdDate,o.lostReason||""];}))}><DlIcon/>CSV</Btn></div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:200,minWidth:140}}/>
@@ -3023,7 +3030,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div><Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Delivery</Span><Span s={13} c="#94a3b8" style={{marginLeft:8}}>{list.length} contracts</Span></div>
-        <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=(d.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}>↓ CSV</Btn></div>
+        <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=(d.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}><DlIcon/>CSV</Btn></div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:200,minWidth:140}}/>
@@ -3770,7 +3777,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                       <span style={{fontSize:12,color:'#94a3b8',whiteSpace:'nowrap'}}>{l.ts}</span>
                       <span style={{fontSize:12,fontWeight:700,fontFamily:'monospace',color:'#92400e',background:'#fef3c7',padding:'2px 8px',borderRadius:4,border:'1px solid #fde68a'}}>{l.quoteSnapshot.csCode}</span>
                       <span style={{fontSize:12,color:'#374151',flex:1}}>{l.quoteSnapshot.quoteNo} {customers.find(c=>c.id===l.quoteSnapshot.custId)?.companyEN||l.quoteSnapshot.custId}</span>
-                      <Btn style={{fontSize:12,padding:'4px 14px',background:'#0f172a',color:'#fff',border:'none'}} onClick={e=>{e.stopPropagation();
+                      <Btn variant='ghost' style={{fontSize:12,padding:'4px 12px',color:'#374151',borderColor:'#e2e8f0'}} onClick={e=>{e.stopPropagation();
                         sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid()}]}));
                         const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} for editing`};
                         sECS(p=>({...p,saveLog:[...(p.saveLog||[]),logEntry]}));
@@ -4210,6 +4217,8 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
   const [open,      setOpen]     = useState(false);
   // key = "taskId:agentUid"
   const [actualMap, setActualMap]= useState({});
+  // key = "taskId:agentUid_year_month_week"
+  const [weekMap,   setWeekMap]  = useState({});
 
   const tasks      = useMemo(() => safeArr(snapshot?.tasks || []), [snapshot]);
   const opexMonths = useMemo(() => getOPEXMonths(tasks, null), [tasks]);
@@ -4217,12 +4226,16 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
   const totalCols  = 2 + weekCols.length + 1; // # + name + weeks + hrs
 
   useEffect(() => {
-    const map = {};
+    const aMap = {};
+    const wMap = {};
     (tsRows || []).forEach(r => {
       if(String(r.week) === "0" && r.taskId && r.agentUid)
-        map[`${r.taskId}:${r.agentUid}`] = +(r.actualHours || 0);
+        aMap[`${r.taskId}:${r.agentUid}`] = +(r.actualHours || 0);
+      if(+(r.week) > 0 && r.taskId && r.agentUid && r.weekSelected)
+        wMap[`${r.taskId}:${r.agentUid}_${r.year}_${r.month}_${r.week}`] = true;
     });
-    setActualMap(map);
+    setActualMap(aMap);
+    setWeekMap(wMap);
   }, [tsRows, opp.oppCode]);
 
   const getAgents = task =>
@@ -4254,10 +4267,18 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
   const setActual = (taskId, agentUid, v) =>
     setActualMap(p => ({...p, [`${taskId}:${agentUid}`]: v}));
 
+  const isWeekOn  = (taskId, agentUid, year, month, week) =>
+    !!weekMap[`${taskId}:${agentUid}_${year}_${month}_${week}`];
+  const toggleWeek = (taskId, agentUid, year, month, week) => {
+    const k = `${taskId}:${agentUid}_${year}_${month}_${week}`;
+    setWeekMap(p => ({...p, [k]: !p[k]}));
+  };
+
   const handleSave = () => {
     const now = nowTS();
     tasks.forEach(task => {
       getAgents(task).forEach(agent => {
+        // Total row (week=0) — actual hours
         onSave({
           id:          `${opp.oppCode}_${task.id}_${agent.uid}_total`,
           oppCode:     opp.oppCode,  jobCode: opp.jobCode,
@@ -4267,6 +4288,20 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
           planHours:   getAgentPlanTotal(task, agent),
           actualHours: getActual(task.id, agent.uid),
           savedTs:     now,          savedBy: user.id,
+        });
+        // Per-week rows — week selection boxes
+        weekCols.forEach(col => {
+          if(!isWeekOn(task.id, agent.uid, col.year, col.month, col.week)) return;
+          onSave({
+            id:          `${opp.oppCode}_${task.id}_${agent.uid}_${col.year}_${col.month}_${col.week}`,
+            oppCode:     opp.oppCode,  jobCode: opp.jobCode,
+            taskId:      task.id,      taskName: task.taskName || "",
+            agentUid:    agent.uid,    year: col.year,
+            month:       col.month,    week: col.week,
+            planHours:   0,            actualHours: 0,
+            weekSelected: true,
+            savedTs:     now,          savedBy: user.id,
+          });
         });
       });
     });
@@ -4376,11 +4411,8 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
                     {agents.map((agent, ai) => {
                       const u           = USERS.find(x => x.id === agent.uid);
                       const agentName   = u?.name || agent.uid;
-                      const agentPlan   = getAgentPlanTotal(task, agent);
                       const agentActual = getActual(task.id, agent.uid);
                       const hasAg       = agentActual > 0;
-                      const agWeekCount = weekCols.filter(c => getAgentWeekPlan(task,agent,c) > 0).length || 1;
-                      const agActPerWk  = hasAg ? agentActual / agWeekCount : 0;
                       const role   = (agent.manager||0)>0?"M":(agent.senior||0)>0?"S":"J";
                       const roleC  = role==="M"?"#1e40af":role==="S"?"#7c3aed":"#16a34a";
                       const roleBg = role==="M"?"#dbeafe":role==="S"?"#ede9fe":"#dcfce7";
@@ -4398,17 +4430,29 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
                           </td>
                           {weekCols.map((col, ci) => {
                             const planH = getAgentWeekPlan(task, agent, col);
-                            const actH  = hasAg && planH > 0 ? agActPerWk : 0;
-                            const aBarW = actH > 0 ? Math.max(2, Math.round((actH / maxCellPlan) * BAR_MAX)) : 0;
-                            const pBarW = planH > 0 ? Math.max(3, Math.round((planH / maxCellPlan) * BAR_MAX)) : 0;
+                            const on    = isWeekOn(task.id, agent.uid, col.year, col.month, col.week);
                             return (
-                              <td key={ci} style={{padding:"4px 5px", borderLeft:col.week===1?"2px solid #e2e8f0":"none", verticalAlign:"middle"}}>
-                                {planH > 0 && (
-                                  <div style={{width: hasAg ? Math.max(2,aBarW) : pBarW, height:5, borderRadius:2,
-                                    background: hasAg ? "#3b82f6" : "#e2e8f0",
-                                    opacity: hasAg ? 1 : 0.4}}
-                                    title={hasAg ? `Actual ~${Math.round(actH*10)/10}h` : "No actual entered"}/>
-                                )}
+                              <td key={ci} style={{padding:"3px 4px", borderLeft:col.week===1?"2px solid #e2e8f0":"none", verticalAlign:"middle", textAlign:"center"}}>
+                                {planH > 0
+                                  ? <button
+                                      onClick={() => canEdit && toggleWeek(task.id, agent.uid, col.year, col.month, col.week)}
+                                      title={on ? "Planned — click to unplan" : "Click to plan this week"}
+                                      style={{
+                                        width:20, height:20, borderRadius:4, padding:0,
+                                        border:`1.5px solid ${on?"#3b82f6":"#d1d5db"}`,
+                                        background: on ? "#3b82f6" : "#fff",
+                                        cursor: canEdit ? "pointer" : "default",
+                                        display:"inline-flex", alignItems:"center", justifyContent:"center",
+                                        flexShrink:0, transition:"all .1s",
+                                      }}>
+                                      {on && (
+                                        <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                          <polyline points="2,6 5,9 10,3"/>
+                                        </svg>
+                                      )}
+                                    </button>
+                                  : null
+                                }
                               </td>
                             );
                           })}
@@ -4470,7 +4514,6 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
   const canToggle  = !isManager && !isOp; // sales/admin can toggle
   const [viewMode, setViewMode] = useState(isManager?"manager":isOp?"agent":"manager");
   const effectiveIsManager = viewMode==="manager";
-  const [tsView,   setTsView]  = useState("task"); // "task" = TSTaskGrid, "card" = TSWeekGrid
 
   const [search,  sSearch]  = useState("");
   const [fSvc,    setFSvc]  = useState([]);
@@ -4554,14 +4597,6 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
           )}
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-            {[["task","Task Grid"],["card","Detail Cards"]].map(([k,l])=>(
-              <button key={k} onClick={()=>setTsView(k)}
-                style={{padding:"6px 12px",border:"none",background:tsView===k?"#0f172a":"#fff",color:tsView===k?"#fff":"#64748b",cursor:"pointer",fontSize:12,fontWeight:tsView===k?700:400,whiteSpace:"nowrap"}}>
-                {l}
-              </button>
-            ))}
-          </div>
           <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fSvc} onChange={setFSvc} width={140}/>
           <input value={search} onChange={e=>sSearch(e.target.value)} placeholder="Search job / company…" style={{...SI,width:210,fontSize:13}}/>
         </div>
@@ -4577,20 +4612,14 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
         const cust     = customers.find(c=>c.id===opp.custId);
         const snapshot = getQuoteSnapshot(opp);
         const tsRows   = getTSRows(opp.oppCode);
-        return tsView==="task"
-          ? <TSTaskGrid key={opp.oppCode}
-              opp={opp} cust={cust} snapshot={snapshot}
-              tsRows={tsRows}
-              onSave={onSaveTimesheet} toast={toast} user={user}
-              canEdit={true}
-            />
-          : <TSWeekGrid key={opp.oppCode}
-              opp={opp} cust={cust} snapshot={snapshot}
-              tsRows={tsRows}
-              onSave={onSaveTimesheet} toast={toast} user={user}
-              isManager={effectiveIsManager}
-              canEdit={true}
-            />;
+        return (
+          <TSTaskGrid key={opp.oppCode}
+            opp={opp} cust={cust} snapshot={snapshot}
+            tsRows={tsRows}
+            onSave={onSaveTimesheet} toast={toast} user={user}
+            canEdit={true}
+          />
+        );
       })}
 
       {/* All-project agent summary (Manager view) */}
