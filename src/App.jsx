@@ -68,6 +68,10 @@ const STAGE_COLORS = ["#818cf8","#f59e0b","#22c55e","#ef4444"];
 const SVC_PALETTE = ["#3b82f6","#f59e0b","#22c55e","#ef4444","#8b5cf6","#06b6d4","#f472b6","#84cc16",
                      "#a78bfa","#fb923c","#14b8a6","#e879f9","#fbbf24","#34d399","#60a5fa","#f87171","#c084fc","#4ade80"];
 
+// Wave BCG brand identity — used sparingly per The One Teal Rule (teal ≤5% of any screen).
+// teal = the brand voice (mark + one hero action + quotation signature). ink/navy = authority/headings.
+const BRAND = { teal:"#00b3a4", tealDeep:"#00897e", navy:"#0c1a2e", ink:"#0f172a" };
+
 // stdCost = OPEX (man-days × rate/day) + COGS (external/materials)
 // stdPrice: margin = (price-cost)/price > 30%  →  price > cost/0.70
 // Man-day rates: Manager=1,440  Senior=950  Junior=600 THB/day
@@ -802,20 +806,26 @@ const LoginPage = ({onLogin}) => {
     }
   };
   return (
-    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans',system-ui,sans-serif"}}>
+    <div style={{minHeight:"100vh",background:`radial-gradient(120% 90% at 85% -10%, ${BRAND.tealDeep} 0%, rgba(0,137,126,0) 45%), linear-gradient(150deg, ${BRAND.navy} 0%, #0f2740 100%)`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans','Noto Sans Thai',system-ui,sans-serif"}}>
       <div style={{width:420}}>
         <div style={{textAlign:"center",marginBottom:28}}>
           {/* Req 19: no version number, no year */}
-          <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,.5)",letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:6}}>Climate Solutions</div>
-          <div style={{fontSize:38,fontWeight:900,color:"#fff",letterSpacing:"-0.05em",lineHeight:1}}>CRM</div>
-          <div style={{fontSize:13,color:"rgba(255,255,255,.5)",marginTop:6}}>Sales & Marketing System</div>
+          <div style={{display:"inline-flex",alignItems:"center",gap:11,marginBottom:14}}>
+            <span style={{width:38,height:38,borderRadius:9,background:BRAND.teal,display:"inline-flex",alignItems:"center",justifyContent:"center",boxShadow:`0 6px 22px ${BRAND.teal}59`,flexShrink:0}}>
+              <span style={{fontSize:19,fontWeight:900,color:"#fff",letterSpacing:"-0.04em"}}>W</span>
+            </span>
+            <span style={{fontSize:16,fontWeight:800,color:"#fff",letterSpacing:"0.16em",textTransform:"uppercase"}}>Wave BCG</span>
+          </div>
+          <div style={{fontSize:38,fontWeight:900,color:"#fff",letterSpacing:"-0.05em",lineHeight:1}}>Climate <span style={{color:BRAND.teal}}>CRM</span></div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,.55)",marginTop:8}}>Sales &amp; delivery, lead to invoice</div>
         </div>
-        <Card style={{padding:28}}>
+        <Card style={{padding:28,boxShadow:"0 24px 64px rgba(0,0,0,.28)"}}>
           {/* Req 17: email as username, text input not dropdown */}
           <FRow label="Email"><Inp type="email" value={email} onChange={e=>sEmail(e.target.value)} placeholder="your.email@wavebcg.com" onKeyDown={e=>e.key==="Enter"&&!loading&&go()} disabled={loading}/></FRow>
           <FRow label="Password"><Inp type="password" value={pwd} onChange={e=>sPwd(e.target.value)} placeholder="Enter your password" onKeyDown={e=>e.key==="Enter"&&!loading&&go()} disabled={loading}/></FRow>
           {err && <div style={{background:"#fee2e2",color:"#dc2626",padding:"8px 12px",borderRadius:5,fontSize:13,marginBottom:12}}>{err}</div>}
-          <Btn style={{width:"100%",padding:11,fontSize:14,opacity:loading?0.7:1}} onClick={go} disabled={loading}>{loading?"Signing in…":"Sign In"}</Btn>
+          {/* The single teal hero action, per The One Teal Rule. tealDeep fill keeps white label at AA (4.3:1). */}
+          <Btn style={{width:"100%",padding:11,fontSize:14,fontWeight:700,background:BRAND.tealDeep,color:"#fff",boxShadow:loading?"none":`0 6px 18px ${BRAND.teal}4d`,opacity:loading?0.85:1}} onClick={go} disabled={loading}>{loading?"Signing in…":"Sign In"}</Btn>
           {/* Req 18: no credential hints shown */}
         </Card>
       </div>
@@ -5125,11 +5135,14 @@ const stripJsonSuffix = obj => {
       <style>{`@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}} input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0} input[type=number]{-moz-appearance:textfield}`}</style>
       <div style={{background:"#fff",borderBottom:"1px solid #e2e8f0",position:"sticky",top:0,zIndex:100}}>
         <div style={{maxWidth:1440,margin:"0 auto",padding:"0 24px",display:"flex",alignItems:"center",gap:0}}>
-          <div onClick={()=>sPage("dashboard")} style={{paddingRight:18,borderRight:"1px solid #f1f5f9",marginRight:4,flexShrink:0,cursor:"pointer"}}>
-            <div style={{fontSize:13,fontWeight:900,color:"#0f172a",letterSpacing:"-0.04em",lineHeight:1.2}}>Climate<br/>CRM</div>
+          <div onClick={()=>sPage("dashboard")} title="Wave BCG · Climate CRM" style={{display:"flex",alignItems:"center",gap:9,paddingRight:18,borderRight:"1px solid #f1f5f9",marginRight:4,flexShrink:0,cursor:"pointer"}}>
+            <span style={{width:28,height:28,borderRadius:7,background:BRAND.teal,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <span style={{fontSize:14,fontWeight:900,color:"#fff",letterSpacing:"-0.04em"}}>W</span>
+            </span>
+            <div style={{fontSize:13,fontWeight:900,color:BRAND.navy,letterSpacing:"-0.04em",lineHeight:1.1}}>Climate<br/>CRM</div>
           </div>
           <nav style={{display:"flex",flex:1,overflow:"auto"}}>
-            {NAV.map(n=><button key={n.key} onClick={()=>sPage(n.key)} style={{padding:"15px 13px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:page===n.key?800:500,color:page===n.key?"#0f172a":"#94a3b8",borderBottom:page===n.key?"2.5px solid #0f172a":"2.5px solid transparent",whiteSpace:"nowrap"}}>{n.label}</button>)}
+            {NAV.map(n=><button key={n.key} onClick={()=>sPage(n.key)} style={{padding:"15px 13px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:page===n.key?800:500,color:page===n.key?BRAND.navy:"#94a3b8",borderBottom:page===n.key?`2.5px solid ${BRAND.teal}`:"2.5px solid transparent",whiteSpace:"nowrap"}}>{n.label}</button>)}
           </nav>
           <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
             <SyncBadge/>
