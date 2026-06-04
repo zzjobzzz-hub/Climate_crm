@@ -2207,15 +2207,19 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                         <div style={{flex:1,lineHeight:1.5}}>
                           <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
                           {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
-                          <span>{body}</span>
+                          <RenderMentionText text={body} users={userList}/>
                         </div>
                         <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
                       </div>
                     );});
-                  })()}                  <div style={{display:"flex",gap:0}}>
-                    <Inp value={noteInput} onChange={e=>sNoteInput(e.target.value)} placeholder="Add entry… (Enter to save)"
-                      onKeyDown={e=>{if(e.key==="Enter"&&noteInput.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);sNoteInput("");}}}
-                      style={{borderRadius:0,background:"#fff",flex:1,border:"none",borderTop:"1px solid #f1f5f9"}}/>
+                  })()}
+                  <MentionTextarea
+                    value={noteInput} onChange={sNoteInput}
+                    onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&noteInput.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);sNoteInput("");e.preventDefault();}}}
+                    placeholder="Add entry… (@mention, Enter to save)"
+                    style={{borderRadius:"0 0 5px 5px",background:"#fff",border:"none",borderTop:"1px solid #f1f5f9",fontSize:13}}
+                    users={userList} minHeight={36}
+                  />
                   </div>
                 </div>
               </FRow>
@@ -2729,17 +2733,19 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
                         <div style={{flex:1,lineHeight:1.5}}>
                           <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
                           {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
-                          <span>{body}</span>
+                          <RenderMentionText text={body} users={userList}/>
                         </div>
                         <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
                       </div>
                     );});
                   })()}
-                  <div style={{display:"flex",gap:0}}>
-                    <Inp value={noteInput} onChange={e=>sNoteInput(e.target.value)} placeholder={`Add note… (${today()})`}
-                      onKeyDown={e=>{if(e.key==="Enter"&&noteInput.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);sNoteInput("");}}}
-                      style={{borderRadius:0,background:"#fff",flex:1,border:"none",borderTop:"1px solid #f1f5f9"}}/>
-                  </div>
+                  <MentionTextarea
+                    value={noteInput} onChange={sNoteInput}
+                    onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&noteInput.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);sNoteInput("");e.preventDefault();}}}
+                    placeholder="Add note… (@mention, Enter to save)"
+                    style={{borderRadius:"0 0 5px 5px",background:"#fff",border:"none",borderTop:"1px solid #f1f5f9",fontSize:13}}
+                    users={userList} minHeight={36}
+                  />
                 </div>
               </FRow>
             </div>
@@ -2798,10 +2804,11 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
 };
 
 //  DeliveryCard: proper component — collapsed summary + expandable edit mode 
-const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGoToCust, onGoToOpp, sQT, onGoToCS}) => {
+const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGoToCust, onGoToOpp, sQT, onGoToCS, userList=[]}) => {
   const [open, setOpen]       = useState(false);   // card expanded?
   const [dirty, setDirty]     = useState(false);   // unsaved changes?
   const [localD, setLocalD]   = useState(d);       // staged local copy
+  const [noteInput, setNoteInput] = useState("");
   const [localInst, setLocalInst] = useState(d.installments||[]);
 
   // Sync from parent when d changes (e.g. after save)
@@ -2970,6 +2977,36 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
 
       </div>
 
+      {/* Note Log */}
+      <div style={{padding:"10px 20px",borderTop:"1px solid #f1f5f9"}}>
+        <Span s={11} w={700} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Note Log</Span>
+        <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden",maxHeight:180,overflowY:"auto"}}>
+          {(localD.remark||"").split("\n").filter(Boolean).slice().reverse().map((line,i,arr)=>{
+            const origIdx=arr.length-1-i;
+            const m=line.match(/^\[([^\]]+)\]\s*(.*)/);
+            const meta=m?m[1]:""; const body=m?m[2]:line;
+            const datePart=meta.split("·")[0].trim(); const authorPart=meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
+            return (
+              <div key={origIdx} style={{padding:"5px 8px 5px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"flex-start",gap:6}}>
+                <div style={{flex:1,lineHeight:1.5}}>
+                  <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
+                  {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
+                  <RenderMentionText text={body} users={userList}/>
+                </div>
+                <button onClick={()=>{const lines=(localD.remark||"").split("\n").filter(Boolean);markDirty({...localD,remark:lines.filter((_,idx)=>idx!==arr.length-1-i).join("\n")});}} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete">×</button>
+              </div>
+            );
+          })}
+          <MentionTextarea
+            value={noteInput} onChange={setNoteInput}
+            onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&noteInput.trim()){markDirty({...localD,remark:(localD.remark?localD.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`});setNoteInput("");e.preventDefault();}}}
+            placeholder="Add note… (@mention, Enter to save)"
+            style={{borderRadius:0,background:"#fff",border:"none",borderTop:"1px solid #f1f5f9",fontSize:12}}
+            users={userList} minHeight={32}
+          />
+        </div>
+      </div>
+
       {/* Installment Schedule */}
       <div>
         <div style={{padding:"8px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#f8fafc",borderBottom:"1px solid #e2e8f0"}}>
@@ -3069,7 +3106,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
           return (
             <DeliveryCard key={d.id} d={d} opps={opps} costSheets={costSheets} customers={customers} user={user}
               onSave={upd=>onSave(upd)}
-              toast={toast} onGoToCust={onGoToCust} onGoToOpp={onGoToOpp} sQT={sQT} onGoToCS={onGoToCS}/>
+              toast={toast} onGoToCust={onGoToCust} onGoToOpp={onGoToOpp} sQT={sQT} onGoToCS={onGoToCS} userList={userList}/>
           );
         })}
                 {list.length===0&&<Card style={{padding:40,textAlign:"center",color:"#94a3b8"}}>No delivery records found.</Card>}
@@ -4597,17 +4634,14 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
 
   return (
     <div>
-      {/* Top bar */}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
-        {/* Left: title + filters */}
-        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+      {/* Row 1: Title + job count + view toggle */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Time Sheet</Span>
-          <div style={{width:1,height:22,background:"#e2e8f0",marginLeft:2}}/>
-          <FilterIcon/>
-          <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fSvc} onChange={setFSvc} width={140}/>
-          <input value={search} onChange={e=>sSearch(e.target.value)} placeholder="Search job / company…" style={{...SI,width:200,fontSize:13}}/>
+          <span style={{fontSize:12,fontWeight:700,color:"#64748b",background:"#f1f5f9",padding:"3px 10px",borderRadius:20,border:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>
+            {visibleOpps.length} Job{visibleOpps.length!==1?"s":""}
+          </span>
         </div>
-        {/* Right: view toggle */}
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           {canToggle&&(
             <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
@@ -4625,6 +4659,12 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
             </span>
           )}
         </div>
+      </div>
+      {/* Row 2: Filter bar */}
+      <div style={{display:"flex",gap:8,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
+        <FilterIcon/>
+        <input value={search} onChange={e=>sSearch(e.target.value)} placeholder="Search…" style={{...SI,width:200,fontSize:13}}/>
+        <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fSvc} onChange={setFSvc} width={140}/>
       </div>
 
       {visibleOpps.length===0&&(
