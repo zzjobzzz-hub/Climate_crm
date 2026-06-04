@@ -1440,8 +1440,11 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
   const activeContacts = c => (c.contacts||[]).filter(ct=>ct.active);
   return (
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <div><Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Customers</Span><Span s={13} c="#94a3b8" style={{marginLeft:8}}>{list.length} records</Span></div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Customers</Span>
+          <span style={{fontSize:12,fontWeight:700,color:"#64748b",background:"#f1f5f9",padding:"3px 10px",borderRadius:20,border:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{list.length} Records</span>
+        </div>
         <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("customers.csv",CUST_HDR,list.map(c=>[c.id,c.companyEN,c.industry,c.province,(c.contacts||[]).map(ct=>ct.name).join("; "),USERS.find(u=>u.id===c.assignedTo)?.name||c.assignedTo,c.ranking,c.status,getLastContact(c.id),c.remark||""]))}><DlIcon/>CSV</Btn><Btn onClick={()=>{sE(null);sF(true);}}>+ Add Customer</Btn></div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
@@ -2431,9 +2434,20 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
 
   return (
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <div><Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Opportunities</Span><Span s={13} c="#94a3b8" style={{marginLeft:8}}>{list.length} · Pipeline ฿{fmtM(totalPipeline)} · Won ฿{fmtM(totalWon)}</Span></div>
-        <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("opps.csv",OPP_HDR,list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);return[o.oppCode,o.quoteNo,o.csCode||"",o.jobCode||"",c?.companyEN||"",o.serviceCode,o.serviceType,o.salesPrice,o.totalCost||0,mg,marginAmt(o.salesPrice,o.totalCost||0),o.status,USERS.find(u=>u.id===o.assignedTo)?.name||"",o.createdDate,o.lostReason||""];}))}><DlIcon/>CSV</Btn></div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Opportunities</Span>
+          <span style={{fontSize:12,fontWeight:700,color:"#64748b",background:"#f1f5f9",padding:"3px 10px",borderRadius:20,border:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{list.length} Deals</span>
+          <Span s={12} c="#94a3b8">Pipeline ฿{fmtM(totalPipeline)} · Won ฿{fmtM(totalWon)}</Span>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <Btn variant="export" onClick={()=>dlCSV("opps.csv",OPP_HDR,list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);return[o.oppCode,o.quoteNo,o.csCode||"",o.jobCode||"",c?.companyEN||"",o.serviceCode,o.serviceType,o.salesPrice,o.totalCost||0,mg,marginAmt(o.salesPrice,o.totalCost||0),o.status,USERS.find(u=>u.id===o.assignedTo)?.name||"",o.createdDate,o.lostReason||""];}))}><DlIcon/>CSV</Btn>
+          <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
+            {[["table"," Table"],["kanban","⊞ Kanban"]].map(([k,l])=>(
+              <button key={k} onClick={()=>sView(k)} style={{padding:"7px 14px",border:"none",background:view===k?"#0f172a":"#fff",color:view===k?"#fff":"#64748b",cursor:"pointer",fontSize:12,fontWeight:view===k?700:400}}>{l}</button>
+            ))}
+          </div>
+        </div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         <FilterIcon/>
@@ -2441,17 +2455,11 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
         <MultiSelect label="Status"  options={OPP_STATUSES.map(s=>({value:s,label:s}))}       selected={fSt}  onChange={setFSt}  width={140}/>
         <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fSvc} onChange={setFSvc} width={140}/>
         <MultiSelect label="Agents"  options={SALES_USERS.map(u=>({value:u.id,label:u.name.split(" ")[0]}))} selected={fAg} onChange={setFAg} width={155}/>
-        <div style={{flex:1}}/>
-        {view==="kanban"&&<div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
+        {view==="kanban"&&<><div style={{flex:1}}/><div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
           {[["recent","↓ Latest"],["oldest","↑ Oldest"]].map(([k,l])=>(
             <button key={k} onClick={()=>setKanbanSort(k)} style={{padding:"7px 12px",border:"none",background:kanbanSort===k?"#334155":"#fff",color:kanbanSort===k?"#fff":"#64748b",cursor:"pointer",fontSize:11,fontWeight:kanbanSort===k?600:400,whiteSpace:"nowrap"}}>{l}</button>
           ))}
-        </div>}
-        <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-          {[["table"," Table"],["kanban","⊞ Kanban"]].map(([k,l])=>(
-            <button key={k} onClick={()=>sView(k)} style={{padding:"7px 14px",border:"none",background:view===k?"#0f172a":"#fff",color:view===k?"#fff":"#64748b",cursor:"pointer",fontSize:12,fontWeight:view===k?700:400}}>{l}</button>
-          ))}
-        </div>
+        </div></>}
       </div>
       {view==="table"&&(
         <Card><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}>
@@ -2976,36 +2984,6 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
 
       </div>
 
-      {/* Note Log */}
-      <div style={{padding:"10px 20px",borderTop:"1px solid #f1f5f9"}}>
-        <Span s={11} w={700} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Note Log</Span>
-        <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden",maxHeight:180,overflowY:"auto"}}>
-          {(localD.remark||"").split("\n").filter(Boolean).slice().reverse().map((line,i,arr)=>{
-            const origIdx=arr.length-1-i;
-            const m=line.match(/^\[([^\]]+)\]\s*(.*)/);
-            const meta=m?m[1]:""; const body=m?m[2]:line;
-            const datePart=meta.split("·")[0].trim(); const authorPart=meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
-            return (
-              <div key={origIdx} style={{padding:"5px 8px 5px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"flex-start",gap:6}}>
-                <div style={{flex:1,lineHeight:1.5}}>
-                  <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
-                  {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
-                  <RenderMentionText text={body} users={userList}/>
-                </div>
-                <button onClick={()=>{const lines=(localD.remark||"").split("\n").filter(Boolean);markDirty({...localD,remark:lines.filter((_,idx)=>idx!==arr.length-1-i).join("\n")});}} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete">×</button>
-              </div>
-            );
-          })}
-          <MentionTextarea
-            value={noteInput} onChange={setNoteInput}
-            onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&noteInput.trim()){markDirty({...localD,remark:(localD.remark?localD.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`});setNoteInput("");e.preventDefault();}}}
-            placeholder="Add note… (@mention, Enter to save)"
-            style={{borderRadius:0,background:"#fff",border:"none",borderTop:"1px solid #f1f5f9",fontSize:12}}
-            users={userList} minHeight={32}
-          />
-        </div>
-      </div>
-
       {/* Installment Schedule */}
       <div>
         <div style={{padding:"8px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#f8fafc",borderBottom:"1px solid #e2e8f0"}}>
@@ -3038,6 +3016,42 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
             </tbody>
           </table>
         </div>
+        {/* Note Log */}
+        <div style={{padding:"10px 16px",borderTop:"1px solid #f1f5f9"}}>
+          <Span s={11} w={700} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Note Log</Span>
+          <div style={{border:"1px solid #e2e8f0",borderRadius:6}}>
+            {(localD.remark||"").split("\n").filter(Boolean).length > 0 && (
+              <div style={{maxHeight:140,overflowY:"auto"}}>
+                {(localD.remark||"").split("\n").filter(Boolean).slice().reverse().map((line,i,arr)=>{
+                  const origIdx=arr.length-1-i;
+                  const m=line.match(/^\[([^\]]+)\]\s*(.*)/);
+                  const meta=m?m[1]:""; const body=m?m[2]:line;
+                  const datePart=meta.split("·")[0].trim(); const authorPart=meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
+                  return (
+                    <div key={origIdx} style={{padding:"5px 8px 5px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"flex-start",gap:6}}>
+                      <div style={{flex:1,lineHeight:1.5}}>
+                        <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
+                        {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
+                        <RenderMentionText text={body} users={userList}/>
+                      </div>
+                      <button onClick={()=>{const lines=(localD.remark||"").split("\n").filter(Boolean);markDirty({...localD,remark:lines.filter((_,idx)=>idx!==arr.length-1-i).join("\n")});}} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete">×</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <div style={{position:"relative"}}>
+              <MentionTextarea
+                value={noteInput} onChange={setNoteInput}
+                onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&noteInput.trim()){markDirty({...localD,remark:(localD.remark?localD.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`});setNoteInput("");e.preventDefault();}}}
+                placeholder="Add note… (@mention, Enter to save)"
+                style={{borderRadius:"0 0 5px 5px",background:"#fff",border:"none",borderTop:"1px solid #e2e8f0",fontSize:12}}
+                users={userList} minHeight={32}
+              />
+            </div>
+          </div>
+        </div>
+
         {/* Bottom Save bar */}
         <div style={{padding:"10px 16px",borderTop:"1px solid #e2e8f0",background:dirty?"#fffbeb":"#f8fafc",display:"flex",justifyContent:"flex-end",gap:8,alignItems:"center"}}>
           {dirty&&<span style={{fontSize:11,color:"#d97706",marginRight:"auto",fontWeight:600}}> You have unsaved changes</span>}
@@ -3084,21 +3098,25 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
 
   return (
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <div><Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Delivery</Span><Span s={13} c="#94a3b8" style={{marginLeft:8}}>{list.length} contracts</Span></div>
-        <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=(d.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}><DlIcon/>CSV</Btn></div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Delivery</Span>
+          <span style={{fontSize:12,fontWeight:700,color:"#64748b",background:"#f1f5f9",padding:"3px 10px",borderRadius:20,border:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{list.length} Contracts</span>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <Btn variant="export" onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=(d.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}><DlIcon/>CSV</Btn>
+          <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
+            {[["recent","↓ Latest"],["oldest","↑ Oldest"],["contractDate","↓ Contract"],["contractValue","↓ Value"]].map(([k,l])=>(
+              <button key={k} onClick={()=>sSortBy(k)} style={{padding:"6px 11px",border:"none",borderRight:"1px solid #e2e8f0",background:sortBy===k?"#334155":"#fff",color:sortBy===k?"#fff":"#64748b",cursor:"pointer",fontSize:11,fontWeight:sortBy===k?600:400,whiteSpace:"nowrap"}}>{l}</button>
+            ))}
+          </div>
+        </div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         <FilterIcon/>
         <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:200,minWidth:140}}/>
         <MultiSelect label="Status"  options={DLV_STATUSES.map(s=>({value:s,label:s}))} selected={fDS}    onChange={setFDS}    width={140}/>
         <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fDSvc} onChange={setFDSvc} width={140}/>
-        <div style={{flex:1}}/>
-        <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-          {[["recent","↓ Latest"],["oldest","↑ Oldest"],["contractDate","↓ Contract Date"],["contractValue","↓ Value"]].map(([k,l])=>(
-            <button key={k} onClick={()=>sSortBy(k)} style={{padding:"7px 12px",border:"none",borderRight:"1px solid #e2e8f0",background:sortBy===k?"#334155":"#fff",color:sortBy===k?"#fff":"#64748b",cursor:"pointer",fontSize:11,fontWeight:sortBy===k?600:400,whiteSpace:"nowrap"}}>{l}</button>
-          ))}
-        </div>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         {list.map(d => {
