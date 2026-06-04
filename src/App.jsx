@@ -301,15 +301,64 @@ const SuccessRateInput = ({value, onCommit}) => {
 };
 const Txta = ({style,...p}) => <textarea {...p} style={{...SI,resize:"vertical",...style}}/>;
 
-const BV = {
-  primary:{background:"#0f172a",color:"#fff",border:"none"},
-  ghost:{background:"transparent",color:"#64748b",border:"1px solid #e2e8f0"},
-  danger:{background:"#fff",color:"#ef4444",border:"1px solid #fecaca"},
-  success:{background:"#dcfce7",color:"#16a34a",border:"1px solid #86efac"},
-  export:{background:"#eff6ff",color:"#1e40af",border:"1px solid #bfdbfe"},
-};
-const Btn = ({variant="primary",style,children,...p}) => (
-  <button {...p} style={{padding:"8px 16px",borderRadius:5,fontSize:14,cursor:"pointer",fontWeight:600,...BV[variant],...style}}>{children}</button>
+// Button system — class-based so every button gets real hover / focus-visible / active
+// states (inline styles can't). Injected once; variants follow DESIGN.md roles.
+// Primary = ink-slate (committing action). Export/ghost/danger = quiet secondaries.
+// Brand = the single reserved teal hero action (The One Teal Rule).
+const WB_BTN_CSS = `
+.wb-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:8px 15px;
+  border:1px solid transparent;border-radius:7px;font-family:inherit;font-size:14px;font-weight:600;
+  line-height:1;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;
+  transition:background .16s cubic-bezier(.25,1,.5,1),border-color .16s ease,color .16s ease,box-shadow .16s ease,transform .12s ease;}
+.wb-btn>svg{flex-shrink:0;display:block;}
+.wb-btn:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(30,64,175,.30);}
+.wb-btn:active{transform:translateY(.5px);}
+.wb-btn:disabled{opacity:.6;cursor:not-allowed;transform:none;}
+.wb-btn--sm{gap:5px;padding:6px 11px;font-size:12.5px;border-radius:6px;}
+.wb-btn--icon{padding:7px;}
+.wb-btn--primary{background:#0f172a;color:#fff;}
+.wb-btn--primary:not(:disabled):hover{background:#020617;box-shadow:0 2px 8px rgba(15,23,42,.22);}
+.wb-btn--ghost{background:#fff;color:#475569;border-color:#e2e8f0;}
+.wb-btn--ghost:not(:disabled):hover{background:#f8fafc;color:#0f172a;border-color:#cbd5e1;}
+.wb-btn--export{background:#fff;color:#1e40af;border-color:#dbe4f5;}
+.wb-btn--export:not(:disabled):hover{background:#eff6ff;border-color:#bfdbfe;}
+.wb-btn--success{background:#dcfce7;color:#15803d;border-color:#86efac;}
+.wb-btn--success:not(:disabled):hover{background:#bbf7d0;border-color:#4ade80;}
+.wb-btn--danger{background:#fff;color:#dc2626;border-color:#fecaca;}
+.wb-btn--danger:not(:disabled):hover{background:#fef2f2;border-color:#fca5a5;}
+.wb-btn--danger-solid{background:#dc2626;color:#fff;}
+.wb-btn--danger-solid:not(:disabled):hover{background:#b91c1c;box-shadow:0 2px 8px rgba(220,38,38,.30);}
+.wb-btn--danger-solid:focus-visible{box-shadow:0 0 0 3px rgba(220,38,38,.32);}
+.wb-btn--brand{background:#00897e;color:#fff;}
+.wb-btn--brand:not(:disabled):hover{background:#00736a;box-shadow:0 2px 10px rgba(0,179,164,.32);}
+/* Icon-only ghost button — for in-row and inline micro-actions (edit / delete / save / cancel). */
+.wb-iconbtn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;
+  border:none;border-radius:6px;background:transparent;color:#94a3b8;cursor:pointer;flex-shrink:0;
+  transition:background .14s ease,color .14s ease;}
+.wb-iconbtn>svg{display:block;}
+.wb-iconbtn:hover{background:#f1f5f9;color:#0f172a;}
+.wb-iconbtn:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(30,64,175,.30);}
+.wb-iconbtn--danger:hover{background:#fef2f2;color:#dc2626;}
+.wb-iconbtn--accept:hover{background:#dcfce7;color:#15803d;}
+.wb-iconbtn--sm{width:22px;height:22px;border-radius:5px;}
+`;
+if (typeof document !== "undefined" && !document.getElementById("wb-btn-css")) {
+  const _s = document.createElement("style"); _s.id = "wb-btn-css"; _s.textContent = WB_BTN_CSS;
+  document.head.appendChild(_s);
+}
+// icon: optional leading SVG node. size: "sm" for compact toolbar buttons.
+const Btn = ({variant="primary",size,icon,iconOnly,className="",style,children,...p}) => (
+  <button {...p}
+    className={`wb-btn wb-btn--${variant}${size==="sm"?" wb-btn--sm":""}${iconOnly?" wb-btn--icon":""}${className?" "+className:""}`}
+    style={style}>{icon}{children}</button>
+);
+// Record count shown beside a page title.
+const CountPill = ({n}) => <span style={{fontSize:12,fontWeight:700,color:"#475569",background:"#f1f5f9",borderRadius:999,padding:"2px 9px",minWidth:22,textAlign:"center",lineHeight:1.55}}>{n}</span>;
+// Icon-only button for in-row / inline micro-actions. variant: "danger" | "accept". size: "sm".
+const IconBtn = ({variant,size,title,style,children,...p}) => (
+  <button {...p} title={title}
+    className={`wb-iconbtn${variant?` wb-iconbtn--${variant}`:""}${size==="sm"?" wb-iconbtn--sm":""}`}
+    style={style}>{children}</button>
 );
 
 const Card  = ({children,style,...rest}) => <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:8,...style}} {...rest}>{children}</div>;
@@ -599,24 +648,24 @@ const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a 
                 <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:3,flexWrap:"wrap"}}>
                   <Span s={12} w={700} c="#0f172a">{u?.name||l.author}</Span>
                   <span style={{background:"#f1f5f9",color:"#64748b",fontSize:10,padding:"1px 6px",borderRadius:3,fontFamily:"monospace"}}>{l.ts}</span>
-                  {(onEdit||onDelete)&&<div style={{marginLeft:"auto",display:"flex",gap:4}}>
-                    <button onClick={()=>setReplyOpen(p=>({...p,[l.id]:!p[l.id]}))} style={{border:"none",background:"none",cursor:"pointer",color:"#1e40af",fontSize:13,padding:"0 4px",lineHeight:1}} title="Reply">↩</button>
-                    {onEdit&&<button onClick={()=>{setEditId(l.id);setEditText(l.note);}} style={{border:"none",background:"none",cursor:"pointer",color:"#94a3b8",fontSize:12,padding:"0 3px",lineHeight:1}} title="Edit">✎</button>}
+                  {(onEdit||onDelete)&&<div style={{marginLeft:"auto",display:"flex",gap:2,alignItems:"center"}}>
+                    <IconBtn size="sm" title="Reply" onClick={()=>setReplyOpen(p=>({...p,[l.id]:!p[l.id]}))} style={{color:"#1e40af",fontSize:13,lineHeight:1}}>↩</IconBtn>
+                    {onEdit&&<IconBtn size="sm" title="Edit" onClick={()=>{setEditId(l.id);setEditText(l.note);}}><EditIcon s={13}/></IconBtn>}
                     {onDelete&&(deleteConfirm===l.id
                       ? <span style={{display:"flex",gap:3,alignItems:"center"}}>
                           <span style={{fontSize:10,color:"#ef4444",fontWeight:600,whiteSpace:"nowrap"}}>Delete?</span>
-                          <button onClick={()=>{onDelete(l.id);setDeleteConfirm(null);}} style={{border:"none",background:"#ef4444",color:"#fff",borderRadius:3,padding:"1px 6px",cursor:"pointer",fontSize:10,fontWeight:700}}>Yes</button>
-                          <button onClick={()=>setDeleteConfirm(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:3,padding:"1px 6px",cursor:"pointer",fontSize:10,color:"#64748b"}}>No</button>
+                          <button onClick={()=>{onDelete(l.id);setDeleteConfirm(null);}} style={{border:"none",background:"#dc2626",color:"#fff",borderRadius:4,padding:"2px 8px",cursor:"pointer",fontSize:10,fontWeight:700}}>Yes</button>
+                          <button onClick={()=>setDeleteConfirm(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:4,padding:"2px 8px",cursor:"pointer",fontSize:10,color:"#64748b",fontWeight:600}}>No</button>
                         </span>
-                      : <button onClick={()=>setDeleteConfirm(l.id)} style={{border:"none",background:"none",cursor:"pointer",color:"#fca5a5",fontSize:12,padding:"0 3px",lineHeight:1}} title="Delete">✕</button>
+                      : <IconBtn size="sm" variant="danger" title="Delete" onClick={()=>setDeleteConfirm(l.id)}><TrashIcon s={13}/></IconBtn>
                     )}
                   </div>}
                 </div>
                 {editId===l.id
                   ? <div style={{display:"flex",gap:6,marginTop:4}}>
-                      <input autoFocus value={editText} onChange={e=>setEditText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){onEdit(l.id,editText,l.replies);setEditId(null);}if(e.key==="Escape")setEditId(null);}} style={{flex:1,fontSize:13,padding:"4px 8px",border:"1px solid #3b82f6",borderRadius:4,outline:"none"}}/>
-                      <button onClick={()=>{onEdit(l.id,editText,l.replies);setEditId(null);}} style={{border:"none",background:"#3b82f6",color:"#fff",borderRadius:4,padding:"4px 10px",cursor:"pointer",fontSize:12}}>Save</button>
-                      <button onClick={()=>setEditId(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:12,color:"#64748b"}}>✕</button>
+                      <input autoFocus value={editText} onChange={e=>setEditText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){onEdit(l.id,editText,l.replies);setEditId(null);}if(e.key==="Escape")setEditId(null);}} style={{flex:1,fontSize:13,padding:"4px 8px",border:"1px solid #1e40af",borderRadius:5,outline:"none",boxShadow:"0 0 0 3px rgba(30,64,175,.15)"}}/>
+                      <IconBtn variant="accept" title="Save" onClick={()=>{onEdit(l.id,editText,l.replies);setEditId(null);}}><CheckIcon s={15}/></IconBtn>
+                      <IconBtn title="Cancel" onClick={()=>setEditId(null)}><XIcon s={14}/></IconBtn>
                     </div>
                   : <div style={{fontSize:13,color:"#374151",lineHeight:1.5}}><RenderMentionText text={l.note} users={allUsers}/></div>
                 }
@@ -638,8 +687,7 @@ const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a 
                               {canActReply && !isEditingReply && (
                                 <div style={{marginLeft:"auto",display:"flex",gap:2}}>
                                   {r.author===currentUser.id && onEdit && (
-                                    <button onClick={()=>{setReplyEditId(rEditKey);setReplyEditText(r.note);}}
-                                      style={{border:"none",background:"none",cursor:"pointer",color:"#94a3b8",fontSize:11,padding:"0 3px",lineHeight:1}} title="Edit reply">✎</button>
+                                    <IconBtn size="sm" title="Edit reply" onClick={()=>{setReplyEditId(rEditKey);setReplyEditText(r.note);}}><EditIcon s={12}/></IconBtn>
                                   )}
                                   {(r.author===currentUser.id||onDelete) && onEdit && (
                                     replyDeleteConfirm===`${l.id}:${r.id}`
@@ -649,11 +697,10 @@ const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a 
                                           const updatedReplies=(l.replies||[]).filter(x=>x.id!==r.id);
                                           onEdit(l.id,l.note,updatedReplies);
                                           setReplyDeleteConfirm(null);
-                                        }} style={{border:"none",background:"#ef4444",color:"#fff",borderRadius:3,padding:"1px 6px",cursor:"pointer",fontSize:10,fontWeight:700}}>Yes</button>
-                                        <button onClick={()=>setReplyDeleteConfirm(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:3,padding:"1px 6px",cursor:"pointer",fontSize:10,color:"#64748b"}}>No</button>
+                                        }} style={{border:"none",background:"#dc2626",color:"#fff",borderRadius:4,padding:"2px 8px",cursor:"pointer",fontSize:10,fontWeight:700}}>Yes</button>
+                                        <button onClick={()=>setReplyDeleteConfirm(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:4,padding:"2px 8px",cursor:"pointer",fontSize:10,color:"#64748b",fontWeight:600}}>No</button>
                                       </span>
-                                    : <button onClick={()=>setReplyDeleteConfirm(`${l.id}:${r.id}`)}
-                                        style={{border:"none",background:"none",cursor:"pointer",color:"#fca5a5",fontSize:11,padding:"0 3px",lineHeight:1}} title="Delete reply">✕</button>
+                                    : <IconBtn size="sm" variant="danger" title="Delete reply" onClick={()=>setReplyDeleteConfirm(`${l.id}:${r.id}`)}><TrashIcon s={12}/></IconBtn>
                                   )}
                                 </div>
                               )}
@@ -670,13 +717,13 @@ const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a 
                                       }
                                       if(e.key==="Escape") setReplyEditId(null);
                                     }}
-                                    style={{flex:1,fontSize:12,padding:"3px 7px",border:"1px solid #3b82f6",borderRadius:4,outline:"none"}}/>
-                                  <button onClick={()=>{
+                                    style={{flex:1,fontSize:12,padding:"3px 7px",border:"1px solid #1e40af",borderRadius:5,outline:"none",boxShadow:"0 0 0 3px rgba(30,64,175,.15)"}}/>
+                                  <IconBtn size="sm" variant="accept" title="Save reply" onClick={()=>{
                                     const updatedReplies=(l.replies||[]).map(x=>x.id===r.id?{...x,note:replyEditText}:x);
                                     onEdit(l.id,l.note,updatedReplies);
                                     setReplyEditId(null);
-                                  }} style={{border:"none",background:"#3b82f6",color:"#fff",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontSize:11}}>Save</button>
-                                  <button onClick={()=>setReplyEditId(null)} style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:4,padding:"3px 6px",cursor:"pointer",fontSize:11,color:"#64748b"}}>✕</button>
+                                  }}><CheckIcon s={13}/></IconBtn>
+                                  <IconBtn size="sm" title="Cancel" onClick={()=>setReplyEditId(null)}><XIcon s={12}/></IconBtn>
                                 </div>
                               : <div style={{fontSize:12,color:"#374151"}}><RenderMentionText text={r.note} users={allUsers}/></div>
                             }
@@ -700,8 +747,8 @@ const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a 
                         minHeight={30}
                       />
                     </div>
-                    <button onClick={()=>submitReply(l.id)} style={{padding:"4px 10px",background:"#0f172a",color:"#fff",border:"none",borderRadius:4,fontSize:11,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap",height:30}}>Send</button>
-                    <button onClick={()=>setReplyOpen(p=>({...p,[l.id]:false}))} style={{border:"none",background:"none",cursor:"pointer",color:"#94a3b8",fontSize:13,lineHeight:1,padding:"0 2px",height:30}}>✕</button>
+                    <Btn variant="primary" size="sm" icon={<SendIcon s={12}/>} onClick={()=>submitReply(l.id)} style={{flexShrink:0,height:30}}>Send</Btn>
+                    <IconBtn size="sm" title="Close reply" onClick={()=>setReplyOpen(p=>({...p,[l.id]:false}))}><XIcon s={13}/></IconBtn>
                   </div>
                 )}
               </div>
@@ -720,7 +767,7 @@ const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a 
             users={allUsers}
             minHeight={44}
           />
-          <button onClick={submitNote} style={{padding:"8px 14px",background:"#0f172a",color:"#fff",border:"none",borderRadius:5,fontSize:12,cursor:"pointer",flexShrink:0,height:44}}>Send</button>
+          <Btn icon={<SendIcon/>} onClick={submitNote} style={{flexShrink:0,height:44}}>Send</Btn>
         </div>
       )}
     </div>
@@ -752,10 +799,47 @@ const StepProgress = ({steps,current,onStep}) => {
 };
 
 const DlIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{display:"inline-block",verticalAlign:"middle",marginRight:4}}>
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
     <polyline points="7 10 12 15 17 10"/>
     <line x1="12" y1="15" x2="12" y2="3"/>
+  </svg>
+);
+const PlusIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+  </svg>
+);
+const SheetIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="4" y="3" width="16" height="18" rx="2"/><line x1="4" y1="9" x2="20" y2="9"/>
+    <line x1="4" y1="15" x2="20" y2="15"/><line x1="12" y1="9" x2="12" y2="21"/>
+  </svg>
+);
+const EditIcon = ({s=14}) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+  </svg>
+);
+const TrashIcon = ({s=14}) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/>
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+  </svg>
+);
+const CheckIcon = ({s=15}) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 6 9 17 4 12"/>
+  </svg>
+);
+const XIcon = ({s=14}) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+);
+const SendIcon = ({s=13}) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
   </svg>
 );
 const FilterIcon = ({size=14,color="#94a3b8"}) => (
@@ -771,7 +855,7 @@ const ChevronDown = () => (
     <polyline points="6 9 12 15 18 9"/>
   </svg>
 );
-const ExportBar = ({onCSV,onGS}) => <div style={{display:"flex",gap:6}}><Btn variant="export" onClick={onCSV}><DlIcon/>CSV</Btn><Btn variant="export" onClick={onGS}> GS</Btn></div>;
+const ExportBar = ({onCSV,onGS}) => <div style={{display:"flex",gap:6}}><Btn variant="export" size="sm" icon={<DlIcon/>} onClick={onCSV}>CSV</Btn><Btn variant="export" size="sm" icon={<SheetIcon/>} onClick={onGS}>Sheets</Btn></div>;
 const GSGuideModal = ({module,headers,onClose}) => (
   <Modal title={`Google Sheets Guide — ${module}`} width={600} onClose={onClose}>
     <FRow label="Tab Name"><div style={{fontFamily:"monospace",padding:"6px 10px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:5,fontWeight:700}}>{module}</div></FRow>
@@ -824,8 +908,8 @@ const LoginPage = ({onLogin}) => {
           <FRow label="Email"><Inp type="email" value={email} onChange={e=>sEmail(e.target.value)} placeholder="your.email@wavebcg.com" onKeyDown={e=>e.key==="Enter"&&!loading&&go()} disabled={loading}/></FRow>
           <FRow label="Password"><Inp type="password" value={pwd} onChange={e=>sPwd(e.target.value)} placeholder="Enter your password" onKeyDown={e=>e.key==="Enter"&&!loading&&go()} disabled={loading}/></FRow>
           {err && <div style={{background:"#fee2e2",color:"#dc2626",padding:"8px 12px",borderRadius:5,fontSize:13,marginBottom:12}}>{err}</div>}
-          {/* The single teal hero action, per The One Teal Rule. tealDeep fill keeps white label at AA (4.3:1). */}
-          <Btn style={{width:"100%",padding:11,fontSize:14,fontWeight:700,background:BRAND.tealDeep,color:"#fff",boxShadow:loading?"none":`0 6px 18px ${BRAND.teal}4d`,opacity:loading?0.85:1}} onClick={go} disabled={loading}>{loading?"Signing in…":"Sign In"}</Btn>
+          {/* The single teal hero action, per The One Teal Rule. brand variant = tealDeep (white label AA 4.3:1) + hover. */}
+          <Btn variant="brand" style={{width:"100%",padding:11,fontSize:14,fontWeight:700,boxShadow:loading?"none":`0 6px 18px ${BRAND.teal}4d`,opacity:loading?0.85:1}} onClick={go} disabled={loading}>{loading?"Signing in…":"Sign In"}</Btn>
           {/* Req 18: no credential hints shown */}
         </Card>
       </div>
@@ -1255,7 +1339,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
               <Span s={13} w={700}>Monthly Split %</Span>
               <div style={{display:"flex",gap:10,alignItems:"center"}}>
                 <Span s={12} w={700} c={Math.abs(totalSplit-100)<0.1?"#16a34a":"#dc2626"}>Total: {totalSplit.toFixed(1)}%</Span>
-                <Btn onClick={saveKpi} style={{fontSize:11,padding:"4px 12px"}}> Save KPI</Btn>
+                <Btn size="sm" icon={<CheckIcon s={13}/>} onClick={saveKpi}>Save KPI</Btn>
               </div>
             </div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -1389,9 +1473,9 @@ const CustForm = ({initial,user,onSave,onClose,onDelete}) => {
         </div>
       ))}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:8}}>
-        {onDelete&&<Btn variant="danger" style={{marginRight:"auto"}} onClick={()=>onDelete(f)}>Delete</Btn>}
+        {onDelete&&<Btn variant="danger" icon={<TrashIcon/>} style={{marginRight:"auto"}} onClick={()=>onDelete(f)}>Delete</Btn>}
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn onClick={()=>onSave({...f,lastContact:today()})}>Save</Btn>
+        <Btn icon={<CheckIcon/>} onClick={()=>onSave({...f,lastContact:today()})}>Save customer</Btn>
       </div>
     </Modal>
   );
@@ -1451,11 +1535,11 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
   return (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:9}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Customers</Span>
-          <span style={{fontSize:14,fontWeight:400,color:"#94a3b8"}}>{list.length}</span>
+          <CountPill n={list.length}/>
         </div>
-        <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("customers.csv",CUST_HDR,list.map(c=>[c.id,c.companyEN,c.industry,c.province,(c.contacts||[]).map(ct=>ct.name).join("; "),USERS.find(u=>u.id===c.assignedTo)?.name||c.assignedTo,c.ranking,c.status,getLastContact(c.id),c.remark||""]))}><DlIcon/>CSV</Btn><Btn onClick={()=>{sE(null);sF(true);}}>+ Add Customer</Btn></div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}><Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("customers.csv",CUST_HDR,list.map(c=>[c.id,c.companyEN,c.industry,c.province,(c.contacts||[]).map(ct=>ct.name).join("; "),USERS.find(u=>u.id===c.assignedTo)?.name||c.assignedTo,c.ranking,c.status,getLastContact(c.id),c.remark||""]))}>CSV</Btn><Btn icon={<PlusIcon/>} onClick={()=>{sE(null);sF(true);}}>Add Customer</Btn></div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         <FilterIcon/>
@@ -1538,9 +1622,9 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
               <TD style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{USERS.find(u=>u.id===c.assignedTo)?.name.split(" ")[0]||"-"}</TD>
               <TD style={{color:getLastContact(c.id)?"#374151":"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{getLastContact(c.id)||"—"}</TD>
               <TD style={{color:"#64748b",fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.remark||"—"}</TD>
-              <TD><button onClick={e=>{e.stopPropagation();sLog(c);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11}}> {safeArr(c.workLog).length}</button></TD>
+              <TD><button onClick={e=>{e.stopPropagation();sLog(c);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11,color:"#475569",fontWeight:600}}>{safeArr(c.workLog).length}</button></TD>
               <TD style={{overflow:"visible",whiteSpace:"nowrap"}}>
-                <Btn variant="ghost" style={{fontSize:11,padding:"3px 8px"}} onClick={e=>{e.stopPropagation();sE(c);sF(true);}}>Edit</Btn>
+                <Btn variant="ghost" size="sm" icon={<EditIcon s={12}/>} onClick={e=>{e.stopPropagation();sE(c);sF(true);}}>Edit</Btn>
               </TD>
             </TR>
           ))}</tbody>
@@ -1571,11 +1655,11 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
               </div>
               <div style={{display:"flex",gap:8}}>
                 <Btn variant="ghost" style={{flex:1,justifyContent:"center"}} onClick={()=>sDelConfirm(null)}>Cancel</Btn>
-                <button style={{flex:1,padding:"9px 16px",borderRadius:6,fontSize:13,fontWeight:700,cursor:"pointer",background:"#dc2626",color:"#fff",border:"none",letterSpacing:"-0.01em"}} onClick={()=>{
+                <Btn variant="danger-solid" icon={<TrashIcon s={15}/>} style={{flex:1,justifyContent:"center"}} onClick={()=>{
                   onDelete(delConfirm.id);
                   toast("Customer deleted",delConfirm.companyEN,"error");
                   sDelConfirm(null);
-                }}>Delete Customer</button>
+                }}>Delete Customer</Btn>
               </div>
             </div>
           </div>
@@ -2143,7 +2227,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
 
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14,alignItems:"center"}}>
         <Btn variant="ghost" onClick={onClose}>Close</Btn>
-        <Btn variant="export" onClick={exportPDF}> Print / Export PDF</Btn>
+        <Btn variant="export" icon={<DlIcon/>} onClick={exportPDF}>Print / Export PDF</Btn>
       </div>
     </Modal>
   );
@@ -2251,9 +2335,9 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
       {tab==="log"&&<ActivityLog logs={f.activityLog||[]} currentUser={user} users={userList} onEdit={(id,text,replies)=>sF(p=>({...p,activityLog:(p.activityLog||[]).map(x=>x.id===id?{...x,note:text,replies:replies||x.replies||[]}:x)}))} onDelete={id=>sF(p=>({...p,activityLog:(p.activityLog||[]).filter(x=>x.id!==id)}))}/>}
       {tab==="quotation"&&<QuotationPreview opp={f} customer={customers.find(c=>c.id===f.custId)} costSheets={costSheets||[]} onClose={onClose} onSaveQuotation={qd=>{const updated={...f,quotationData:qd,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""};onSave(updated);}}/>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
-        {initial&&onDelete&&<Btn variant="danger" style={{marginRight:"auto"}} onClick={()=>setDelConfirm(true)}>Delete</Btn>}
+        {initial&&onDelete&&<Btn variant="danger" icon={<TrashIcon/>} style={{marginRight:"auto"}} onClick={()=>setDelConfirm(true)}>Delete</Btn>}
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn onClick={()=>onSave({...f,successRate:getSrValue(),jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""})}>Save</Btn>
+        <Btn icon={<CheckIcon/>} onClick={()=>onSave({...f,successRate:getSrValue(),jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""})}>Save opportunity</Btn>
       </div>
 
       {delConfirm&&(
@@ -2279,8 +2363,8 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                 • ลบ Quotation snapshot ที่บันทึกไว้ใน Cost Sheet
               </div>
               <div style={{display:"flex",gap:8}}>
-                <Btn variant="ghost" style={{flex:1}} onClick={()=>setDelConfirm(false)}>Cancel</Btn>
-                <button style={{flex:1,padding:"9px 16px",borderRadius:6,fontSize:13,fontWeight:700,cursor:"pointer",background:"#dc2626",color:"#fff",border:"none"}} onClick={()=>{setDelConfirm(false);onDelete(f);}}>Delete</button>
+                <Btn variant="ghost" style={{flex:1,justifyContent:"center"}} onClick={()=>setDelConfirm(false)}>Cancel</Btn>
+                <Btn variant="danger-solid" icon={<TrashIcon s={15}/>} style={{flex:1,justifyContent:"center"}} onClick={()=>{setDelConfirm(false);onDelete(f);}}>Delete</Btn>
               </div>
             </div>
           </div>
@@ -2450,10 +2534,10 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
         <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Opportunities</Span>
-          <span style={{fontSize:14,fontWeight:400,color:"#94a3b8"}}>{list.length}</span>
+          <CountPill n={list.length}/>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <Btn variant="export" onClick={()=>dlCSV("opps.csv",OPP_HDR,list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);return[o.oppCode,o.quoteNo,o.csCode||"",o.jobCode||"",c?.companyEN||"",o.serviceCode,o.serviceType,o.salesPrice,o.totalCost||0,mg,marginAmt(o.salesPrice,o.totalCost||0),o.status,USERS.find(u=>u.id===o.assignedTo)?.name||"",o.createdDate,o.lostReason||""];}))}><DlIcon/>CSV</Btn>
+          <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("opps.csv",OPP_HDR,list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);return[o.oppCode,o.quoteNo,o.csCode||"",o.jobCode||"",c?.companyEN||"",o.serviceCode,o.serviceType,o.salesPrice,o.totalCost||0,mg,marginAmt(o.salesPrice,o.totalCost||0),o.status,USERS.find(u=>u.id===o.assignedTo)?.name||"",o.createdDate,o.lostReason||""];}))}>CSV</Btn>
           <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
             {[["table"," Table"],["kanban","⊞ Kanban"]].map(([k,l])=>(
               <button key={k} onClick={()=>sView(k)} style={{padding:"7px 14px",border:"none",background:view===k?"#0f172a":"#fff",color:view===k?"#fff":"#64748b",cursor:"pointer",fontSize:12,fontWeight:view===k?700:400}}>{l}</button>
@@ -3124,10 +3208,10 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Delivery</Span>
-          <span style={{fontSize:14,fontWeight:400,color:"#94a3b8"}}>{list.length}</span>
+          <CountPill n={list.length}/>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <Btn variant="export" onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=(d.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}><DlIcon/>CSV</Btn>
+          <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=(d.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}>CSV</Btn>
           <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
             {[["recent","↓ Latest"],["oldest","↑ Oldest"],["contractDate","↓ Contract"],["contractValue","↓ Value"]].map(([k,l])=>(
               <button key={k} onClick={()=>sSortBy(k)} style={{padding:"6px 11px",border:"none",borderRight:"1px solid #e2e8f0",background:sortBy===k?"#334155":"#fff",color:sortBy===k?"#fff":"#64748b",cursor:"pointer",fontSize:11,fontWeight:sortBy===k?600:400,whiteSpace:"nowrap"}}>{l}</button>
@@ -4678,7 +4762,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Time Sheet</Span>
-          <span style={{fontSize:14,fontWeight:400,color:"#94a3b8"}}>{visibleOpps.length}</span>
+          <CountPill n={visibleOpps.length}/>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           {canToggle&&(
