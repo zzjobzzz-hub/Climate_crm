@@ -1443,7 +1443,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Customers</Span>
-          <span style={{fontSize:12,fontWeight:700,color:"#64748b",background:"#f1f5f9",padding:"3px 10px",borderRadius:20,border:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{list.length} Records</span>
+          <span style={{fontSize:14,fontWeight:400,color:"#94a3b8"}}>{list.length}</span>
         </div>
         <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("customers.csv",CUST_HDR,list.map(c=>[c.id,c.companyEN,c.industry,c.province,(c.contacts||[]).map(ct=>ct.name).join("; "),USERS.find(u=>u.id===c.assignedTo)?.name||c.assignedTo,c.ranking,c.status,getLastContact(c.id),c.remark||""]))}><DlIcon/>CSV</Btn><Btn onClick={()=>{sE(null);sF(true);}}>+ Add Customer</Btn></div>
       </div>
@@ -2139,7 +2139,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
   );
 };
 
-const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS,onDelete,initTab="detail",userList=[]}) => {
+const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS,onDelete,initTab="detail",userList=[],onMentionNotify=()=>{}}) => {
   const newOppCode=genOppCode(opps); const newQtNo=genQuoteNo(opps);
   const blank={id:newOppCode,custId:customers[0]?.id||"",oppCode:newOppCode,quoteNo:newQtNo,jobCode:"",serviceCode:SERVICES[0].code,serviceType:SERVICES[0].name,salesPrice:SERVICES[0].stdPrice,totalCost:SERVICES[0].stdCost,status:"Proposal",assignedTo:SALES_USERS[0]?.id||"",createdDate:today(),lostReason:"",activityLog:[],remark:"",ranking:"Medium",successRate:""};
   const [f,sF] = useState(initial?{...initial,activityLog:initial.activityLog||[]}:blank);
@@ -2218,7 +2218,10 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                   })()}
                   <MentionTextarea
                     value={noteInput} onChange={sNoteInput}
-                    onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&noteInput.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);sNoteInput("");e.preventDefault();}}}
+                    onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&noteInput.trim()){
+                      set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);
+                      extractMentions(noteInput,userList).forEach(uid=>{if(uid!==user.id)onMentionNotify(uid,"OPP",f.oppCode,`${user.name} mentioned you in a note: ${noteInput.trim().slice(0,80)}`);});
+                      sNoteInput("");e.preventDefault();}}}
                     placeholder="Add entry… (@mention, Enter to save)"
                     style={{borderRadius:"0 0 5px 5px",background:"#fff",border:"none",borderTop:"1px solid #f1f5f9",fontSize:13}}
                     users={userList} minHeight={36}
@@ -2437,8 +2440,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
         <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Opportunities</Span>
-          <span style={{fontSize:12,fontWeight:700,color:"#64748b",background:"#f1f5f9",padding:"3px 10px",borderRadius:20,border:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{list.length} Deals</span>
-          <Span s={12} c="#94a3b8">Pipeline ฿{fmtM(totalPipeline)} · Won ฿{fmtM(totalWon)}</Span>
+          <span style={{fontSize:14,fontWeight:400,color:"#94a3b8"}}>{list.length}</span>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <Btn variant="export" onClick={()=>dlCSV("opps.csv",OPP_HDR,list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);return[o.oppCode,o.quoteNo,o.csCode||"",o.jobCode||"",c?.companyEN||"",o.serviceCode,o.serviceType,o.salesPrice,o.totalCost||0,mg,marginAmt(o.salesPrice,o.totalCost||0),o.status,USERS.find(u=>u.id===o.assignedTo)?.name||"",o.createdDate,o.lostReason||""];}))}><DlIcon/>CSV</Btn>
@@ -2523,7 +2525,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
       )}
       {view==="kanban"&&kanbanView}
 
-      {form&&<OppForm initial={edit} customers={customers} opps={opps} user={user} onSave={handleSave} onClose={()=>{sF(false);sE(null);sQT(null);}} costSheets={costSheets} onGoToCS={onGoToCS} userList={userList} onDelete={o=>{
+      {form&&<OppForm initial={edit} customers={customers} opps={opps} user={user} onSave={handleSave} onClose={()=>{sF(false);sE(null);sQT(null);}} costSheets={costSheets} onGoToCS={onGoToCS} userList={userList} onMentionNotify={onMentionNotify} onDelete={o=>{
         onDelete(o.id);
         // Clean CS: remove saveLog entries + quoteOverrides matching this quoteNo/oppCode
         if(onSaveCS&&(o.quoteNo||o.oppCode)){
@@ -2626,7 +2628,7 @@ const CostBreakdown = ({quoteNo,costSheets}) => {
   );
 };
 
-const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,initTab="detail",userList=[]}) => {
+const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,initTab="detail",userList=[],onMentionNotify=()=>{}}) => {
   const wonOpps=opps.filter(o=>o.status==="Won");
   const blank={id:`DLV-${uid()}`,custId:"",oppCode:"",quoteNo:"",jobCode:"",contractNo:"",contractDate:"",serviceCode:"",serviceType:"",totalContractValue:0,deliveryStatus:"In Progress",currentStep:DLV_STEPS[0],deliveryDate:"",assignedTo:SALES_USERS[0]?.id||"",installments:[],paymentTerm:"30 days",remark:""};
   const [f,sF] = useState(initial?{...initial}:blank);
@@ -2746,13 +2748,22 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
                       </div>
                     );});
                   })()}
-                  <MentionTextarea
-                    value={noteInput} onChange={sNoteInput}
-                    onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&noteInput.trim()){set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);sNoteInput("");e.preventDefault();}}}
-                    placeholder="Add note… (@mention, Enter to save)"
-                    style={{borderRadius:"0 0 5px 5px",background:"#fff",border:"none",borderTop:"1px solid #f1f5f9",fontSize:13}}
-                    users={userList} minHeight={36}
-                  />
+                  <div style={{display:"flex",alignItems:"flex-end",gap:0,position:"relative"}}>
+                    <MentionTextarea
+                      value={noteInput} onChange={sNoteInput}
+                      onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&noteInput.trim()){
+                        set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);
+                        extractMentions(noteInput,userList).forEach(uid=>{if(uid!==user.id)onMentionNotify(uid,"Delivery",f.jobCode||f.id,`${user.name} mentioned you in a note: ${noteInput.trim().slice(0,80)}`);});
+                        sNoteInput("");e.preventDefault();}}}
+                      placeholder="Add note… (@mention, Enter to save)"
+                      style={{borderRadius:0,background:"#fff",border:"none",borderTop:"1px solid #f1f5f9",fontSize:13,flex:1}}
+                      users={userList} minHeight={36}
+                    />
+                    {noteInput&&(
+                      <button onClick={()=>sNoteInput("")} title="Clear"
+                        style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:16,lineHeight:1,padding:"2px 4px"}}>×</button>
+                    )}
+                  </div>
                 </div>
               </FRow>
             </div>
@@ -2811,7 +2822,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
 };
 
 //  DeliveryCard: proper component — collapsed summary + expandable edit mode 
-const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGoToCust, onGoToOpp, sQT, onGoToCS, userList=[]}) => {
+const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGoToCust, onGoToOpp, sQT, onGoToCS, userList=[], onMentionNotify=()=>{}}) => {
   const [open, setOpen]       = useState(false);   // card expanded?
   const [dirty, setDirty]     = useState(false);   // unsaved changes?
   const [localD, setLocalD]   = useState(d);       // staged local copy
@@ -2853,7 +2864,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
   };
 
   //  Installment sync 
-  const syncInst = () => {
+  const syncInst = (silent=false) => {
     const quoteNo = localD.quoteNo||d.quoteNo;
     if(!quoteNo) return;
     let srcInst = [];
@@ -2867,7 +2878,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
       const oq=opps.find(x=>x.quoteNo===quoteNo);
       srcInst=oq?.quotationData?.installments||[];
     }
-    if(srcInst.length===0){ toast("No installments found","Check that the Quotation has a saved Payment Schedule"); return; }
+    if(srcInst.length===0){ if(!silent) toast("No installments found","Check that the Quotation has a saved Payment Schedule"); return; }
     const cv=localD.totalContractValue||0;
     const inst=srcInst.map((ins,i)=>({
       id:uid(),seq:i+1,label:ins.label||ins.description||`Installment ${i+1}`,
@@ -2875,9 +2886,8 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
       expected_date:ins.expected_date||"",invoiceNo:"",invoiceDate:"",receiptNo:"",receiptDate:"",status:"Pending",recvMonth:ins.recvMonth||i+1,
     }));
     markDirty(null, inst);
-
   };
-  useEffect(()=>{ if((d.installments||[]).length===0&&d.quoteNo) syncInst(); },[]);
+  useEffect(()=>{ if((d.installments||[]).length===0&&d.quoteNo) syncInst(true); },[]);
 
   const changeLocalIns=(insId,k,v)=>{
     const next=localInst.map(ins=>{
@@ -3043,7 +3053,10 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
             <div style={{position:"relative"}}>
               <MentionTextarea
                 value={noteInput} onChange={setNoteInput}
-                onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&noteInput.trim()){markDirty({...localD,remark:(localD.remark?localD.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`});setNoteInput("");e.preventDefault();}}}
+                onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&noteInput.trim()){
+                  markDirty({...localD,remark:(localD.remark?localD.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`});
+                  extractMentions(noteInput,userList).forEach(uid=>{if(uid!==user.id)onMentionNotify(uid,"Delivery",localD.jobCode||d.id,`${user.name} mentioned you in a note: ${noteInput.trim().slice(0,80)}`);});
+                  setNoteInput("");e.preventDefault();}}}
                 placeholder="Add note… (@mention, Enter to save)"
                 style={{borderRadius:"0 0 5px 5px",background:"#fff",border:"none",borderTop:"1px solid #e2e8f0",fontSize:12}}
                 users={userList} minHeight={32}
@@ -3066,7 +3079,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
 
 
 const DLV_HDR = ["Delivery ID","Customer","OPP Code","Quote No.","Job Code","Contract No.","Contract Date","Service Type","Contract Value","Status","Step","Delivery Date","Total Received","Balance"];
-const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,onGoToCS,onGoToCust,onGoToOpp,userList=[]}) => {
+const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,onGoToCS,onGoToCust,onGoToOpp,userList=[],onMentionNotify=()=>{}}) => {
   const [search,sS]=useState(""); const [fDS,setFDS]=useState([]); const [fDSvc,setFDSvc]=useState([]);
   const [form,sF]=useState(false); const [edit,sE]=useState(null); const [gs,sGS]=useState(false);
   const [initTab,sInitTab]=useState("detail"); // which tab to open in DeliveryForm
@@ -3101,7 +3114,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Delivery</Span>
-          <span style={{fontSize:12,fontWeight:700,color:"#64748b",background:"#f1f5f9",padding:"3px 10px",borderRadius:20,border:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{list.length} Contracts</span>
+          <span style={{fontSize:14,fontWeight:400,color:"#94a3b8"}}>{list.length}</span>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <Btn variant="export" onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=(d.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}><DlIcon/>CSV</Btn>
@@ -3123,12 +3136,12 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
           return (
             <DeliveryCard key={d.id} d={d} opps={opps} costSheets={costSheets} customers={customers} user={user}
               onSave={upd=>onSave(upd)}
-              toast={toast} onGoToCust={onGoToCust} onGoToOpp={onGoToOpp} sQT={sQT} onGoToCS={onGoToCS} userList={userList}/>
+              toast={toast} onGoToCust={onGoToCust} onGoToOpp={onGoToOpp} sQT={sQT} onGoToCS={onGoToCS} userList={userList} onMentionNotify={onMentionNotify}/>
           );
         })}
                 {list.length===0&&<Card style={{padding:40,textAlign:"center",color:"#94a3b8"}}>No delivery records found.</Card>}
       </div>
-      {form&&<DeliveryForm initial={edit} customers={customers} opps={opps} user={user} onSave={d=>{onSave(d);sF(false);sE(null);sInitTab("detail");toast("Delivery saved",d.jobCode||d.id);}} onClose={()=>{sF(false);sE(null);sInitTab("detail");}} costSheets={costSheets} initTab={initTab} userList={userList}/>}
+      {form&&<DeliveryForm initial={edit} customers={customers} opps={opps} user={user} onSave={d=>{onSave(d);sF(false);sE(null);sInitTab("detail");toast("Delivery saved",d.jobCode||d.id);}} onClose={()=>{sF(false);sE(null);sInitTab("detail");}} costSheets={costSheets} initTab={initTab} userList={userList} onMentionNotify={onMentionNotify}/>}
 
       {quotationOpp&&<QuotationPreview opp={quotationOpp} customer={customers.find(c=>c.id===quotationOpp.custId)} costSheets={costSheets||[]} onClose={()=>sQT(null)}/>}
     </div>
@@ -4655,9 +4668,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Time Sheet</Span>
-          <span style={{fontSize:12,fontWeight:700,color:"#64748b",background:"#f1f5f9",padding:"3px 10px",borderRadius:20,border:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>
-            {visibleOpps.length} Job{visibleOpps.length!==1?"s":""}
-          </span>
+          <span style={{fontSize:14,fontWeight:400,color:"#94a3b8"}}>{visibleOpps.length}</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           {canToggle&&(
@@ -5168,7 +5179,7 @@ const stripJsonSuffix = obj => {
         {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI} toast={toast} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}}/>}
         {page==="customers" && <CustomersPage user={user} customers={customers} opps={opps} onSave={saveItem(sCusts,"customers")} onDelete={deleteItem(sCusts,"customers")} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)} userList={userList}/>}
         {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} onDelete={deleteItem(sOpps,"opportunities")} onSaveCS={saveCS} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} onDeleteDelivery={deleteItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)} userList={userList} onMentionNotify={handleMentionNotify}/>}
-        {page==="delivery"  && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}} userList={userList}/>}
+        {page==="delivery"  && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}} userList={userList} onMentionNotify={handleMentionNotify}/>}
         {page==="costsheet" && <CostSheetPage costSheets={costSheets} onSave={saveCS} customers={customers} opps={opps} user={user} onSaveOpp={saveOpp} toast={toast} initSvcCode={initSvcCode} onSvcReady={()=>sSvcCode(null)} initCsCode={initCsCode} onCsReady={()=>sCsCode(null)}/>}
         {page==="timesheet" && <TimesheetPage user={user} opps={opps} customers={customers} costSheets={costSheets} timesheets={timesheets} onSaveTimesheet={saveTimesheet} toast={toast} userList={userList}/>}
         {page==="setup"     && <SetupPage/>}
