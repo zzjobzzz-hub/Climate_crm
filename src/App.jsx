@@ -2220,7 +2220,6 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                     style={{borderRadius:"0 0 5px 5px",background:"#fff",border:"none",borderTop:"1px solid #f1f5f9",fontSize:13}}
                     users={userList} minHeight={36}
                   />
-                  </div>
                 </div>
               </FRow>
             </div>
