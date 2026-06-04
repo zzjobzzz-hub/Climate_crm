@@ -4201,6 +4201,267 @@ const TSWeekGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, isManager
 };
 
 
+// ── TSTaskGrid ──────────────────────────────────────────────────────────────
+//  Layout per task group:
+//    Task row  = Plan  — dark bars across weeks + plan total (right)
+//    Agent rows = Actual — lighter bars across weeks + actual input (right)
+//    Gap row    = full-width footer showing Δ plan vs sum-of-actuals
+const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit}) => {
+  const [open,      setOpen]     = useState(false);
+  // key = "taskId:agentUid"
+  const [actualMap, setActualMap]= useState({});
+
+  const tasks      = useMemo(() => safeArr(snapshot?.tasks || []), [snapshot]);
+  const opexMonths = useMemo(() => getOPEXMonths(tasks, null), [tasks]);
+  const weekCols   = useMemo(() => buildWeekColumns(opexMonths), [opexMonths]);
+  const totalCols  = 2 + weekCols.length + 1; // # + name + weeks + hrs
+
+  useEffect(() => {
+    const map = {};
+    (tsRows || []).forEach(r => {
+      if(String(r.week) === "0" && r.taskId && r.agentUid)
+        map[`${r.taskId}:${r.agentUid}`] = +(r.actualHours || 0);
+    });
+    setActualMap(map);
+  }, [tsRows, opp.oppCode]);
+
+  const getAgents = task =>
+    Array.isArray(task.agents) && task.agents.length > 0 && typeof task.agents[0] === "object"
+      ? task.agents : [];
+
+  const getAgentWeekPlan = (task, agent, col) => {
+    const om = opexMonths.find(m => m.payMonth === (task.payMonth || 1));
+    if(!om || om.year !== col.year || om.month !== col.month) return 0;
+    const hrs = (agent.manager||0) + (agent.senior||0) + (agent.junior||0);
+    return Math.round(hrs / 4 * 10) / 10;
+  };
+
+  const getAgentPlanTotal = (task, agent) =>
+    (agent.manager||0) + (agent.senior||0) + (agent.junior||0);
+
+  const getTaskPlanTotal = task =>
+    getAgents(task).reduce((s,a) => s + getAgentPlanTotal(task,a), 0);
+
+  const maxCellPlan = useMemo(() => {
+    let m = 0;
+    tasks.forEach(t => getAgents(t).forEach(a => weekCols.forEach(c => {
+      const h = getAgentWeekPlan(t,a,c); if(h > m) m = h;
+    })));
+    return m || 1;
+  }, [tasks, weekCols]);
+
+  const getActual = (taskId, agentUid) => actualMap[`${taskId}:${agentUid}`] || 0;
+  const setActual = (taskId, agentUid, v) =>
+    setActualMap(p => ({...p, [`${taskId}:${agentUid}`]: v}));
+
+  const handleSave = () => {
+    const now = nowTS();
+    tasks.forEach(task => {
+      getAgents(task).forEach(agent => {
+        onSave({
+          id:          `${opp.oppCode}_${task.id}_${agent.uid}_total`,
+          oppCode:     opp.oppCode,  jobCode: opp.jobCode,
+          taskId:      task.id,      taskName: task.taskName || "",
+          agentUid:    agent.uid,    year: new Date().getFullYear(),
+          month:       0,            week: 0,
+          planHours:   getAgentPlanTotal(task, agent),
+          actualHours: getActual(task.id, agent.uid),
+          savedTs:     now,          savedBy: user.id,
+        });
+      });
+    });
+    toast("Saved", opp.jobCode);
+  };
+
+  if(!open) return (
+    <Card style={{marginBottom:8, overflow:"hidden"}}>
+      <div onClick={() => setOpen(true)} style={{padding:"12px 18px", display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer", background:"#fff", userSelect:"none"}}>
+        <div style={{display:"flex", gap:10, alignItems:"center", flexWrap:"wrap"}}>
+          <span style={{fontFamily:"monospace", fontWeight:900, fontSize:15, color:"#0f172a"}}>{opp.jobCode}</span>
+          <SvcBadge code={opp.serviceCode}/>
+          <span style={{fontSize:12, color:"#64748b"}}>{cust?.companyEN || opp.custId}</span>
+          <span style={{fontSize:11, color:"#94a3b8"}}>{opexMonths.length} month{opexMonths.length!==1?"s":""} · {tasks.length} task{tasks.length!==1?"s":""}</span>
+        </div>
+        <span style={{fontSize:22, color:"#94a3b8", transform:"rotate(-90deg)", display:"inline-block"}}>›</span>
+      </div>
+    </Card>
+  );
+
+  const CELL_W = 52;
+  const BAR_MAX = CELL_W - 10;
+
+  return (
+    <Card style={{marginBottom:10, overflow:"hidden"}}>
+      {/* Header */}
+      <div style={{padding:"12px 18px", background:"#f8fafc", borderBottom:"1px solid #e2e8f0", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8}}>
+        <div style={{display:"flex", gap:10, alignItems:"center", flexWrap:"wrap"}}>
+          <span style={{fontFamily:"monospace", fontWeight:900, fontSize:15, color:"#0f172a"}}>{opp.jobCode}</span>
+          <SvcBadge code={opp.serviceCode}/>
+          <span style={{fontSize:12, color:"#64748b"}}>{cust?.companyEN || opp.custId}</span>
+        </div>
+        <button onClick={() => setOpen(false)} style={{border:"none", background:"none", cursor:"pointer", fontSize:22, color:"#94a3b8", padding:"0 4px", lineHeight:1, transform:"rotate(90deg)"}}>›</button>
+      </div>
+
+      {tasks.length === 0 && (
+        <div style={{padding:24, textAlign:"center", color:"#94a3b8", fontSize:13}}>No OPEX tasks found in Cost Sheet.</div>
+      )}
+
+      {tasks.length > 0 && (
+        <div style={{overflowX:"auto"}}>
+          <table style={{borderCollapse:"collapse", fontSize:12, minWidth:"100%", tableLayout:"fixed"}}>
+            <colgroup>
+              <col style={{width:32}}/>
+              <col style={{width:210}}/>
+              {weekCols.map((_,i) => <col key={i} style={{width:CELL_W}}/>)}
+              <col style={{width:76}}/>
+            </colgroup>
+            <thead>
+              {/* Month row */}
+              <tr style={{background:"#f1f5f9"}}>
+                <th colSpan={2} style={{borderBottom:"1px solid #e2e8f0", background:"#f1f5f9"}}/>
+                {opexMonths.map(({year,month}) => (
+                  <th key={`${year}-${month}`} colSpan={4} style={{textAlign:"center", fontWeight:800, color:"#0f172a", fontSize:11, borderLeft:"2px solid #cbd5e1", borderBottom:"1px solid #e2e8f0", padding:"4px 0", background:"#f1f5f9"}}>
+                    {MONTHS[month-1]} {year}
+                  </th>
+                ))}
+                <th style={{textAlign:"right", padding:"4px 8px", fontSize:10, fontWeight:700, color:"#64748b", borderLeft:"2px solid #e2e8f0", borderBottom:"1px solid #e2e8f0", background:"#f1f5f9", whiteSpace:"nowrap"}}>Hrs</th>
+              </tr>
+              {/* Week row */}
+              <tr style={{background:"#f8fafc"}}>
+                <th colSpan={2} style={{borderBottom:"2px solid #e2e8f0", background:"#f8fafc"}}/>
+                {weekCols.map((c,i) => (
+                  <th key={i} style={{textAlign:"center", fontSize:9, color:"#94a3b8", fontWeight:600, borderLeft:c.week===1?"2px solid #cbd5e1":"none", borderBottom:"2px solid #e2e8f0", padding:"2px 0", background:"#f8fafc"}}>
+                    W{c.week}
+                  </th>
+                ))}
+                <th style={{borderLeft:"2px solid #e2e8f0", borderBottom:"2px solid #e2e8f0", background:"#f8fafc"}}/>
+              </tr>
+            </thead>
+            <tbody>
+              {tasks.map((task, ti) => {
+                const agents    = getAgents(task);
+                const planTotal = getTaskPlanTotal(task);
+                const taskActual= agents.reduce((s,a) => s + getActual(task.id,a.uid), 0);
+                const hasActual = taskActual > 0;
+                const gap       = planTotal - taskActual;
+                const gapColor  = gap > 0 ? "#16a34a" : gap < 0 ? "#dc2626" : "#64748b";
+                const gapBg     = gap > 0 ? "#dcfce7" : gap < 0 ? "#fee2e2" : "#f1f5f9";
+                const gapBorder = gap > 0 ? "#86efac" : gap < 0 ? "#fecaca" : "#e2e8f0";
+                const getTaskWeekPlan = col => agents.reduce((s,a) => s + getAgentWeekPlan(task,a,col), 0);
+
+                return (
+                  <React.Fragment key={task.id}>
+                    {/* ── Plan row (task header) ── */}
+                    <tr style={{borderTop: ti===0?"none":"2px solid #e2e8f0", background:"#fff"}}>
+                      <td style={{padding:"8px 4px 6px 8px", color:"#94a3b8", fontSize:11, fontWeight:700, textAlign:"right", verticalAlign:"middle"}}>{ti+1}</td>
+                      <td style={{padding:"8px 10px 6px", fontWeight:700, fontSize:12, color:"#0f172a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", verticalAlign:"middle"}} title={task.taskName}>
+                        {task.taskName||"(Unnamed)"}
+                        <span style={{marginLeft:6, fontSize:9, fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.05em"}}>Plan</span>
+                      </td>
+                      {weekCols.map((col, ci) => {
+                        const planH = getTaskWeekPlan(col);
+                        const pBarW = planH > 0 ? Math.max(4, Math.round((planH / maxCellPlan) * BAR_MAX)) : 0;
+                        return (
+                          <td key={ci} style={{padding:"8px 5px 6px", borderLeft:col.week===1?"2px solid #e2e8f0":"none", verticalAlign:"middle"}}>
+                            {planH > 0 && <div style={{width:pBarW, height:7, background:"#334155", borderRadius:2}} title={`Plan: ${planH}h`}/>}
+                          </td>
+                        );
+                      })}
+                      <td style={{textAlign:"right", padding:"0 8px", borderLeft:"2px solid #e2e8f0", fontWeight:700, fontSize:12, color:"#334155", verticalAlign:"middle", whiteSpace:"nowrap"}}>
+                        {planTotal > 0 ? `${planTotal}h` : "—"}
+                      </td>
+                    </tr>
+
+                    {/* ── Actual rows (per agent) ── */}
+                    {agents.map((agent, ai) => {
+                      const u           = USERS.find(x => x.id === agent.uid);
+                      const agentName   = u?.name || agent.uid;
+                      const agentPlan   = getAgentPlanTotal(task, agent);
+                      const agentActual = getActual(task.id, agent.uid);
+                      const hasAg       = agentActual > 0;
+                      const agWeekCount = weekCols.filter(c => getAgentWeekPlan(task,agent,c) > 0).length || 1;
+                      const agActPerWk  = hasAg ? agentActual / agWeekCount : 0;
+                      const role   = (agent.manager||0)>0?"M":(agent.senior||0)>0?"S":"J";
+                      const roleC  = role==="M"?"#1e40af":role==="S"?"#7c3aed":"#16a34a";
+                      const roleBg = role==="M"?"#dbeafe":role==="S"?"#ede9fe":"#dcfce7";
+
+                      return (
+                        <tr key={agent.uid} style={{background:"#fafcff", borderBottom:"1px solid #f1f5f9"}}>
+                          <td/>
+                          <td style={{padding:"4px 10px 4px 22px", verticalAlign:"middle"}}>
+                            <span style={{color:"#94a3b8", fontSize:10, marginRight:4}}>↳</span>
+                            <span style={{fontSize:11, fontWeight:600, color:"#374151", marginRight:5}}>{agentName}</span>
+                            <span style={{fontSize:9, fontWeight:700, padding:"1px 4px", borderRadius:3, background:roleBg, color:roleC, marginRight:5}}>
+                              {role==="M"?"Mgr":role==="S"?"Sr":"Jr"}
+                            </span>
+                            <span style={{fontSize:9, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.05em"}}>Actual</span>
+                          </td>
+                          {weekCols.map((col, ci) => {
+                            const planH = getAgentWeekPlan(task, agent, col);
+                            const actH  = hasAg && planH > 0 ? agActPerWk : 0;
+                            const aBarW = actH > 0 ? Math.max(2, Math.round((actH / maxCellPlan) * BAR_MAX)) : 0;
+                            const pBarW = planH > 0 ? Math.max(3, Math.round((planH / maxCellPlan) * BAR_MAX)) : 0;
+                            return (
+                              <td key={ci} style={{padding:"4px 5px", borderLeft:col.week===1?"2px solid #e2e8f0":"none", verticalAlign:"middle"}}>
+                                {planH > 0 && (
+                                  <div style={{width: hasAg ? Math.max(2,aBarW) : pBarW, height:5, borderRadius:2,
+                                    background: hasAg ? "#3b82f6" : "#e2e8f0",
+                                    opacity: hasAg ? 1 : 0.4}}
+                                    title={hasAg ? `Actual ~${Math.round(actH*10)/10}h` : "No actual entered"}/>
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td style={{padding:"3px 6px", borderLeft:"2px solid #e2e8f0", textAlign:"right", verticalAlign:"middle"}}>
+                            {canEdit
+                              ? <NumInp value={agentActual} onChange={v => setActual(task.id,agent.uid,v)} showZero={false}
+                                  style={{width:60, textAlign:"right", padding:"3px 5px", fontSize:11,
+                                    border:`1px solid ${hasAg?"#bfdbfe":"#e2e8f0"}`,
+                                    background:hasAg?"#eff6ff":"#fafafa"}}/>
+                              : <span style={{fontSize:11, color:hasAg?"#1e40af":"#94a3b8", fontWeight:hasAg?600:400}}>{hasAg?`${agentActual}h`:"—"}</span>
+                            }
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {agents.length === 0 && (
+                      <tr><td colSpan={totalCols} style={{padding:"4px 22px", fontSize:11, color:"#d97706", fontStyle:"italic", background:"#fffbeb"}}>
+                        No agents assigned — add in Cost Sheet OPEX tasks.
+                      </td></tr>
+                    )}
+
+                    {/* ── Gap row ── */}
+                    {hasActual && (
+                      <tr style={{background:"#f8fafc", borderBottom:"2px solid #e2e8f0"}}>
+                        <td colSpan={totalCols} style={{padding:"4px 12px", textAlign:"right"}}>
+                          <span style={{fontSize:10, color:"#94a3b8", marginRight:10}}>
+                            Plan {planTotal}h · Actual {Math.round(taskActual*10)/10}h
+                          </span>
+                          <span style={{fontSize:11, fontWeight:800, color:gapColor, background:gapBg,
+                            padding:"2px 8px", borderRadius:4, border:`1px solid ${gapBorder}`}}>
+                            {gap>0?`▼ ${gap}h under`:gap<0?`▲ ${Math.abs(gap)}h over`:"On plan"}
+                          </span>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {canEdit && tasks.length > 0 && (
+        <div style={{padding:"10px 16px", borderTop:"1px solid #f1f5f9", display:"flex", justifyContent:"flex-end"}}>
+          <Btn onClick={handleSave} style={{fontSize:12, padding:"6px 16px"}}>Save Time Sheet</Btn>
+        </div>
+      )}
+    </Card>
+  );
+};
+
 // ── TimesheetPage v2 ──────────────────────────────────────────────────────────
 const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimesheet,toast,userList}) => {
   // Role routing
@@ -4209,6 +4470,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
   const canToggle  = !isManager && !isOp; // sales/admin can toggle
   const [viewMode, setViewMode] = useState(isManager?"manager":isOp?"agent":"manager");
   const effectiveIsManager = viewMode==="manager";
+  const [tsView,   setTsView]  = useState("task"); // "task" = TSTaskGrid, "card" = TSWeekGrid
 
   const [search,  sSearch]  = useState("");
   const [fSvc,    setFSvc]  = useState([]);
@@ -4292,6 +4554,14 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
           )}
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
+            {[["task","Task Grid"],["card","Detail Cards"]].map(([k,l])=>(
+              <button key={k} onClick={()=>setTsView(k)}
+                style={{padding:"6px 12px",border:"none",background:tsView===k?"#0f172a":"#fff",color:tsView===k?"#fff":"#64748b",cursor:"pointer",fontSize:12,fontWeight:tsView===k?700:400,whiteSpace:"nowrap"}}>
+                {l}
+              </button>
+            ))}
+          </div>
           <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fSvc} onChange={setFSvc} width={140}/>
           <input value={search} onChange={e=>sSearch(e.target.value)} placeholder="Search job / company…" style={{...SI,width:210,fontSize:13}}/>
         </div>
@@ -4307,15 +4577,20 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
         const cust     = customers.find(c=>c.id===opp.custId);
         const snapshot = getQuoteSnapshot(opp);
         const tsRows   = getTSRows(opp.oppCode);
-        return (
-          <TSWeekGrid key={opp.oppCode}
-            opp={opp} cust={cust} snapshot={snapshot}
-            tsRows={tsRows}
-            onSave={onSaveTimesheet} toast={toast} user={user}
-            isManager={effectiveIsManager}
-            canEdit={true}
-          />
-        );
+        return tsView==="task"
+          ? <TSTaskGrid key={opp.oppCode}
+              opp={opp} cust={cust} snapshot={snapshot}
+              tsRows={tsRows}
+              onSave={onSaveTimesheet} toast={toast} user={user}
+              canEdit={true}
+            />
+          : <TSWeekGrid key={opp.oppCode}
+              opp={opp} cust={cust} snapshot={snapshot}
+              tsRows={tsRows}
+              onSave={onSaveTimesheet} toast={toast} user={user}
+              isManager={effectiveIsManager}
+              canEdit={true}
+            />;
       })}
 
       {/* All-project agent summary (Manager view) */}
