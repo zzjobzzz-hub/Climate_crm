@@ -377,9 +377,14 @@ const MultiSelect = ({label,options,selected,onChange,width=180}) => {
   const display = allSel?`All ${label}`:`${selected.length} selected`;
   return (
     <div ref={ref} style={{position:"relative",userSelect:"none"}}>
-      <button onClick={()=>sO(!open)} style={{padding:"7px 10px",border:"1px solid #e2e8f0",borderRadius:5,background:"#fafafa",fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",gap:6,width,justifyContent:"space-between",color:"#1e293b"}}>
-        <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,textAlign:"left"}}>{display}</span>
-        <span style={{fontSize:10,color:"#94a3b8",flexShrink:0}}></span>
+      <button onClick={()=>sO(!open)} style={{
+        padding:"6px 10px",border:`1px solid ${allSel?"#e2e8f0":"#93c5fd"}`,borderRadius:6,
+        background:allSel?"#fafafa":"#eff6ff",fontSize:13,cursor:"pointer",
+        display:"flex",alignItems:"center",gap:6,width,justifyContent:"space-between",
+        color:allSel?"#64748b":"#1e40af",transition:"all .15s",
+      }}>
+        <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,textAlign:"left",fontSize:12,fontWeight:allSel?400:600}}>{display}</span>
+        <ChevronDown/>
       </button>
       {open && (
         <div style={{position:"absolute",top:"110%",left:0,zIndex:600,background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,boxShadow:"0 8px 32px rgba(0,0,0,.12)",minWidth:width,padding:8,maxHeight:260,overflow:"auto"}}>
@@ -747,6 +752,19 @@ const DlIcon = () => (
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
     <polyline points="7 10 12 15 17 10"/>
     <line x1="12" y1="15" x2="12" y2="3"/>
+  </svg>
+);
+const FilterIcon = ({size=14,color="#94a3b8"}) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
+    <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
+    <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
+    <line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>
+    <line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>
+  </svg>
+);
+const ChevronDown = () => (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0,color:"#94a3b8"}}>
+    <polyline points="6 9 12 15 18 9"/>
   </svg>
 );
 const ExportBar = ({onCSV,onGS}) => <div style={{display:"flex",gap:6}}><Btn variant="export" onClick={onCSV}><DlIcon/>CSV</Btn><Btn variant="export" onClick={onGS}> GS</Btn></div>;
@@ -1120,7 +1138,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
           ))}
         </div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-          {tab==="dash"&&<MultiSelect label="Agents" options={SALES_USERS.map(u=>({value:u.id,label:u.name.split(" ")[0]}))} selected={fAg} onChange={setFAg} width={150}/>}
+          {tab==="dash"&&<><FilterIcon/><MultiSelect label="Agents" options={SALES_USERS.map(u=>({value:u.id,label:u.name.split(" ")[0]}))} selected={fAg} onChange={setFAg} width={150}/></>}
           {tab==="kpi"&&<><Sel value={year} onChange={e=>sYear(+e.target.value)} style={{width:88}}>{[2569,2570,2571].map(y=><option key={y}>{y}</option>)}</Sel><NumInp value={annual} onChange={v=>sAnn(v)} style={{width:160}}/></>}
         </div>
       </div>
@@ -1426,7 +1444,8 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
         <div><Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Customers</Span><Span s={13} c="#94a3b8" style={{marginLeft:8}}>{list.length} records</Span></div>
         <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("customers.csv",CUST_HDR,list.map(c=>[c.id,c.companyEN,c.industry,c.province,(c.contacts||[]).map(ct=>ct.name).join("; "),USERS.find(u=>u.id===c.assignedTo)?.name||c.assignedTo,c.ranking,c.status,getLastContact(c.id),c.remark||""]))}><DlIcon/>CSV</Btn><Btn onClick={()=>{sE(null);sF(true);}}>+ Add Customer</Btn></div>
       </div>
-      <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+      <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
+        <FilterIcon/>
         <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:220}}/>
       </div>
       <Card><div style={{overflowX:"auto"}}>
@@ -2414,6 +2433,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
         <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("opps.csv",OPP_HDR,list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);return[o.oppCode,o.quoteNo,o.csCode||"",o.jobCode||"",c?.companyEN||"",o.serviceCode,o.serviceType,o.salesPrice,o.totalCost||0,mg,marginAmt(o.salesPrice,o.totalCost||0),o.status,USERS.find(u=>u.id===o.assignedTo)?.name||"",o.createdDate,o.lostReason||""];}))}><DlIcon/>CSV</Btn></div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
+        <FilterIcon/>
         <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:200,minWidth:140}}/>
         <MultiSelect label="Status"  options={OPP_STATUSES.map(s=>({value:s,label:s}))}       selected={fSt}  onChange={setFSt}  width={140}/>
         <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fSvc} onChange={setFSvc} width={140}/>
@@ -3033,6 +3053,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
         <div style={{display:"flex",gap:8}}><Btn variant="export" onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=(d.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}><DlIcon/>CSV</Btn></div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
+        <FilterIcon/>
         <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:200,minWidth:140}}/>
         <MultiSelect label="Status"  options={DLV_STATUSES.map(s=>({value:s,label:s}))} selected={fDS}    onChange={setFDS}    width={140}/>
         <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fDSvc} onChange={setFDSvc} width={140}/>
@@ -4578,13 +4599,21 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
     <div>
       {/* Top bar */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
+        {/* Left: title + filters */}
+        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Time Sheet</Span>
+          <div style={{width:1,height:22,background:"#e2e8f0",marginLeft:2}}/>
+          <FilterIcon/>
+          <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fSvc} onChange={setFSvc} width={140}/>
+          <input value={search} onChange={e=>sSearch(e.target.value)} placeholder="Search job / company…" style={{...SI,width:200,fontSize:13}}/>
+        </div>
+        {/* Right: view toggle */}
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
           {canToggle&&(
             <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
               {[["manager","Manager View"],["agent","Agent View"]].map(([k,l])=>(
                 <button key={k} onClick={()=>setViewMode(k)}
-                  style={{padding:"6px 14px",border:"none",background:viewMode===k?"#0f172a":"#fff",color:viewMode===k?"#fff":"#64748b",cursor:"pointer",fontSize:12,fontWeight:viewMode===k?700:400}}>
+                  style={{padding:"6px 14px",border:"none",background:viewMode===k?"#0f172a":"#fff",color:viewMode===k?"#fff":"#64748b",cursor:"pointer",fontSize:12,fontWeight:viewMode===k?700:400,whiteSpace:"nowrap"}}>
                   {l}
                 </button>
               ))}
@@ -4595,10 +4624,6 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
               {isManager?"Manager View":"Agent View"}
             </span>
           )}
-        </div>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fSvc} onChange={setFSvc} width={140}/>
-          <input value={search} onChange={e=>sSearch(e.target.value)} placeholder="Search job / company…" style={{...SI,width:210,fontSize:13}}/>
         </div>
       </div>
 
