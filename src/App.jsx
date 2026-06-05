@@ -353,7 +353,7 @@ const Btn = ({variant="primary",size,icon,iconOnly,className="",style,children,.
     style={style}>{icon}{children}</button>
 );
 // Record count shown beside a page title.
-const CountPill = ({n}) => <span style={{fontSize:12,fontWeight:700,color:"#475569",background:"#f1f5f9",borderRadius:999,padding:"2px 9px",minWidth:22,textAlign:"center",lineHeight:1.55}}>{n}</span>;
+const CountPill = ({n,label}) => <span style={{fontSize:12,fontWeight:700,color:"#475569",background:"#f1f5f9",borderRadius:999,padding:"2px 9px",minWidth:22,textAlign:"center",lineHeight:1.55}}>{n}{label&&<span style={{fontWeight:500,marginLeft:4,color:"#94a3b8"}}>{label}</span>}</span>;
 // Icon-only button for in-row / inline micro-actions. variant: "danger" | "accept". size: "sm".
 const IconBtn = ({variant,size,title,style,children,...p}) => (
   <button {...p} title={title}
@@ -1537,7 +1537,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
         <div style={{display:"flex",alignItems:"center",gap:9}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Customers</Span>
-          <CountPill n={list.length}/>
+          <CountPill n={list.length} label="customers"/>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}><Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("customers.csv",CUST_HDR,list.map(c=>[c.id,c.companyEN,c.industry,c.province,(c.contacts||[]).map(ct=>ct.name).join("; "),USERS.find(u=>u.id===c.assignedTo)?.name||c.assignedTo,c.ranking,c.status,getLastContact(c.id),c.remark||""]))}>CSV</Btn><Btn icon={<PlusIcon/>} onClick={()=>{sE(null);sF(true);}}>Add Customer</Btn></div>
       </div>
@@ -2534,7 +2534,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
         <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Opportunities</Span>
-          <CountPill n={list.length}/>
+          <CountPill n={list.length} label="opps"/>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("opps.csv",OPP_HDR,list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);return[o.oppCode,o.quoteNo,o.csCode||"",o.jobCode||"",c?.companyEN||"",o.serviceCode,o.serviceType,o.salesPrice,o.totalCost||0,mg,marginAmt(o.salesPrice,o.totalCost||0),o.status,USERS.find(u=>u.id===o.assignedTo)?.name||"",o.createdDate,o.lostReason||""];}))}>CSV</Btn>
@@ -3208,7 +3208,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Delivery</Span>
-          <CountPill n={list.length}/>
+          <CountPill n={list.length} label="deliveries"/>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=(d.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}>CSV</Btn>
@@ -3260,7 +3260,7 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
   const totalJr   = agents.length > 0 ? agents.reduce((s,a)=>s+(a.junior||0),0)  : (t.junior||0);
   const tc = totalMgr*IH_LEVELS.Manager + totalSr*IH_LEVELS.Senior + totalJr*IH_LEVELS.Junior;
 
-  const eligibleUsers = USERS.filter(u => ["sales","operation"].includes(u.role));
+  const eligibleUsers = USERS.filter(u => ["sales","operation","manager"].includes(u.role));
   const assignedUids  = agents.map(a => a.uid);
 
   const addAgent = uid => {
@@ -4044,352 +4044,6 @@ const buildWeekColumns = (opexMonths) => {
   return cols;
 };
 
-const MONTH_ABBR = ["J","F","M","A","M","J","J","A","S","O","N","D"];
-
-// ── TSWeekGrid: collapsible OPP card with per-task expand ──
-const TSWeekGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, isManager, canEdit}) => {
-  const [open,      setOpen]     = useState(false);
-  const [expanded,  setExpanded] = useState({}); // {taskId: bool}
-  const [noteText,  setNoteText] = useState("");
-  const [saveLog,   setSaveLog]  = useState([]);
-  const [localData, setLocalData]= useState({}); // {taskId_agentUid_year_month_week: {plan,actual}}
-
-  const tasks = useMemo(()=>safeArr(snapshot?.tasks||[]),[snapshot]);
-  const opexMonths = useMemo(()=>getOPEXMonths(tasks, null),[tasks]);
-  const weekCols   = useMemo(()=>buildWeekColumns(opexMonths),[opexMonths]);
-
-  // Load saved rows + pre-fill plan from OPEX if no saved plan exists
-  useEffect(()=>{
-    const init = {};
-    (tsRows||[]).forEach(r=>{
-      const k = `${r.taskId}_${r.agentUid}_${r.year}_${r.month}_${r.week}`;
-      init[k] = {plan: r.planHours||0, actual: r.actualHours||0};
-    });
-    const hasSavedPlan = Object.values(init).some(v=>v.plan>0);
-    if(!hasSavedPlan) {
-      tasks.forEach(task=>{
-        const agents = Array.isArray(task.agents)&&task.agents.length>0&&typeof task.agents[0]==="object"?task.agents:[];
-        const opexMonth = opexMonths.find(m=>m.payMonth===(task.payMonth||1));
-        if(!opexMonth) return;
-        agents.forEach(a=>{
-          const totalHrs = (a.manager||0)+(a.senior||0)+(a.junior||0);
-          if(!totalHrs) return;
-          const perWeek = Math.round((totalHrs/4)*10)/10;
-          for(let w=1;w<=4;w++){
-            const k = `${task.id}_${a.uid}_${opexMonth.year}_${opexMonth.month}_${w}`;
-            if(!init[k]) init[k]={plan:0,actual:0};
-            init[k].plan = perWeek;
-          }
-        });
-      });
-    }
-    setLocalData(init);
-    const logs=(tsRows||[]).filter(r=>r.saveLog).flatMap(r=>safeArr(r.saveLog));
-    if(logs.length>0) setSaveLog(logs.slice(-5));
-  },[tsRows, opp.oppCode]);
-
-  const getKey = (taskId,agentUid,year,month,week) => `${taskId}_${agentUid}_${year}_${month}_${week}`;
-  const getVal = (taskId,agentUid,year,month,week,field) => localData[getKey(taskId,agentUid,year,month,week)]?.[field]||0;
-  const setVal = (taskId,agentUid,year,month,week,field,val) => {
-    const k = getKey(taskId,agentUid,year,month,week);
-    setLocalData(p=>({...p,[k]:{...(p[k]||{plan:0,actual:0}),[field]:parseFloat(val)||0}}));
-  };
-  const rowSum = (taskId,agentUid,field) =>
-    weekCols.reduce((s,c)=>s+getVal(taskId,agentUid,c.year,c.month,c.week,field),0);
-
-  const handleSave = () => {
-    const rows=[];
-    Object.entries(localData).forEach(([k,v])=>{
-      const parts=k.split("_");
-      if(parts.length<5) return;
-      const [taskId,agentUid,year,month,week]=parts;
-      if(!taskId||!agentUid) return;
-      const task=tasks.find(t=>t.id===taskId);
-      rows.push({
-        id:`${opp.oppCode}_${k}`,
-        oppCode:opp.oppCode, jobCode:opp.jobCode,
-        taskId, taskName:task?.taskName||"",
-        agentUid, year:+year, month:+month, week:+week,
-        planHours:v.plan||0, actualHours:v.actual||0,
-        savedTs:nowTS(), savedBy:user.id,
-      });
-    });
-    const entry={ts:nowTS(),author:user.id,note:noteText||`Saved by ${user.name}`};
-    const newLog=[...saveLog,entry].slice(-5);
-    rows.forEach(r=>onSave({...r,saveLog:newLog}));
-    setSaveLog(newLog); setNoteText("");
-    toast("Saved",opp.jobCode);
-  };
-
-  const agentSummary = useMemo(()=>{
-    const map={};
-    tasks.forEach(task=>{
-      const agents=Array.isArray(task.agents)&&task.agents.length>0&&typeof task.agents[0]==="object"?task.agents:[];
-      agents.forEach(a=>{
-        if(!map[a.uid]){
-          const u=USERS.find(x=>x.id===a.uid);
-          const role=(a.manager||0)>0?"Manager":(a.senior||0)>0?"Senior":"Junior";
-          map[a.uid]={uid:a.uid,name:u?.name||a.uid,role,planHours:0,actualHours:0};
-        }
-      });
-    });
-    Object.entries(localData).forEach(([k,v])=>{
-      const agentUid=k.split("_")[1];
-      if(agentUid&&map[agentUid]){ map[agentUid].planHours+=v.plan||0; map[agentUid].actualHours+=v.actual||0; }
-    });
-    return Object.values(map);
-  },[tasks,localData]);
-
-  const displayTasks = useMemo(()=>{
-    if(isManager) return tasks;
-    return tasks.filter(t=>{
-      const agents=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];
-      return agents.some(a=>a.uid===user.id);
-    });
-  },[tasks,isManager,user.id]);
-
-  const toggleTask = taskId => setExpanded(p=>({...p,[taskId]:!p[taskId]}));
-
-  if(!open) return (
-    <Card style={{marginBottom:8,overflow:"hidden"}}>
-      <div onClick={()=>setOpen(true)} style={{padding:"12px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",background:"#fff",userSelect:"none"}}>
-        <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-          <span style={{fontFamily:"monospace",fontWeight:900,fontSize:15,color:"#0f172a"}}>{opp.jobCode}</span>
-          <SvcBadge code={opp.serviceCode}/>
-          <span style={{fontSize:12,color:"#64748b"}}>{cust?.companyEN||opp.custId}</span>
-          <span style={{fontSize:11,color:"#94a3b8"}}>{opexMonths.length} month{opexMonths.length!==1?"s":""} · {displayTasks.length} task{displayTasks.length!==1?"s":""}</span>
-        </div>
-        <span style={{fontSize:22,color:"#94a3b8",transform:"rotate(-90deg)",display:"inline-block"}}>›</span>
-      </div>
-    </Card>
-  );
-
-  const taskColW  = 200;
-  const rowLblW   = 64;
-  const numCols   = weekCols.length;
-  const weekColW  = Math.max(30, Math.min(46, Math.floor((window.innerWidth - taskColW - rowLblW - 120) / Math.max(numCols,1))));
-
-  return (
-    <Card style={{marginBottom:10,overflow:"hidden"}}>
-      {/* Header */}
-      <div style={{padding:"12px 18px",background:"#f8fafc",borderBottom:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
-        <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-          <span style={{fontFamily:"monospace",fontWeight:900,fontSize:15,color:"#0f172a"}}>{opp.jobCode}</span>
-          <SvcBadge code={opp.serviceCode}/>
-          <span style={{fontSize:12,color:"#64748b"}}>{cust?.companyEN||opp.custId}</span>
-          {!isManager&&<span style={{fontSize:11,background:"#eff6ff",color:"#1e40af",padding:"2px 8px",borderRadius:10,fontWeight:700}}>Agent View</span>}
-        </div>
-        <button onClick={()=>setOpen(false)} style={{border:"none",background:"none",cursor:"pointer",fontSize:22,color:"#94a3b8",padding:"0 4px",lineHeight:1,transform:"rotate(90deg)",display:"inline-block"}}>›</button>
-      </div>
-
-      {displayTasks.length===0&&(
-        <div style={{padding:24,textAlign:"center",color:"#94a3b8",fontSize:13}}>
-          {isManager?"No OPEX tasks found in Cost Sheet.":"No tasks assigned to you for this project."}
-        </div>
-      )}
-
-      {displayTasks.length>0&&(
-        <div style={{overflowX:"auto"}}>
-          <table style={{borderCollapse:"collapse",fontSize:11,minWidth:"100%",tableLayout:"fixed"}}>
-            <colgroup>
-              <col style={{width:taskColW}}/>
-              <col style={{width:rowLblW}}/>
-              {weekCols.map((_,i)=><col key={i} style={{width:weekColW}}/>)}
-              <col style={{width:54}}/>
-            </colgroup>
-            <thead>
-              <tr style={{background:"#f1f5f9"}}>
-                <th style={{padding:"4px 10px",textAlign:"left",fontWeight:700,color:"#0f172a",fontSize:11,position:"sticky",left:0,background:"#f1f5f9",zIndex:3,borderBottom:"1px solid #e2e8f0"}}>Task</th>
-                <th style={{padding:"4px 6px",borderBottom:"1px solid #e2e8f0",background:"#f1f5f9"}}/>
-                {opexMonths.map(({year,month})=>(
-                  <th key={`${year}-${month}`} colSpan={4}
-                    style={{textAlign:"center",fontWeight:800,color:"#0f172a",fontSize:11,
-                      borderLeft:"2px solid #cbd5e1",borderBottom:"1px solid #e2e8f0",
-                      padding:"4px 0",background:"#f1f5f9"}}>
-                    {MONTHS[month-1]} {year}
-                  </th>
-                ))}
-                <th style={{textAlign:"right",padding:"4px 8px",color:"#64748b",fontSize:10,fontWeight:700,
-                  borderLeft:"2px solid #e2e8f0",borderBottom:"1px solid #e2e8f0",background:"#f1f5f9",whiteSpace:"nowrap"}}>Man hrs</th>
-              </tr>
-              <tr style={{background:"#f8fafc"}}>
-                <th style={{position:"sticky",left:0,background:"#f8fafc",zIndex:3,borderBottom:"2px solid #e2e8f0",padding:"2px 10px"}}/>
-                <th style={{borderBottom:"2px solid #e2e8f0",background:"#f8fafc"}}/>
-                {weekCols.map((c,i)=>(
-                  <th key={i} style={{textAlign:"center",fontSize:9,color:"#94a3b8",fontWeight:600,
-                    borderLeft:c.week===1?"2px solid #cbd5e1":"none",
-                    borderBottom:"2px solid #e2e8f0",padding:"2px 0",background:"#f8fafc"}}>
-                    Wk{c.week}
-                  </th>
-                ))}
-                <th style={{borderLeft:"2px solid #e2e8f0",borderBottom:"2px solid #e2e8f0",background:"#f8fafc"}}/>
-              </tr>
-            </thead>
-            <tbody>
-              {displayTasks.map((task,ti)=>{
-                const agents = Array.isArray(task.agents)&&task.agents.length>0&&typeof task.agents[0]==="object"?task.agents:[];
-                const myAgents = isManager ? agents : agents.filter(a=>a.uid===user.id);
-                const isExp = !!expanded[task.id];
-                const taskPlanTotal   = myAgents.reduce((s,a)=>s+rowSum(task.id,a.uid,"plan"),0);
-                const taskActualTotal = myAgents.reduce((s,a)=>s+rowSum(task.id,a.uid,"actual"),0);
-
-                return (
-                  <React.Fragment key={task.id}>
-                    {/* Task header row — click to expand */}
-                    <tr onClick={()=>toggleTask(task.id)} style={{cursor:"pointer",background:isExp?"#f0f9ff":"#fff",borderTop:ti===0?"1px solid #e2e8f0":"1px solid #f1f5f9"}}>
-                      <td style={{padding:"7px 10px",position:"sticky",left:0,background:isExp?"#f0f9ff":"#fff",zIndex:1,fontWeight:700,fontSize:12,color:"#0f172a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                        <span style={{color:"#94a3b8",fontSize:10,marginRight:5,display:"inline-block",width:10}}>{isExp?"▼":"▶"}</span>
-                        <span style={{fontSize:10,color:"#94a3b8",marginRight:4,fontWeight:600}}>{ti+1}.</span>
-                        {task.taskName||"(Unnamed)"}
-                      </td>
-                      <td style={{background:isExp?"#f0f9ff":"#fff"}}/>
-                      {weekCols.map((c,ci)=>{
-                        const agSum=myAgents.reduce((s,a)=>s+getVal(task.id,a.uid,c.year,c.month,c.week,"plan"),0);
-                        return (
-                          <td key={ci} style={{textAlign:"center",fontSize:10,color:"#94a3b8",
-                            borderLeft:c.week===1?"2px solid #e8f4fd":"none",
-                            background:isExp?"#f0f9ff":"#fff"}}>
-                            {agSum>0?agSum:""}
-                          </td>
-                        );
-                      })}
-                      <td style={{textAlign:"right",padding:"2px 8px",fontWeight:700,fontSize:11,borderLeft:"2px solid #e2e8f0",background:isExp?"#f0f9ff":"#fff",whiteSpace:"nowrap"}}>
-                        {taskPlanTotal>0&&<span style={{color:"#374151"}}>{Math.round(taskPlanTotal*10)/10}h</span>}
-                        {taskActualTotal>0&&<span style={{color:"#1e40af",marginLeft:3}}>({Math.round(taskActualTotal*10)/10})</span>}
-                      </td>
-                    </tr>
-
-                    {/* Expanded: per-agent sub-rows */}
-                    {isExp && myAgents.map(a=>{
-                      const u = USERS.find(x=>x.id===a.uid);
-                      const agentName = u?.name||a.uid;
-                      const agentRole = (a.manager||0)>0?"Manager":(a.senior||0)>0?"Senior":"Junior";
-                      const roleClr   = agentRole==="Manager"?"#1e40af":agentRole==="Senior"?"#7c3aed":"#16a34a";
-                      const roleBg    = agentRole==="Manager"?"#dbeafe":agentRole==="Senior"?"#ede9fe":"#dcfce7";
-                      const opexHrs   = (a.manager||0)+(a.senior||0)+(a.junior||0);
-                      const subRows   = isManager ? ["plan","actual"] : ["actual"];
-
-                      return (
-                        <React.Fragment key={a.uid}>
-                          {/* Agent name label row */}
-                          <tr style={{background:"#fafcff",borderTop:"1px solid #e8f4fd"}}>
-                            <td colSpan={2+numCols+1} style={{padding:"3px 10px 2px 26px",fontSize:10}}>
-                              <span style={{color:"#94a3b8",marginRight:4}}>↳</span>
-                              <span style={{fontWeight:700,color:"#0f172a",marginRight:6}}>{agentName}</span>
-                              <span style={{fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:3,background:roleBg,color:roleClr}}>{agentRole}</span>
-                              {isManager&&opexHrs>0&&<span style={{fontSize:9,color:"#94a3b8",marginLeft:6}}>OPEX: {opexHrs}h</span>}
-                            </td>
-                          </tr>
-
-                          {subRows.map(rowType=>{
-                            const isPlan = rowType==="plan";
-                            const rSum   = rowSum(task.id,a.uid,rowType);
-                            const editable = canEdit && (isPlan ? isManager : (!isManager||a.uid===user.id||isManager));
-                            return (
-                              <tr key={rowType} style={{background:isPlan?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}>
-                                <td style={{padding:"2px 6px 2px 36px",position:"sticky",left:0,background:isPlan?"#f8fafc":"#fff",zIndex:1,whiteSpace:"nowrap",fontSize:10,color:isPlan?"#374151":"#1e40af",fontWeight:600}}>
-                                  ↳ {isPlan?"Plan":"Actual"}
-                                </td>
-                                <td style={{background:isPlan?"#f8fafc":"#fff"}}/>
-                                {weekCols.map((c,ci)=>{
-                                  const val = getVal(task.id,a.uid,c.year,c.month,c.week,rowType);
-                                  return (
-                                    <td key={ci} style={{padding:"1px",textAlign:"center",borderLeft:c.week===1?"2px solid #e8f4fd":"none",background:isPlan?"#f8fafc":"#fff"}}>
-                                      {editable
-                                        ? <input type="number" min="0" step="0.5"
-                                            value={val||""}
-                                            onChange={e=>setVal(task.id,a.uid,c.year,c.month,c.week,rowType,e.target.value)}
-                                            style={{width:weekColW-4,padding:"2px 1px",fontSize:10,textAlign:"center",
-                                              border:`1px solid ${isPlan?"#e2e8f0":"#bfdbfe"}`,borderRadius:2,
-                                              background:isPlan?"#fff":"#eff6ff",outline:"none"}}/>
-                                        : <span style={{fontSize:10,color:isPlan?"#94a3b8":"#1e40af",fontWeight:val>0?600:400}}>{val||""}</span>
-                                      }
-                                    </td>
-                                  );
-                                })}
-                                <td style={{textAlign:"right",padding:"2px 8px",fontWeight:700,fontSize:10,borderLeft:"2px solid #e2e8f0",color:isPlan?"#374151":"#1e40af",whiteSpace:"nowrap",background:isPlan?"#f8fafc":"#fff"}}>
-                                  {rSum>0?`${Math.round(rSum*10)/10}h`:""}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </React.Fragment>
-                      );
-                    })}
-
-                    {isExp&&myAgents.length===0&&(
-                      <tr style={{background:"#fffbeb"}}>
-                        <td colSpan={2+numCols+1} style={{padding:"6px 26px",fontSize:11,color:"#d97706",fontStyle:"italic"}}>
-                          No agents assigned — add agents in Cost Sheet OPEX tasks.
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Note + Save */}
-      <div style={{padding:"12px 16px",borderTop:"1px solid #f1f5f9",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-        <input value={noteText} onChange={e=>setNoteText(e.target.value)} placeholder="Save note (optional)…"
-          style={{...SI,flex:1,minWidth:180,fontSize:12,padding:"6px 10px"}}/>
-        <Btn onClick={handleSave} style={{fontSize:12,padding:"6px 16px"}}>Save Time Sheet</Btn>
-        {saveLog.length>0&&(
-          <div style={{width:"100%",marginTop:4,display:"flex",flexDirection:"column",gap:2}}>
-            {[...saveLog].reverse().slice(0,5).map((e,i)=>(
-              <span key={i} style={{fontSize:10,color:"#94a3b8"}}>{e.ts} · {USERS.find(u=>u.id===e.author)?.name||e.author}: {e.note}</span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* By Agent Summary — manager only */}
-      {isManager&&agentSummary.length>0&&(
-        <div style={{padding:"10px 16px",borderTop:"2px solid #f1f5f9"}}>
-          <div style={{fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>By Agent Summary</div>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-            <thead>
-              <tr style={{background:"#f8fafc"}}>
-                {["Agent","Role","Plan hrs","Plan ฿","Actual hrs","Actual ฿","Var hrs","Var ฿"].map((h,i)=>(
-                  <th key={h} style={{padding:"5px 8px",textAlign:i>1?"right":"left",color:"#64748b",fontWeight:700,borderBottom:"1px solid #e2e8f0"}}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {agentSummary.map(r=>{
-                const rate=RATE_PER_HOUR[r.role]||948;
-                const pB=r.planHours*rate,aB=r.actualHours*rate;
-                const vH=r.actualHours-r.planHours,vB=aB-pB;
-                const vc=vH<0?"#16a34a":vH>0?"#dc2626":"#64748b";
-                return (
-                  <tr key={r.uid} style={{borderBottom:"1px solid #f1f5f9"}}>
-                    <td style={{padding:"5px 8px",fontWeight:600}}>{r.name}</td>
-                    <td style={{padding:"5px 8px"}}>
-                      <span style={{fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:3,
-                        background:r.role==="Manager"?"#dbeafe":r.role==="Senior"?"#ede9fe":"#dcfce7",
-                        color:r.role==="Manager"?"#1e40af":r.role==="Senior"?"#7c3aed":"#16a34a"}}>{r.role||"—"}</span>
-                    </td>
-                    <td style={{padding:"5px 8px",textAlign:"right"}}>{r.planHours}h</td>
-                    <td style={{padding:"5px 8px",textAlign:"right"}}>฿{fmt(pB)}</td>
-                    <td style={{padding:"5px 8px",textAlign:"right",color:"#1e40af",fontWeight:600}}>{r.actualHours}h</td>
-                    <td style={{padding:"5px 8px",textAlign:"right",color:"#1e40af",fontWeight:600}}>฿{fmt(aB)}</td>
-                    <td style={{padding:"5px 8px",textAlign:"right",fontWeight:700,color:vc}}>{vH>0?"+":""}{Math.round(vH*10)/10}h</td>
-                    <td style={{padding:"5px 8px",textAlign:"right",fontWeight:700,color:vc}}>{vB>0?"+":""}฿{fmt(Math.abs(vB))}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Card>
-  );
-};
-
-
 // ── TSTaskGrid ──────────────────────────────────────────────────────────────
 //  Layout per task group:
 //    Task row  = Plan  — dark bars across weeks + plan total (right)
@@ -4439,9 +4093,10 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
 
   const maxCellPlan = useMemo(() => {
     let m = 0;
-    tasks.forEach(t => getAgents(t).forEach(a => weekCols.forEach(c => {
-      const h = getAgentWeekPlan(t,a,c); if(h > m) m = h;
-    })));
+    tasks.forEach(t => weekCols.forEach(c => {
+      const h = getAgents(t).reduce((s,a) => s + getAgentWeekPlan(t,a,c), 0);
+      if(h > m) m = h;
+    }));
     return m || 1;
   }, [tasks, weekCols]);
 
@@ -4577,7 +4232,7 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
                       </td>
                       {weekCols.map((col, ci) => {
                         const planH = getTaskWeekPlan(col);
-                        const pBarW = planH > 0 ? Math.max(4, Math.round((planH / maxCellPlan) * BAR_MAX)) : 0;
+                        const pBarW = planH > 0 ? Math.min(BAR_MAX, Math.max(4, Math.round((planH / maxCellPlan) * BAR_MAX))) : 0;
                         return (
                           <td key={ci} style={{padding:"8px 5px 6px", borderLeft:col.week===1?"2px solid #e2e8f0":"none", verticalAlign:"middle"}}>
                             {planH > 0 && <div style={{width:pBarW, height:7, background:"#334155", borderRadius:2}} title={`Plan: ${planH}h`}/>}
@@ -4621,8 +4276,8 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
                                       title={on ? "Planned — click to unplan" : "Click to plan this week"}
                                       style={{
                                         width:20, height:20, borderRadius:4, padding:0,
-                                        border:`1.5px solid ${on?"#3b82f6":"#d1d5db"}`,
-                                        background: on ? "#3b82f6" : "#fff",
+                                        border:`1.5px solid ${on?"#0f172a":"#d1d5db"}`,
+                                        background: on ? "#0f172a" : "#fff",
                                         cursor: canEdit ? "pointer" : "default",
                                         display:"inline-flex", alignItems:"center", justifyContent:"center",
                                         flexShrink:0, transition:"all .1s",
@@ -4762,7 +4417,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Time Sheet</Span>
-          <CountPill n={visibleOpps.length}/>
+          <CountPill n={visibleOpps.length} label="projects"/>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           {canToggle&&(
