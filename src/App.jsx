@@ -1878,8 +1878,8 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
   const delLI   = id => sF(p=>({...p,lineItems:(p.lineItems||[]).filter(li=>li.id!==id)}));
 
   const SH = ({n,label,warn}) => (
-    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingBottom:5,borderBottom:"2px solid #0c1a2e"}}>
-      <div style={{width:20,height:20,background:"#00b3a4",color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:900,flexShrink:0}}>{n}</div>
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingBottom:6,borderBottom:"1.5px solid #0c1a2e"}}>
+      <div style={{width:19,height:19,background:"#0c1a2e",color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>{n}</div>
       <span style={{fontSize:10,fontWeight:800,textTransform:"uppercase",letterSpacing:"0.08em",color:"#0c1a2e"}}>{label}</span>
       {warn&&<span style={{marginLeft:"auto",fontSize:10,fontWeight:700,color:instOk?"#16a34a":"#dc2626"}}>{instSum}% {instOk?"":" must = 100%"}</span>}
     </div>
@@ -1895,16 +1895,16 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
       title:"ใบเสนอราคา", coLegal:"บริษัท เวฟ บีซีจี จำกัด", taxId:"เลขทะเบียนนิติบุคคล:", tel:"เบอร์:",
       quoteFor:"เสนอราคาแก่:", contact:"ผู้ติดต่อ",
       mQuote:"ใบเสนอราคา #", mIssued:"วันที่ออก:", mValid:"วันครบกำหนด:", mSales:"พนักงานขาย", mMobile:"เบอร์โทร:",
-      sProject:"โครงการ", cDesc:"คำอธิบาย", cQty:"จำนวน", cUnit:"หน่วย", cUnitPrice:`ราคาต่อหน่วย (${cur})`, cSubtotal:`ยอดรวม (${cur})`,
-      sDeliv:"สิ่งที่นำส่ง", sPay:"การชำระเงิน", pNo:"ลำดับ", pDesc:"รายละเอียด", pPct:"%", pAmount:`จำนวนเงิน (${cur})`,
+      sProject:"โครงการ", sScope:"ขอบเขตงาน", cDesc:"คำอธิบาย", cQty:"จำนวน", cUnit:"หน่วย", cUnitPrice:"ราคาต่อหน่วย", cSubtotal:"ยอดรวม",
+      sDeliv:"สิ่งที่นำส่ง", sPay:"การชำระเงิน", pNo:"ลำดับ", pDesc:"รายละเอียด", pPct:"%", pAmount:"จำนวนเงิน",
       tSub:"ยอดรวม (ไม่รวมภาษี)", tVat:"ภาษี (7%)", tTotal:"ยอดรวมสุทธิ", sNotes:"หมายเหตุและเงื่อนไข",
       onBehalf:"ในนามของ", name:"ชื่อ:", role:"ตำแหน่ง:", date:"วันที่:",
     } : {
       title:"QUOTATION", coLegal:"Company Limited", taxId:"Tax ID:", tel:"Tel:",
       quoteFor:"Quote For", contact:"Contact Person",
       mQuote:"QUOTE #", mIssued:"ISSUED", mValid:"VALID UNTIL", mSales:"SALES", mMobile:"MOBILE",
-      sProject:"Project", cDesc:"Description", cQty:"Qty", cUnit:"Unit", cUnitPrice:"Unit Price (THB)", cSubtotal:"Subtotal (THB)",
-      sDeliv:"Deliverables", sPay:"Payment Schedule", pNo:"#", pDesc:"Description", pPct:"%", pAmount:"Amount (THB)",
+      sProject:"Project", sScope:"Scope", cDesc:"Description", cQty:"Qty", cUnit:"Unit", cUnitPrice:"Unit Price", cSubtotal:"Subtotal",
+      sDeliv:"Deliverables", sPay:"Payment Schedule", pNo:"#", pDesc:"Description", pPct:"%", pAmount:"Amount",
       tSub:"Subtotal (excl. VAT)", tVat:"VAT 7%", tTotal:"TOTAL", sNotes:"Notes &amp; Conditions",
       onBehalf:"On behalf of", name:"Name:", role:"Title:", date:"Date:",
     };
@@ -1913,37 +1913,37 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
     const agentMobP=SALES_MOBILE[f.salesAgentId]||"—";
     const instRowsHtml=(f.installments||[]).map((ins,i)=>`
       <tr>
-        <td style="width:22px;text-align:center;color:#94a3b8;font-weight:700">${i+1}</td>
+        <td class="idx">${i+1}</td>
         <td>${ins.label||""}</td>
-        <td style="text-align:right;width:44px">${ins.pct||0}%</td>
-        <td style="text-align:right;font-weight:700;font-variant-numeric:tabular-nums;width:90px">${cur}&nbsp;${fmt(Math.round(subT*(ins.pct||0)/100))}</td>
+        <td class="num">${ins.pct||0}%</td>
+        <td class="num amt">${cur} ${fmt(Math.round(subT*(ins.pct||0)/100))}</td>
       </tr>`).join("");
-    const dlvHtml=(f.deliverables||[]).map((d,i)=>`<div style="display:flex;gap:5px;margin-bottom:3px"><span style="color:#0c1a2e;font-weight:900;flex-shrink:0;min-width:14px">${i+1}.</span><span>${d.item||""}</span></div>`).join("");
+    const dlvHtml=(f.deliverables||[]).map((d,i)=>`<div class="row"><span class="n">${i+1}.</span><span>${d.item||""}</span></div>`).join("");
     const custName=customer?.companyEN||"—";
     const custTax=customer?.id||"—";
     const custAddr=[customer?.address,customer?.province].filter(Boolean).join(", ");
     const custContacts=(customer?.contacts||[]).filter(c=>c.active).slice(0,2)
-      .map(ct=>`<div style="margin-bottom:2px"><strong>${ct.name}</strong>${ct.title?` <span style="color:#94a3b8">· ${ct.title}</span>`:""}<br/>${[ct.email,ct.phone].filter(Boolean).join(" &nbsp;·&nbsp; ")}</div>`).join("");
-    const acceptLbl = isTH ? `${custName} — เพื่อยืนยันการตอบรับใบเสนอราคาฉบับนี้ กรุณาลงนาม:` : `Accepted by: ${custName}`;
-    const notesHtml=toItemList(f.notes).map((n,i)=>`<div style="display:flex;gap:5px;margin-bottom:3px"><span style="color:#0c1a2e;font-weight:900;flex-shrink:0;min-width:14px">${i+1}.</span><span>${n.item||""}</span></div>`).join("");
-    const scopeHtml=f.projectScope?`<div style="background:#f7f8f9;border:1px solid #e2e8f0;border-radius:3px;padding:5px 8px;font-size:8px;color:#374151;white-space:pre-wrap;margin-top:5px">${f.projectScope}</div>`:"";
+      .map(ct=>`<div style="margin-bottom:3px"><strong style="color:#0c1a2e">${ct.name}</strong>${ct.title?` <span style="color:#9aa4b1">· ${ct.title}</span>`:""}<br/>${[ct.email,ct.phone].filter(Boolean).join("<br/>")}</div>`).join("");
+    const acceptLbl = isTH ? `${custName} — เพื่อยืนยันการตอบรับใบเสนอราคาฉบับนี้ กรุณาลงนาม:` : `Accepted by ${custName}`;
+    const notesHtml=toItemList(f.notes).map((n,i)=>`<div class="row"><span class="n">${i+1}.</span><span>${n.item||""}</span></div>`).join("");
+    const scopeHtml=f.projectScope?`<div class="scope"><b>${L.sScope}</b>${f.projectScope}</div>`:"";
     const lineItemsHtml=(f.lineItems||[]).map((li,i)=>{
       const sub=(li.qty||0)*(li.unitPrice||0);
       return `<tr>
         <td>${li.description||""}</td>
-        <td style="text-align:right;width:36px">${li.qty||0}</td>
-        <td style="width:44px">${li.unit||""}</td>
-        <td style="text-align:right;width:90px;font-variant-numeric:tabular-nums">${fmt(li.unitPrice||0)}</td>
-        <td style="text-align:right;width:90px;font-weight:700;font-variant-numeric:tabular-nums">${cur} ${fmt(sub)}</td>
+        <td class="num">${li.qty||0}</td>
+        <td>${li.unit||""}</td>
+        <td class="num">${fmt(li.unitPrice||0)}</td>
+        <td class="num amt">${cur} ${fmt(sub)}</td>
       </tr>`;
     }).join("");
     // PDF logo: use cached base64 from state, or empty
-    const pdfLogoHtml = logoB64 ? `<img src="${logoB64}" style="height:40px;width:auto;object-fit:contain" alt="Wave BCG"/>` : "";
+    const pdfLogoHtml = logoB64 ? `<img src="${logoB64}" style="height:46px;width:auto;object-fit:contain;flex-shrink:0" alt="Wave BCG"/>` : "";
     // Thai needs a Thai-capable font + no uppercasing/letter-spacing (it mangles Thai glyph clusters)
     const thStyle = isTH ? `
 #page{font-family:'Noto Sans Thai','Inter','Helvetica Neue',Arial,sans-serif}
-.co-name,.quo-title,.proj-val{font-family:'Noto Sans Thai','Inter Tight','Inter',sans-serif!important}
-th,.sec-hdr,.meta-key,.qlbl,.proj-lbl{text-transform:none;letter-spacing:normal}
+.co-name,.quo-title,.party .name,.tot-final .v{font-family:'Noto Sans Thai','Inter Tight','Inter',sans-serif!important}
+th,.sec-hdr,.meta-key,.lbl,.scope b,.tot-final .k{text-transform:none;letter-spacing:normal}
 ` : "";
 
     const w = window.open("","_blank");
@@ -1951,75 +1951,83 @@ th,.sec-hdr,.meta-key,.qlbl,.proj-lbl{text-transform:none;letter-spacing:normal}
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Inter+Tight:wght@700;800;900&family=Noto+Sans+Thai:wght@400;500;600;700;800;900&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
-@page{size:A4 portrait;margin:8mm 10mm}
-html{width:794px;height:1123px;overflow:hidden;background:#fff}
-body{width:794px;max-height:1123px;overflow:hidden;background:#fff;page-break-after:avoid}
+@page{size:A4 portrait;margin:0}
+html{width:794px;background:#fff}
+body{width:794px;background:#fff}
 #page{
-  width:794px;
-  min-height:1123px;
-  max-height:1123px;
-  padding:32px 40px;
+  width:794px;min-height:1123px;
+  padding:46px 52px 40px;
   font-family:'Inter','Helvetica Neue',Arial,'Noto Sans Thai',sans-serif;
-  font-size:8px;color:#1a1a1a;line-height:1.38;
+  font-size:8.5px;color:#243042;line-height:1.4;
   display:flex;flex-direction:column;
-  overflow:hidden;
-  page-break-after:avoid;
-  page-break-inside:avoid;
   -webkit-font-smoothing:antialiased;
 }
 table{width:100%;border-collapse:collapse}
-th,td{padding:3px 6px;text-align:left;border-bottom:1px solid #e8ecf0;font-size:8px}
-th{background:#f7f8f9;font-weight:700;font-size:7.5px;text-transform:uppercase;letter-spacing:.04em;color:#64748b}
+th,td{padding:5px 8px;text-align:left;font-size:8.5px;vertical-align:top}
+th:first-child,td:first-child{padding-left:0}
+th:last-child,td:last-child{padding-right:0}
+th{font-weight:700;font-size:7.5px;text-transform:uppercase;letter-spacing:.05em;color:#7c8794;border-bottom:1px solid #c9d2dc;padding-bottom:5px}
+td{border-bottom:1px solid #eef1f5}
+.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.amt{font-weight:700;color:#0c1a2e}
+.idx{color:#9aa4b1;font-weight:700}
 /* Header */
-.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:9px;padding-bottom:8px;border-bottom:2px solid #0c1a2e;flex-shrink:0}
-.co-name{font-size:12px;font-weight:900;color:#0c1a2e;letter-spacing:-0.02em;line-height:1.1;font-family:'Inter Tight','Inter',sans-serif}
-.co-sub{font-size:8.5px;font-weight:700;color:#0c1a2e;letter-spacing:.02em;margin-bottom:3px}
-.co-addr{color:#64748b;font-size:7.5px;line-height:1.6}
-.quo-title{font-size:20px;font-weight:900;color:#0c1a2e;letter-spacing:-0.04em;line-height:1;margin-bottom:5px;font-family:'Inter Tight','Inter',sans-serif}
-.meta td{padding:1.5px 8px 1.5px 0;font-size:8px;border:none}
-.meta-key{color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em;text-align:right}
-.meta-val{font-weight:700;color:#0c1a2e}
-/* Quote For */
-.qfor{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;padding:7px 10px;background:#f7f8f9;border-radius:4px;border:1px solid #e2e8f0;flex-shrink:0}
-.qlbl{font-size:7px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:3px}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;padding-bottom:13px;border-bottom:2px solid #0c1a2e}
+.co-name{font-size:13px;font-weight:900;color:#0c1a2e;letter-spacing:-0.02em;line-height:1.1;font-family:'Inter Tight','Inter',sans-serif;margin-bottom:5px}
+.co-addr{color:#7c8794;font-size:7.5px;line-height:1.7}
+.quo-title{font-size:23px;font-weight:900;color:#0c1a2e;letter-spacing:-0.04em;line-height:1;margin-bottom:8px;font-family:'Inter Tight','Inter',sans-serif}
+.meta{margin-left:auto;width:auto}
+.meta td{padding:2px 0 2px 14px;font-size:8.5px;border:none}
+.meta-key{color:#9aa4b1;font-weight:600;text-transform:uppercase;letter-spacing:.05em;text-align:right}
+.meta-val{font-weight:700;color:#0c1a2e;text-align:right}
+/* Party band — flush to content column, no fill */
+.party{display:grid;grid-template-columns:1.15fr 1fr;gap:32px;padding:2px 0 14px;margin-bottom:6px;border-bottom:1px solid #e2e8f0}
+.lbl{font-size:7px;font-weight:700;color:#9aa4b1;text-transform:uppercase;letter-spacing:.08em;display:block;margin-bottom:4px}
+.party .name{font-weight:800;font-size:11.5px;color:#0c1a2e;margin-bottom:3px;letter-spacing:-0.01em}
+.party .detail{color:#5b6675;font-size:8px;line-height:1.65}
 /* Sections */
-.body{flex:1;overflow:hidden;display:flex;flex-direction:column;gap:7px}
-.sec-hdr{display:flex;align-items:center;gap:5px;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#0c1a2e;border-bottom:1.5px solid #0c1a2e;padding-bottom:3px;margin-bottom:5px}
-.badge{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;background:#0c1a2e;color:#fff;border-radius:50%;font-weight:900;font-size:8px;flex-shrink:0}
-.sec-proj{display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-bottom:5px}
-.proj-lbl{font-size:7px;color:#94a3b8;font-weight:700;text-transform:uppercase;display:block;margin-bottom:1px}
-.proj-val{font-weight:700;font-size:9.5px;color:#0c1a2e;font-family:'Inter Tight','Inter',sans-serif}
-/* Payment */
-.totals-wrap{display:flex;justify-content:flex-end;margin-top:5px}
-.totals{min-width:200px;background:#f7f8f9;border:1px solid #e2e8f0;border-radius:4px;padding:6px 10px}
-.tot-row{display:flex;justify-content:space-between;padding:2.5px 0;border-bottom:1px solid #e8ecf0;font-size:8.5px}
-.tot-final{border-bottom:1.5px solid #0c1a2e;font-weight:900;font-size:9.5px}
+.body{display:flex;flex-direction:column;gap:13px;padding-top:4px}
+.sec-hdr{display:flex;align-items:center;gap:7px;font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#0c1a2e;border-bottom:1.5px solid #0c1a2e;padding-bottom:5px;margin-bottom:7px}
+.badge{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;background:#0c1a2e;color:#fff;border-radius:50%;font-weight:800;font-size:8px;flex-shrink:0;font-family:'Inter',sans-serif}
+.scope{margin-top:7px;font-size:8px;color:#5b6675;line-height:1.6;white-space:pre-wrap}
+.scope b{color:#7c8794;font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:7px;display:block;margin-bottom:2px}
+/* Numbered list (deliverables / notes) */
+.list .row{display:flex;gap:8px;margin-bottom:4px;font-size:8.5px;color:#374151;line-height:1.55}
+.list .n{color:#0c1a2e;font-weight:800;flex-shrink:0;min-width:13px;font-variant-numeric:tabular-nums}
+/* Totals — flush right to content column, no box */
+.totals-wrap{display:flex;justify-content:flex-end;margin-top:10px}
+.totals{width:264px}
+.tot-row{display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;font-size:8.5px;border-bottom:1px solid #eef1f5}
+.tot-row .k{color:#5b6675}
+.tot-row .v{font-variant-numeric:tabular-nums;font-weight:600;color:#243042}
+.tot-final{border-bottom:none;border-top:1.5px solid #0c1a2e;margin-top:2px;padding-top:5px}
+.tot-final .k{font-weight:800;color:#0c1a2e;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em}
+.tot-final .v{font-weight:900;color:#0c1a2e;font-size:12px;font-family:'Inter Tight','Inter',sans-serif}
 /* Signature */
-.sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:28px;border-top:1px solid #e2e8f0;padding-top:10px;margin-top:auto;flex-shrink:0}
-.sig-lbl{font-size:7.5px;color:#64748b;margin-bottom:14px;font-style:italic}
-.sig-line{border-bottom:1px solid #374151;height:22px;margin-bottom:4px}
-.sig-detail{font-size:8px;color:#374151;line-height:1.8}
+.sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;border-top:1px solid #e2e8f0;padding-top:16px;margin-top:auto}
+.sig-lbl{font-size:8px;color:#5b6675;margin-bottom:26px;font-style:italic}
+.sig-line{border-bottom:1px solid #9aa4b1;height:0;margin-bottom:7px}
+.sig-detail{font-size:8px;color:#374151;line-height:1.95}
+.foot{margin-top:14px;text-align:right;font-size:6.5px;color:#9aa4b1;letter-spacing:.03em}
 @media print{
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-  html,body{width:794px;height:1123px;max-height:1123px;overflow:hidden}
-  #page{page-break-after:avoid;page-break-inside:avoid}
 }
 ${thStyle}
 </style></head><body>
 <div id="page">
 <!-- HEADER -->
 <div class="hdr">
-  <div style="display:flex;gap:10px;align-items:flex-start">
+  <div style="display:flex;gap:13px;align-items:flex-start">
     ${pdfLogoHtml}
     <div>
       <div class="co-name"><span style="color:#00b3a4">WAVE BCG</span><span style="color:#0c1a2e"> ${L.coLegal}</span></div>
-      <div class="co-addr">${L.taxId} ${co.taxId}<br/>${co.address}<br/>${L.tel} ${co.tel}<br/>${co.email}</div>
+      <div class="co-addr">${L.taxId} ${co.taxId}<br/>${co.address}<br/>${L.tel} ${co.tel} &nbsp;·&nbsp; ${co.email}</div>
     </div>
   </div>
   <div style="text-align:right">
     <div class="quo-title">${L.title}</div>
-    <table class="meta" style="margin-left:auto;width:auto">
-      <tr><td class="meta-key">${L.mQuote}</td><td class="meta-val" style="font-family:'Inter',monospace;font-weight:700;letter-spacing:0.02em">${f.quoteNo}</td></tr>
+    <table class="meta">
+      <tr><td class="meta-key">${L.mQuote}</td><td class="meta-val" style="letter-spacing:0.02em">${f.quoteNo}</td></tr>
       <tr><td class="meta-key">${L.mIssued}</td><td class="meta-val">${df(f.issueDate)}</td></tr>
       <tr><td class="meta-key">${L.mValid}</td><td class="meta-val">${df(f.dueDate)}</td></tr>
       <tr><td class="meta-key">${L.mSales}</td><td class="meta-val">${agentName}</td></tr>
@@ -2027,16 +2035,16 @@ ${thStyle}
     </table>
   </div>
 </div>
-<!-- QUOTE FOR -->
-<div class="qfor">
+<!-- PARTY BAND -->
+<div class="party">
   <div>
-    <span class="qlbl">${L.quoteFor}</span>
-    <div style="font-weight:800;font-size:11px;color:#0c1a2e;margin-bottom:2px">${custName}</div>
-    <div style="color:#64748b;font-size:8px;line-height:1.6">${L.taxId} ${custTax}<br/>${custAddr}</div>
+    <span class="lbl">${L.quoteFor}</span>
+    <div class="name">${custName}</div>
+    <div class="detail">${L.taxId} ${custTax}<br/>${custAddr}</div>
   </div>
   <div>
-    <span class="qlbl">${L.contact}</span>
-    <div style="font-size:8px;color:#374151">${custContacts||"—"}</div>
+    <span class="lbl">${L.contact}</span>
+    <div class="detail">${custContacts||"—"}</div>
   </div>
 </div>
 <!-- BODY SECTIONS -->
@@ -2046,11 +2054,11 @@ ${thStyle}
     <div class="sec-hdr"><span class="badge">1</span>${L.sProject}</div>
     <table>
       <thead><tr>
-        <th style="text-align:center">${L.cDesc}</th>
-        <th style="text-align:center;width:36px">${L.cQty}</th>
-        <th style="text-align:center;width:44px">${L.cUnit}</th>
-        <th style="text-align:center;width:90px">${L.cUnitPrice}</th>
-        <th style="text-align:center;width:90px">${L.cSubtotal}</th>
+        <th>${L.cDesc}</th>
+        <th style="width:42px;text-align:right">${L.cQty}</th>
+        <th style="width:48px">${L.cUnit}</th>
+        <th style="width:96px;text-align:right">${L.cUnitPrice}</th>
+        <th style="width:108px;text-align:right">${L.cSubtotal}</th>
       </tr></thead>
       <tbody>${lineItemsHtml}</tbody>
     </table>
@@ -2059,27 +2067,27 @@ ${thStyle}
   <!-- SEC 2: DELIVERABLES -->
   <div>
     <div class="sec-hdr"><span class="badge">2</span>${L.sDeliv}</div>
-    <div style="font-size:8.5px">${dlvHtml}</div>
+    <div class="list">${dlvHtml}</div>
   </div>
   <!-- SEC 3: PAYMENT SCHEDULE -->
   <div>
     <div class="sec-hdr"><span class="badge">3</span>${L.sPay}</div>
     <table>
-      <thead><tr><th style="text-align:center;width:22px">${L.pNo}</th><th style="text-align:center">${L.pDesc}</th><th style="text-align:center;width:44px">${L.pPct}</th><th style="text-align:center;width:90px">${L.pAmount}</th></tr></thead>
+      <thead><tr><th style="width:24px">${L.pNo}</th><th>${L.pDesc}</th><th style="width:48px;text-align:right">${L.pPct}</th><th style="width:108px;text-align:right">${L.pAmount}</th></tr></thead>
       <tbody>${instRowsHtml}</tbody>
     </table>
     <div class="totals-wrap">
       <div class="totals">
-        <div class="tot-row"><span style="color:#64748b">${L.tSub}</span><span style="font-variant-numeric:tabular-nums;font-weight:500">${cur} ${fmt(subT)}</span></div>
-        <div class="tot-row"><span style="color:#64748b">${L.tVat}</span><span style="font-variant-numeric:tabular-nums;font-weight:500">${cur} ${fmt(vatT)}</span></div>
-        <div class="tot-row tot-final"><span>${L.tTotal}</span><span style="font-variant-numeric:tabular-nums;font-weight:700">${cur} ${fmt(totT)}</span></div>
+        <div class="tot-row"><span class="k">${L.tSub}</span><span class="v">${cur} ${fmt(subT)}</span></div>
+        <div class="tot-row"><span class="k">${L.tVat}</span><span class="v">${cur} ${fmt(vatT)}</span></div>
+        <div class="tot-row tot-final"><span class="k">${L.tTotal}</span><span class="v">${cur} ${fmt(totT)}</span></div>
       </div>
     </div>
   </div>
   <!-- SEC 4: NOTES -->
   <div>
     <div class="sec-hdr"><span class="badge">4</span>${L.sNotes}</div>
-    <div style="font-size:8px;color:#374151;line-height:1.6">${notesHtml}</div>
+    <div class="list">${notesHtml}</div>
   </div>
 </div>
 <!-- SIGNATURES -->
@@ -2092,11 +2100,11 @@ ${thStyle}
   <div>
     <div class="sig-lbl">${acceptLbl}</div>
     <div class="sig-line"></div>
-    <div class="sig-detail">${L.name} ..........................................................................<br/>${L.role} ..........................................................................<br/>${L.date} ..........................................................................</div>
+    <div class="sig-detail">${L.name}<br/>${L.role}<br/>${L.date}</div>
   </div>
 </div>
+<div class="foot">FR-BD-01-02 Rev.00 · Issue date 01/04/2569</div>
 </div>
-<div style="position:fixed;bottom:6mm;right:10mm;font-size:6.5px;color:#94a3b8;font-family:'Inter',sans-serif;letter-spacing:0.02em">FR-BD-01-02 Rev.00 Issue date 01/04/2569</div>
 </body></html>`);
     w.document.close();
     setTimeout(()=>w.print(),600);
@@ -2158,22 +2166,22 @@ ${thStyle}
           </div>
         </div>
 
-        {/* QUOTE FOR */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12,padding:"12px 16px",background:"#f8fafc",borderRadius:7,border:"1px solid #e2e8f0"}}>
+        {/* PARTY BAND */}
+        <div style={{display:"grid",gridTemplateColumns:"1.15fr 1fr",gap:32,marginBottom:14,paddingBottom:14,borderBottom:"1px solid #e2e8f0"}}>
           <div>
-            <span style={{fontSize:9,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:5}}>Quote For</span>
-            <div style={{fontWeight:800,fontSize:12,color:"#0c1a2e",marginBottom:3}}>{customer?.companyEN||"—"}</div>
-            <div style={{color:"#64748b",fontSize:11,lineHeight:1.9}}>
-              Tax ID: {customer?.id||"—"}<br/>
+            <span style={{fontSize:9,fontWeight:700,color:"#9aa4b1",textTransform:"uppercase",letterSpacing:"0.08em",display:"block",marginBottom:5}}>Quote For</span>
+            <div style={{fontWeight:800,fontSize:13,color:"#0c1a2e",marginBottom:3,letterSpacing:"-0.01em"}}>{customer?.companyEN||"—"}</div>
+            <div style={{color:"#5b6675",fontSize:11,lineHeight:1.75}}>
+              Tax ID {customer?.id||"—"}<br/>
               {[customer?.address,customer?.province].filter(Boolean).join(", ")}
             </div>
           </div>
           <div>
-            <span style={{fontSize:9,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:5}}>Contact Person</span>
+            <span style={{fontSize:9,fontWeight:700,color:"#9aa4b1",textTransform:"uppercase",letterSpacing:"0.08em",display:"block",marginBottom:5}}>Contact Person</span>
             {(customer?.contacts||[]).filter(c=>c.active).slice(0,2).map(ct=>(
-              <div key={ct.id} style={{fontSize:11,lineHeight:1.9,color:"#374151"}}>
-                <strong>{ct.name}</strong>{ct.title&&<span style={{color:"#94a3b8"}}> · {ct.title}</span>}<br/>
-                {ct.email&&<span style={{marginRight:10}}>{ct.email}</span>}{ct.phone&&<span>{ct.phone}</span>}
+              <div key={ct.id} style={{fontSize:11,lineHeight:1.7,color:"#5b6675"}}>
+                <strong style={{color:"#0c1a2e"}}>{ct.name}</strong>{ct.title&&<span style={{color:"#9aa4b1"}}> · {ct.title}</span>}<br/>
+                {ct.email&&<span>{ct.email}</span>}{ct.email&&ct.phone&&<br/>}{ct.phone&&<span>{ct.phone}</span>}
               </div>
             ))}
           </div>
@@ -2182,11 +2190,11 @@ ${thStyle}
         {/* SECTION 1: PROJECT */}
         <div style={{marginBottom:12}}>
           <SH n="1" label="Project"/>
-          <table style={{width:"100%",borderCollapse:"collapse",marginBottom:8,fontSize:11}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
             <thead>
-              <tr style={{background:"#f8fafc"}}>
-                {["Description","Qty","Unit","Unit Price (THB)","Subtotal (THB)"].map((h,i)=>(
-                  <th key={i} style={{padding:"6px 8px",textAlign:i>=1?"center":"left",fontWeight:700,color:"#64748b",fontSize:10,borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{h}</th>
+              <tr>
+                {[["Description","left"],["Qty","right"],["Unit","left"],["Unit Price","right"],["Subtotal","right"]].map(([h,al],i,arr)=>(
+                  <th key={i} style={{padding:`0 ${i===arr.length-1?0:8}px 6px ${i===0?0:8}px`,textAlign:al,fontWeight:700,color:"#7c8794",fontSize:9.5,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #c9d2dc",whiteSpace:"nowrap"}}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -2194,18 +2202,18 @@ ${thStyle}
               {(f.lineItems||[]).map((li)=>{
                 const sub=(li.qty||0)*(li.unitPrice||0);
                 return(
-                  <tr key={li.id} style={{borderBottom:"1px solid #f1f5f9"}}>
-                    <td style={{padding:"6px 8px",fontSize:11}}>{li.description||"—"}</td>
-                    <td style={{padding:"6px 8px",textAlign:"center",fontSize:11}}>{li.qty||0}</td>
-                    <td style={{padding:"6px 8px",textAlign:"center",fontSize:11}}>{li.unit||""}</td>
+                  <tr key={li.id} style={{borderBottom:"1px solid #eef1f5"}}>
+                    <td style={{padding:"6px 8px 6px 0",fontSize:11}}>{li.description||"—"}</td>
+                    <td style={{padding:"6px 8px",textAlign:"right",fontSize:11,fontVariantNumeric:"tabular-nums"}}>{li.qty||0}</td>
+                    <td style={{padding:"6px 8px",fontSize:11}}>{li.unit||""}</td>
                     <td style={{padding:"6px 8px",textAlign:"right",fontSize:11,fontVariantNumeric:"tabular-nums"}}>{fmt(li.unitPrice||0)}</td>
-                    <td style={{padding:"6px 8px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",fontSize:11}}>฿{fmt(sub)}</td>
+                    <td style={{padding:"6px 0 6px 8px",textAlign:"right",fontWeight:700,color:"#0c1a2e",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",fontSize:11}}>฿{fmt(sub)}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-          {f.projectScope&&<div style={{fontSize:10.5,color:"#374151",background:"#fafafa",border:"1px solid #e2e8f0",borderRadius:5,padding:"7px 10px",whiteSpace:"pre-wrap",lineHeight:1.6}}>{f.projectScope}</div>}
+          {f.projectScope&&<div style={{marginTop:8,fontSize:10.5,color:"#5b6675",lineHeight:1.6,whiteSpace:"pre-wrap"}}><span style={{display:"block",fontSize:9,fontWeight:700,color:"#7c8794",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Scope</span>{f.projectScope}</div>}
         </div>
 
         {/* SECTION 2: DELIVERABLES */}
@@ -2222,31 +2230,31 @@ ${thStyle}
         {/* SECTION 3: PAYMENT SCHEDULE */}
         <div style={{marginBottom:12}}>
           <SH n="3" label="Payment Schedule" warn={true}/>
-          <table style={{width:"100%",borderCollapse:"collapse",marginBottom:8,fontSize:11}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
             <thead>
-              <tr style={{background:"#f8fafc"}}>
-                {["#","Description","% Share","Amount (THB)"].map((h,i)=>(
-                  <th key={i} style={{padding:"6px 8px",textAlign:i>=2?"right":"left",fontWeight:700,color:"#64748b",fontSize:10,borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{h}</th>
+              <tr>
+                {[["#","left"],["Description","left"],["% Share","right"],["Amount","right"]].map(([h,al],i,arr)=>(
+                  <th key={i} style={{padding:`0 ${i===arr.length-1?0:8}px 6px ${i===0?0:8}px`,textAlign:al,fontWeight:700,color:"#7c8794",fontSize:9.5,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #c9d2dc",whiteSpace:"nowrap"}}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {(f.installments||[]).map((ins,idx)=>(
-                <tr key={ins.id} style={{borderBottom:"1px solid #f1f5f9"}}>
-                  <td style={{padding:"6px 8px",color:"#94a3b8",fontWeight:700}}>{idx+1}</td>
+                <tr key={ins.id} style={{borderBottom:"1px solid #eef1f5"}}>
+                  <td style={{padding:"6px 8px 6px 0",color:"#9aa4b1",fontWeight:700}}>{idx+1}</td>
                   <td style={{padding:"6px 8px",fontSize:11}}>{ins.label}</td>
-                  <td style={{padding:"6px 8px",textAlign:"right",fontSize:11}}>{ins.pct||0}%</td>
-                  <td style={{padding:"6px 8px",textAlign:"right",fontWeight:700,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",fontSize:11}}>฿{fmt(Math.round(subTotal*(ins.pct||0)/100))}</td>
+                  <td style={{padding:"6px 8px",textAlign:"right",fontSize:11,fontVariantNumeric:"tabular-nums"}}>{ins.pct||0}%</td>
+                  <td style={{padding:"6px 0 6px 8px",textAlign:"right",fontWeight:700,color:"#0c1a2e",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",fontSize:11}}>฿{fmt(Math.round(subTotal*(ins.pct||0)/100))}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <div style={{display:"flex",justifyContent:"flex-end",marginTop:14}}>
-            <div style={{minWidth:280,background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:7,padding:"12px 16px"}}>
+          <div style={{display:"flex",justifyContent:"flex-end",marginTop:12}}>
+            <div style={{width:300}}>
               {[{l:"Subtotal (excl. VAT)",v:subTotal,b:false},{l:"VAT 7%",v:vat,b:false},{l:"TOTAL",v:total,b:true}].map(x=>(
-                <div key={x.l} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:x.b?"2px solid #0c1a2e":"1px solid #e2e8f0"}}>
-                  <span style={{fontWeight:x.b?900:500,color:x.b?"#0c1a2e":"#64748b",fontSize:12}}>{x.l}</span>
-                  <span style={{fontWeight:x.b?900:700,color:x.b?"#0c1a2e":"#374151",fontSize:12,fontVariantNumeric:"tabular-nums"}}>THB {fmt(x.v)}</span>
+                <div key={x.l} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:x.b?"6px 0 0":"4px 0",borderTop:x.b?"1.5px solid #0c1a2e":"none",borderBottom:x.b?"none":"1px solid #eef1f5",marginTop:x.b?2:0}}>
+                  <span style={{fontWeight:x.b?800:500,color:x.b?"#0c1a2e":"#5b6675",fontSize:x.b?12.5:11.5,textTransform:x.b?"uppercase":"none",letterSpacing:x.b?"0.04em":"normal"}}>{x.l}</span>
+                  <span style={{fontWeight:x.b?900:600,color:x.b?"#0c1a2e":"#243042",fontSize:x.b?15:11.5,fontVariantNumeric:"tabular-nums",fontFamily:x.b?"'Inter Tight','Inter',sans-serif":"inherit"}}>฿{fmt(x.v)}</span>
                 </div>
               ))}
             </div>
@@ -4023,7 +4031,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                     },{})
                   ).sort((a,b)=>(b.ts||"").localeCompare(a.ts||"")).map(l=>(
                     <div key={l.id} onClick={()=>{
-                        sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid()}]}));
+                        sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid(),notes:toItemList(l.quoteSnapshot.notes),deliverables:toItemList(l.quoteSnapshot.deliverables)}]}));
                         const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} for editing`};
                         sECS(p=>({...p,saveLog:[...(p.saveLog||[]),logEntry]}));
                       }} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:7,marginBottom:6,cursor:'pointer',transition:'background 0.1s'}}
@@ -4033,7 +4041,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                       <span style={{fontSize:12,fontWeight:700,fontFamily:'monospace',color:'#92400e',background:'#fef3c7',padding:'2px 8px',borderRadius:4,border:'1px solid #fde68a'}}>{l.quoteSnapshot.csCode}</span>
                       <span style={{fontSize:12,color:'#374151',flex:1}}>{l.quoteSnapshot.quoteNo} {customers.find(c=>c.id===l.quoteSnapshot.custId)?.companyEN||l.quoteSnapshot.custId}</span>
                       <Btn variant='ghost' style={{fontSize:12,padding:'4px 12px',color:'#374151',borderColor:'#e2e8f0'}} onClick={e=>{e.stopPropagation();
-                        sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid()}]}));
+                        sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid(),notes:toItemList(l.quoteSnapshot.notes),deliverables:toItemList(l.quoteSnapshot.deliverables)}]}));
                         const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} for editing`};
                         sECS(p=>({...p,saveLog:[...(p.saveLog||[]),logEntry]}));
                       }}>Edit</Btn>
