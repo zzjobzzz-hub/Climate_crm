@@ -143,8 +143,13 @@ const pad2  = n => String(n).padStart(2,"0");
 const safeArr = v => { if(Array.isArray(v)) return v; if(typeof v==="string"&&v.trim().startsWith("[")) { try{return JSON.parse(v);}catch(_){} } return []; };
 // Coerce a notes/deliverables value into [{id,item}]: arrays pass through; a legacy
 // multi-line string becomes one item per non-empty line; everything else → [].
-const toItemList = v => Array.isArray(v) ? v
-  : (typeof v==="string" && v.trim() ? v.split("\n").filter(t=>t.trim()).map(t=>({id:uid(),item:t})) : []);
+const toItemList = v => {
+  const arr = Array.isArray(v) ? v
+    : (typeof v==="string" && v.trim() ? v.split("\n").filter(t=>t.trim()).map(t=>({item:t})) : []);
+  // Assign deterministic ids so render + edit handlers always agree (random ids per
+  // render would remount inputs every keystroke → edits/deletes wouldn't stick).
+  return arr.map((it,i) => (it && it.id) ? it : {id:`li-${i}`, item:(it && typeof it==="object") ? (it.item||"") : (it||"")});
+};
 const calcSuccessRate = o => {
   if(o.status==="Won") return 100;
   if(o.status==="Lost") return 0;
@@ -1952,14 +1957,14 @@ th,.sec-hdr,.meta-key,.lbl,.scope b,.tot-final .k{text-transform:none;letter-spa
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Inter+Tight:wght@700;800;900&family=Noto+Sans+Thai:wght@400;500;600;700;800;900&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
 @page{size:A4 portrait;margin:0}
-html{width:794px;background:#fff}
-body{width:794px;background:#fff}
+html{width:794px;height:1123px;overflow:hidden;background:#fff}
+body{width:794px;height:1123px;overflow:hidden;background:#fff}
 #page{
-  width:794px;min-height:1123px;
+  width:794px;height:1123px;
   padding:46px 52px 40px;
   font-family:'Inter','Helvetica Neue',Arial,'Noto Sans Thai',sans-serif;
   font-size:8.5px;color:#243042;line-height:1.4;
-  display:flex;flex-direction:column;
+  display:flex;flex-direction:column;overflow:hidden;
   -webkit-font-smoothing:antialiased;
 }
 table{width:100%;border-collapse:collapse}
@@ -1993,7 +1998,7 @@ td{border-bottom:1px solid #eef1f5}
 .scope b{color:#7c8794;font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:7px;display:block;margin-bottom:2px}
 /* Numbered list (deliverables / notes) */
 .list .row{display:flex;gap:8px;margin-bottom:4px;font-size:8.5px;color:#374151;line-height:1.55}
-.list .n{color:#0c1a2e;font-weight:800;flex-shrink:0;min-width:13px;font-variant-numeric:tabular-nums}
+.list .n{color:#9aa4b1;font-weight:700;flex-shrink:0;min-width:13px;font-variant-numeric:tabular-nums}
 /* Totals — flush right to content column, no box */
 .totals-wrap{display:flex;justify-content:flex-end;margin-top:10px}
 .totals{width:264px}
@@ -2011,6 +2016,8 @@ td{border-bottom:1px solid #eef1f5}
 .foot{margin-top:14px;text-align:right;font-size:6.5px;color:#9aa4b1;letter-spacing:.03em}
 @media print{
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  html,body{width:794px;height:1123px;overflow:hidden}
+  #page{page-break-after:avoid;page-break-inside:avoid}
 }
 ${thStyle}
 </style></head><body>
@@ -2020,7 +2027,7 @@ ${thStyle}
   <div style="display:flex;gap:13px;align-items:flex-start">
     ${pdfLogoHtml}
     <div>
-      <div class="co-name"><span style="color:#00b3a4">WAVE BCG</span><span style="color:#0c1a2e"> ${L.coLegal}</span></div>
+      <div class="co-name"><span style="color:#0c1a2e">WAVE BCG</span><span style="color:#0c1a2e"> ${L.coLegal}</span></div>
       <div class="co-addr">${L.taxId} ${co.taxId}<br/>${co.address}<br/>${L.tel} ${co.tel} &nbsp;·&nbsp; ${co.email}</div>
     </div>
   </div>
@@ -2141,7 +2148,7 @@ ${thStyle}
             {logoB64&&<img src={logoB64} style={{height:44,width:"auto",objectFit:"contain",flexShrink:0}} alt="Wave BCG"/>}
             <div>
               <div style={{fontSize:13,fontWeight:900,letterSpacing:"-0.02em",lineHeight:1.2,fontFamily:"'Inter Tight','Inter',system-ui,sans-serif"}}>
-                <span style={{color:"#00b3a4"}}>WAVE BCG</span><span style={{color:"#0c1a2e"}}> Company Limited</span>
+                <span style={{color:"#0c1a2e"}}>WAVE BCG</span><span style={{color:"#0c1a2e"}}> Company Limited</span>
               </div>
               <div style={{color:"#64748b",fontSize:9,lineHeight:1.7,marginTop:3}}>
                 Tax ID: {WAVE_CO.taxId}<br/>
@@ -2221,7 +2228,7 @@ ${thStyle}
           <SH n="2" label="Deliverables"/>
           {(f.deliverables||[]).map((d,i)=>(
             <div key={d.id} style={{display:"flex",gap:8,alignItems:"flex-start",marginBottom:5}}>
-              <span style={{color:"#0c1a2e",fontWeight:900,fontSize:11,flexShrink:0,marginTop:1,minWidth:14}}>{i+1}.</span>
+              <span style={{color:"#9aa4b1",fontWeight:700,fontSize:11,flexShrink:0,marginTop:1,minWidth:14}}>{i+1}.</span>
               <span style={{fontSize:11,color:"#374151",lineHeight:1.5}}>{d.item}</span>
             </div>
           ))}
@@ -2266,7 +2273,7 @@ ${thStyle}
           <SH n="4" label="Notes &amp; Conditions"/>
           {toItemList(f.notes).map((n,i)=>(
             <div key={n.id} style={{display:"flex",gap:8,alignItems:"flex-start",marginBottom:5}}>
-              <span style={{color:"#0c1a2e",fontWeight:900,fontSize:11,flexShrink:0,marginTop:1,minWidth:14}}>{i+1}.</span>
+              <span style={{color:"#9aa4b1",fontWeight:700,fontSize:11,flexShrink:0,marginTop:1,minWidth:14}}>{i+1}.</span>
               <span style={{fontSize:11,color:"#374151",lineHeight:1.5}}>{n.item}</span>
             </div>
           ))}
