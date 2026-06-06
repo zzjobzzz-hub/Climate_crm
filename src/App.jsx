@@ -141,6 +141,10 @@ const today = () => new Date().toISOString().slice(0,10);
 const nowTS = () => { const d=new Date(); return `${d.getFullYear()+543}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
 const pad2  = n => String(n).padStart(2,"0");
 const safeArr = v => { if(Array.isArray(v)) return v; if(typeof v==="string"&&v.trim().startsWith("[")) { try{return JSON.parse(v);}catch(_){} } return []; };
+// Coerce a notes/deliverables value into [{id,item}]: arrays pass through; a legacy
+// multi-line string becomes one item per non-empty line; everything else → [].
+const toItemList = v => Array.isArray(v) ? v
+  : (typeof v==="string" && v.trim() ? v.split("\n").filter(t=>t.trim()).map(t=>({id:uid(),item:t})) : []);
 const calcSuccessRate = o => {
   if(o.status==="Won") return 100;
   if(o.status==="Lost") return 0;
@@ -1781,10 +1785,15 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
     return [{id:uid(),item:""}];
   };
 
+  const buildNotes = () => {
+    const items = toItemList(qSnap?.notes);
+    return items.length ? items.map(n=>({...n,id:n.id||uid()})) : [{id:uid(),item:""}];
+  };
+
   const initIssue = today();
   const savedQD = opp?.quotationData; // persisted from previous save
 
-  const defaultNotes = qSnap?.notes || "";
+  const defaultNotes = buildNotes();
 
 
 
@@ -1806,7 +1815,7 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
     issueDate:     savedQD.issueDate     || qIssueDate,
     dueDate:       savedQD.dueDate       || qDueDate,
     projectScope:  savedQD.projectScope  || qSnap?.projectScope  || "",
-    notes:         savedQD.notes         || defaultNotes,
+    notes:         Array.isArray(savedQD.notes) && savedQD.notes.length ? savedQD.notes : (toItemList(savedQD.notes).length ? toItemList(savedQD.notes) : defaultNotes),
     salesPrice:    savedQD.salesPrice    || qPrice,
     projectTitle:  savedQD.projectTitle  || qSnap?.projectTitle  || qSnap?.serviceType   || opp?.serviceType || cs?.serviceType || "",
     projectDuration: savedQD.projectDuration || qSnap?.projectMonths || cs?.projectMonths || 3,
@@ -1824,7 +1833,7 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
     salesPrice:   qPrice,
     lineItems: buildLineItems(),
     installments: buildInstallments(),
-    notes: defaultNotes,
+    notes: buildNotes(),
   });
 
   const set    = (k,v) => sF(p=>({...p,[k]:v}));
@@ -1881,7 +1890,7 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
     const isTH = lang==="th";
     const co   = isTH ? WAVE_CO_TH : WAVE_CO;
     const df   = isTH ? fmtDateTH : fmtDate;   // date formatter
-    const cur  = isTH ? "บาท" : "THB";          // currency label
+    const cur  = isTH ? "฿" : "THB";          // currency label
     const L = isTH ? {
       title:"ใบเสนอราคา", coLegal:"บริษัท เวฟ บีซีจี จำกัด", taxId:"เลขทะเบียนนิติบุคคล:", tel:"เบอร์:",
       quoteFor:"เสนอราคาแก่:", contact:"ผู้ติดต่อ",
@@ -1909,15 +1918,15 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
         <td style="text-align:right;width:44px">${ins.pct||0}%</td>
         <td style="text-align:right;font-weight:700;font-variant-numeric:tabular-nums;width:90px">${cur}&nbsp;${fmt(Math.round(subT*(ins.pct||0)/100))}</td>
       </tr>`).join("");
-    const dlvHtml=(f.deliverables||[]).map((d,i)=>`<div style="display:flex;gap:5px;margin-bottom:3px"><span style="color:#00b3a4;font-weight:900;flex-shrink:0;min-width:14px">${i+1}.</span><span>${d.item||""}</span></div>`).join("");
+    const dlvHtml=(f.deliverables||[]).map((d,i)=>`<div style="display:flex;gap:5px;margin-bottom:3px"><span style="color:#0c1a2e;font-weight:900;flex-shrink:0;min-width:14px">${i+1}.</span><span>${d.item||""}</span></div>`).join("");
     const custName=customer?.companyEN||"—";
     const custTax=customer?.id||"—";
     const custAddr=[customer?.address,customer?.province].filter(Boolean).join(", ");
     const custContacts=(customer?.contacts||[]).filter(c=>c.active).slice(0,2)
       .map(ct=>`<div style="margin-bottom:2px"><strong>${ct.name}</strong>${ct.title?` <span style="color:#94a3b8">· ${ct.title}</span>`:""}<br/>${[ct.email,ct.phone].filter(Boolean).join(" &nbsp;·&nbsp; ")}</div>`).join("");
     const acceptLbl = isTH ? `${custName} — เพื่อยืนยันการตอบรับใบเสนอราคาฉบับนี้ กรุณาลงนาม:` : `Accepted by: ${custName}`;
-    const notesHtml=(f.notes||"").split("\n").join("<br/>");
-    const scopeHtml=f.projectScope?`<div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:3px;padding:5px 8px;font-size:8px;color:#374151;white-space:pre-wrap;margin-top:5px">${f.projectScope}</div>`:"";
+    const notesHtml=toItemList(f.notes).map((n,i)=>`<div style="display:flex;gap:5px;margin-bottom:3px"><span style="color:#0c1a2e;font-weight:900;flex-shrink:0;min-width:14px">${i+1}.</span><span>${n.item||""}</span></div>`).join("");
+    const scopeHtml=f.projectScope?`<div style="background:#f7f8f9;border:1px solid #e2e8f0;border-radius:3px;padding:5px 8px;font-size:8px;color:#374151;white-space:pre-wrap;margin-top:5px">${f.projectScope}</div>`:"";
     const lineItemsHtml=(f.lineItems||[]).map((li,i)=>{
       const sub=(li.qty||0)*(li.unitPrice||0);
       return `<tr>
@@ -1960,29 +1969,29 @@ body{width:794px;max-height:1123px;overflow:hidden;background:#fff;page-break-af
 }
 table{width:100%;border-collapse:collapse}
 th,td{padding:3px 6px;text-align:left;border-bottom:1px solid #e8ecf0;font-size:8px}
-th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;letter-spacing:.04em;color:#64748b}
+th{background:#f7f8f9;font-weight:700;font-size:7.5px;text-transform:uppercase;letter-spacing:.04em;color:#64748b}
 /* Header */
 .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:9px;padding-bottom:8px;border-bottom:2px solid #0c1a2e;flex-shrink:0}
 .co-name{font-size:12px;font-weight:900;color:#0c1a2e;letter-spacing:-0.02em;line-height:1.1;font-family:'Inter Tight','Inter',sans-serif}
-.co-sub{font-size:8.5px;font-weight:700;color:#00b3a4;letter-spacing:.02em;margin-bottom:3px}
+.co-sub{font-size:8.5px;font-weight:700;color:#0c1a2e;letter-spacing:.02em;margin-bottom:3px}
 .co-addr{color:#64748b;font-size:7.5px;line-height:1.6}
 .quo-title{font-size:20px;font-weight:900;color:#0c1a2e;letter-spacing:-0.04em;line-height:1;margin-bottom:5px;font-family:'Inter Tight','Inter',sans-serif}
 .meta td{padding:1.5px 8px 1.5px 0;font-size:8px;border:none}
 .meta-key{color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.04em;text-align:right}
 .meta-val{font-weight:700;color:#0c1a2e}
 /* Quote For */
-.qfor{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;padding:7px 10px;background:#f8fafc;border-radius:4px;border:1px solid #e2e8f0;flex-shrink:0}
+.qfor{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;padding:7px 10px;background:#f7f8f9;border-radius:4px;border:1px solid #e2e8f0;flex-shrink:0}
 .qlbl{font-size:7px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:3px}
 /* Sections */
 .body{flex:1;overflow:hidden;display:flex;flex-direction:column;gap:7px}
 .sec-hdr{display:flex;align-items:center;gap:5px;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#0c1a2e;border-bottom:1.5px solid #0c1a2e;padding-bottom:3px;margin-bottom:5px}
-.badge{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;background:#00b3a4;color:#fff;border-radius:50%;font-weight:900;font-size:8px;flex-shrink:0}
+.badge{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;background:#0c1a2e;color:#fff;border-radius:50%;font-weight:900;font-size:8px;flex-shrink:0}
 .sec-proj{display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-bottom:5px}
 .proj-lbl{font-size:7px;color:#94a3b8;font-weight:700;text-transform:uppercase;display:block;margin-bottom:1px}
 .proj-val{font-weight:700;font-size:9.5px;color:#0c1a2e;font-family:'Inter Tight','Inter',sans-serif}
 /* Payment */
 .totals-wrap{display:flex;justify-content:flex-end;margin-top:5px}
-.totals{min-width:200px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:6px 10px}
+.totals{min-width:200px;background:#f7f8f9;border:1px solid #e2e8f0;border-radius:4px;padding:6px 10px}
 .tot-row{display:flex;justify-content:space-between;padding:2.5px 0;border-bottom:1px solid #e8ecf0;font-size:8.5px}
 .tot-final{border-bottom:1.5px solid #0c1a2e;font-weight:900;font-size:9.5px}
 /* Signature */
@@ -2202,9 +2211,9 @@ ${thStyle}
         {/* SECTION 2: DELIVERABLES */}
         <div style={{marginBottom:12}}>
           <SH n="2" label="Deliverables"/>
-          {(f.deliverables||[]).map((d)=>(
+          {(f.deliverables||[]).map((d,i)=>(
             <div key={d.id} style={{display:"flex",gap:8,alignItems:"flex-start",marginBottom:5}}>
-              <span style={{color:"#00b3a4",fontWeight:900,fontSize:14,flexShrink:0,marginTop:1}}></span>
+              <span style={{color:"#0c1a2e",fontWeight:900,fontSize:11,flexShrink:0,marginTop:1,minWidth:14}}>{i+1}.</span>
               <span style={{fontSize:11,color:"#374151",lineHeight:1.5}}>{d.item}</span>
             </div>
           ))}
@@ -2247,7 +2256,12 @@ ${thStyle}
         {/* SECTION 4: NOTES */}
         <div style={{marginBottom:12}}>
           <SH n="4" label="Notes &amp; Conditions"/>
-          <div style={{fontSize:10.5,color:"#374151",background:"#fafafa",border:"1px solid #e2e8f0",borderRadius:5,padding:"8px 12px",whiteSpace:"pre-wrap",lineHeight:1.7}}>{f.notes||""}</div>
+          {toItemList(f.notes).map((n,i)=>(
+            <div key={n.id} style={{display:"flex",gap:8,alignItems:"flex-start",marginBottom:5}}>
+              <span style={{color:"#0c1a2e",fontWeight:900,fontSize:11,flexShrink:0,marginTop:1,minWidth:14}}>{i+1}.</span>
+              <span style={{fontSize:11,color:"#374151",lineHeight:1.5}}>{n.item}</span>
+            </div>
+          ))}
         </div>
 
         {/* SIGNATURE BLOCK */}
@@ -3693,11 +3707,11 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                 {/*  DELIVERABLES (full width, editable list + preview)  */}
                 <div style={{padding:"0 20px 16px"}}>
                   <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>Deliverables</Span>
-                  <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:6}}>
+                  <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:6}}>
                     {(q.deliverables||[]).map((d,i)=>(
-                      <div key={d.id} style={{display:"flex",gap:6,alignItems:"center"}}>
-                        <span style={{color:"#06b6d4",fontWeight:900,fontSize:12,flexShrink:0,fontFamily:"monospace",minWidth:22,textAlign:"right"}}>{i+1}.</span>
-                        <Inp value={d.item} onChange={e=>setQDlv(q.id,d.id,e.target.value)} placeholder="" style={{padding:"3px 8px",fontSize:12,flex:1}}/>
+                      <div key={d.id} style={{display:"flex",gap:8,alignItems:"center"}}>
+                        <span style={{color:"#94a3b8",fontWeight:700,fontSize:12,flexShrink:0,minWidth:20,textAlign:"right"}}>{i+1}</span>
+                        <Inp value={d.item} onChange={e=>setQDlv(q.id,d.id,e.target.value)} placeholder="" style={{fontSize:12,flex:1}}/>
                         <Btn variant="danger" style={{fontSize:13,padding:"1px 5px",flexShrink:0}} onClick={()=>delQDlv(q.id,d.id)}>×</Btn>
                       </div>
                     ))}
@@ -3707,8 +3721,17 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
 
                 {/*  NOTES & CONDITIONS (full width)  */}
                 <div style={{padding:"0 20px 16px"}}>
-                  <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Notes & Conditions</Span>
-                  <Txta value={q.notes||""} onChange={e=>setQF(q.id,"notes",e.target.value)} placeholder="" style={{minHeight:80,fontSize:12}}/>
+                  <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>Notes & Conditions</Span>
+                  <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:6}}>
+                    {toItemList(q.notes).map((n,i)=>(
+                      <div key={n.id} style={{display:"flex",gap:8,alignItems:"center"}}>
+                        <span style={{color:"#94a3b8",fontWeight:700,fontSize:12,flexShrink:0,minWidth:20,textAlign:"right"}}>{i+1}</span>
+                        <Inp value={n.item} onChange={e=>setQNote(q.id,n.id,e.target.value)} placeholder="" style={{fontSize:12,flex:1}}/>
+                        <Btn variant="danger" style={{fontSize:13,padding:"1px 5px",flexShrink:0}} onClick={()=>delQNote(q.id,n.id)}>×</Btn>
+                      </div>
+                    ))}
+                    <button onClick={()=>addQNote(q.id)} style={{alignSelf:"flex-start",marginTop:4,fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 10px",cursor:"pointer",fontWeight:600}}>+ Note</button>
+                  </div>
                 </div>
 
                 {/* Cost + margin + Save/Cancel footer */}
@@ -3804,6 +3827,9 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
   const setQDlv=(qid,did,v)=>updQO(qid,q=>({...q,deliverables:(q.deliverables||[]).map(d=>d.id===did?{...d,item:v}:d)}));
   const addQDlv=qid=>updQO(qid,q=>({...q,deliverables:[...(q.deliverables||[]),{id:uid(),item:""}]}));
   const delQDlv=(qid,did)=>updQO(qid,q=>({...q,deliverables:(q.deliverables||[]).filter(d=>d.id!==did)}));
+  const setQNote=(qid,nid,v)=>updQO(qid,q=>({...q,notes:toItemList(q.notes).map(n=>n.id===nid?{...n,item:v}:n)}));
+  const addQNote=qid=>updQO(qid,q=>({...q,notes:[...toItemList(q.notes),{id:uid(),item:""}]}));
+  const delQNote=(qid,nid)=>updQO(qid,q=>({...q,notes:toItemList(q.notes).filter(n=>n.id!==nid)}));
 
 
   const addQO=()=>{
@@ -3829,7 +3855,9 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
       deliverables:[
         {id:uid(),item:""},
       ],
-      notes:"",
+      notes:[
+        {id:uid(),item:""},
+      ],
     }]}));
   };
   const delQO=id=>sECS(p=>({...p,quoteOverrides:(p.quoteOverrides||[]).filter(r=>r.id!==id)}));
@@ -3874,7 +3902,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           projectTitle:q.projectTitle||"",
           projectScope:q.projectScope||"",
           projectMonths:q.projectMonths||editCS.projectMonths||3,
-          notes:       q.notes||"",
+          notes_json:  toItemList(q.notes),
           costs_json:  [...(q.internalCosts||[]), ...(q.externalCosts||[])],
           tasks_json:  q.tasks||[],
           installments_json: q.installments||[],
@@ -3937,7 +3965,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
       ...snapshot,
       id:uid(), csCode, quoteNo, oppCode,
       custId:"", salesAgent:"", contactPersonId:"",
-      notes: snapshot.notes||"",
+      notes: toItemList(snapshot.notes),
     }]}));
     toast("Duplicated","Fill in Customer, Agent, and Contact Person then save.");
   };
@@ -4984,7 +5012,7 @@ const stripJsonSuffix = obj => {
           projectTitle:    String(parsed.projectTitle||""),
           projectScope:    String(parsed.projectScope||""),
           projectMonths:   parsed.projectMonths||3,
-          notes:           String(parsed.notes||""),
+          notes:           toItemList(parsed.notes),
           // internalCosts + externalCosts expected by QuoteCard — map merged costs array to internalCosts
           internalCosts:   costs,
           externalCosts:   [],
