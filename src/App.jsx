@@ -1923,14 +1923,14 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
         <td class="num">${ins.pct||0}%</td>
         <td class="num amt">${cur} ${fmt(Math.round(subT*(ins.pct||0)/100))}</td>
       </tr>`).join("");
-    const dlvHtml=(f.deliverables||[]).map((d,i)=>`<div class="row"><span class="n">${i+1}.</span><span>${d.item||""}</span></div>`).join("");
+    const dlvHtml=(f.deliverables||[]).map((d,i)=>`<div class="row"><span class="n">${i+1}</span><span>${d.item||""}</span></div>`).join("");
     const custName=customer?.companyEN||"—";
     const custTax=customer?.id||"—";
     const custAddr=[customer?.address,customer?.province].filter(Boolean).join(", ");
     const custContacts=(customer?.contacts||[]).filter(c=>c.active).slice(0,2)
       .map(ct=>`<div style="margin-bottom:3px"><strong style="color:#0c1a2e">${ct.name}</strong>${ct.title?` <span style="color:#9aa4b1">· ${ct.title}</span>`:""}<br/>${[ct.email,ct.phone].filter(Boolean).join("<br/>")}</div>`).join("");
     const acceptLbl = isTH ? `${custName} — เพื่อยืนยันการตอบรับใบเสนอราคาฉบับนี้ กรุณาลงนาม:` : `Accepted by ${custName}`;
-    const notesHtml=toItemList(f.notes).map((n,i)=>`<div class="row"><span class="n">${i+1}.</span><span>${n.item||""}</span></div>`).join("");
+    const notesHtml=toItemList(f.notes).map((n,i)=>`<div class="row"><span class="n">${i+1}</span><span>${n.item||""}</span></div>`).join("");
     const scopeHtml=f.projectScope?`<div class="scope"><b>${L.sScope}</b>${f.projectScope}</div>`:"";
     const lineItemsHtml=(f.lineItems||[]).map((li,i)=>{
       const sub=(li.qty||0)*(li.unitPrice||0);
@@ -2228,7 +2228,7 @@ ${thStyle}
           <SH n="2" label="Deliverables"/>
           {(f.deliverables||[]).map((d,i)=>(
             <div key={d.id} style={{display:"flex",gap:8,alignItems:"flex-start",marginBottom:5}}>
-              <span style={{color:"#9aa4b1",fontWeight:700,fontSize:11,flexShrink:0,marginTop:1,minWidth:14}}>{i+1}.</span>
+              <span style={{color:"#9aa4b1",fontWeight:700,fontSize:11,flexShrink:0,marginTop:1,minWidth:14}}>{i+1}</span>
               <span style={{fontSize:11,color:"#374151",lineHeight:1.5}}>{d.item}</span>
             </div>
           ))}
@@ -2273,7 +2273,7 @@ ${thStyle}
           <SH n="4" label="Notes &amp; Conditions"/>
           {toItemList(f.notes).map((n,i)=>(
             <div key={n.id} style={{display:"flex",gap:8,alignItems:"flex-start",marginBottom:5}}>
-              <span style={{color:"#9aa4b1",fontWeight:700,fontSize:11,flexShrink:0,marginTop:1,minWidth:14}}>{i+1}.</span>
+              <span style={{color:"#9aa4b1",fontWeight:700,fontSize:11,flexShrink:0,marginTop:1,minWidth:14}}>{i+1}</span>
               <span style={{fontSize:11,color:"#374151",lineHeight:1.5}}>{n.item}</span>
             </div>
           ))}
@@ -2411,7 +2411,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
         {initial&&onDelete&&<Btn variant="danger" icon={<TrashIcon/>} style={{marginRight:"auto"}} onClick={()=>setDelConfirm(true)}>Delete</Btn>}
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn icon={<CheckIcon/>} onClick={()=>onSave({...f,successRate:getSrValue(),jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""})}>Save opportunity</Btn>
+        <Btn icon={<CheckIcon/>} onClick={()=>onSave({...f,successRate:getSrValue(),jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""})}>Save</Btn>
       </div>
 
       {delConfirm&&(
@@ -3489,7 +3489,7 @@ const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
 // 
 // COST SHEET (COGS + OPEX + Cashflow)
 // 
-const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQInst,setQDlv,addQEC,addQTK,addQInst,addQDlv,delQIC,delQEC,delQTK,delQInst,delQO,delQDlv,updQO,handleSave,highlight,cardRef}) => {
+const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQInst,setQDlv,setQNote,addQEC,addQTK,addQInst,addQDlv,addQNote,delQIC,delQEC,delQTK,delQInst,delQO,delQDlv,delQNote,updQO,handleSave,highlight,cardRef}) => {
   const qIC=calcIC(q.internalCosts||[]),qEC=calcEC(q.externalCosts||[],true),qOPEX=calcTask(q.tasks||[]);
   const qTC=qIC+qEC+qOPEX,qMg=margin(q.salesPrice,qTC);
   const months=q.projectMonths||editCS.projectMonths||3;
@@ -4062,9 +4062,9 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           {(editCS.quoteOverrides||[]).map((q)=>(
             <QuoteCard key={q.id} q={q} editCS={editCS} customers={customers} opps={opps} user={user}
               highlight={highlightCs===q.csCode} cardRef={el=>{if(el)csRefs.current[q.csCode]=el;}}
-              setQF={setQF} setQIC={setQIC} setQEC={setQEC} setQTK={setQTK} setQInst={setQInst} setQDlv={setQDlv}
-              addQEC={addQEC} addQTK={addQTK} addQInst={addQInst} addQDlv={addQDlv}
-              delQIC={delQIC} delQEC={delQEC} delQTK={delQTK} delQInst={delQInst} delQO={delQO} delQDlv={delQDlv}
+              setQF={setQF} setQIC={setQIC} setQEC={setQEC} setQTK={setQTK} setQInst={setQInst} setQDlv={setQDlv} setQNote={setQNote}
+              addQEC={addQEC} addQTK={addQTK} addQInst={addQInst} addQDlv={addQDlv} addQNote={addQNote}
+              delQIC={delQIC} delQEC={delQEC} delQTK={delQTK} delQInst={delQInst} delQO={delQO} delQDlv={delQDlv} delQNote={delQNote}
               updQO={updQO} handleSave={handleSave}
             />
           ))}
