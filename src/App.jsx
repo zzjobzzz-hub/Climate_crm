@@ -133,6 +133,9 @@ const fmt   = n => new Intl.NumberFormat("en-US").format(Math.round(n||0));
 const fmtM  = n => `${((n||0)/1e6).toFixed(2)}M`;
 const fmtK  = n => (n||0)>=1e6?`฿${((n||0)/1e6).toFixed(1)}M`:(n||0)>=1000?`฿${Math.round((n||0)/1000)}K`:`฿${fmt(n)}`;
 const fmtDate = d => { if(!d) return "—"; const [y,m,day]=String(d).split("-"); if(!y||!m||!day) return d; return `${day}-${MONTHS[+m-1]||m}-${y}`; };
+// Thai date: Thai month abbrev + Buddhist-era year (e.g. 29 เม.ย. 2569)
+const TH_MONTHS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+const fmtDateTH = d => { if(!d) return "—"; const [y,m,day]=String(d).split("-"); if(!y||!m||!day) return d; const by=+y<2500?+y+543:+y; return `${+day} ${TH_MONTHS[+m-1]||m} ${by}`; };
 const uid   = () => `${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
 const today = () => new Date().toISOString().slice(0,10);
 const nowTS = () => { const d=new Date(); return `${d.getFullYear()+543}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
@@ -1733,6 +1736,16 @@ const WAVE_CO = {
   signer:     "Korakoj Sanguanpiyapan",
   signerTitle:"Chief Executive Officer",
 };
+// Thai company block — wording from th information.xlsx (content reference, not layout)
+const WAVE_CO_TH = {
+  name:       "บริษัท เวฟ บีซีจี จำกัด",
+  taxId:      "0105528019566",
+  address:    "2445/19 อาคารธารารมณ์ บิสซิเนส ทาวเวอร์ ชั้น 14 ถนนเพชรบุรีตัดใหม่ แขวงบางกะปิ เขตห้วยขวาง กรุงเทพมหานคร 10310",
+  tel:        "02-665-6705 #1015",
+  email:      "service@wavebcg.com",
+  signer:     "กรกช สงวนปิยะพันธ์",
+  signerTitle:"ประธานเจ้าหน้าที่บริหาร",
+};
 
 const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation}) => {
   const cs = (costSheets||[]).find(c=>c.serviceCode===opp?.serviceCode);
@@ -1863,7 +1876,29 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
     </div>
   );
 
-  const exportPDF = () => {
+  // lang: "en" (default) | "th" — same layout, label dictionary + Thai company block swapped
+  const exportPDF = (lang="en") => {
+    const isTH = lang==="th";
+    const co   = isTH ? WAVE_CO_TH : WAVE_CO;
+    const df   = isTH ? fmtDateTH : fmtDate;   // date formatter
+    const cur  = isTH ? "บาท" : "THB";          // currency label
+    const L = isTH ? {
+      title:"ใบเสนอราคา", coLegal:"บริษัท เวฟ บีซีจี จำกัด", taxId:"เลขทะเบียนนิติบุคคล:", tel:"เบอร์:",
+      quoteFor:"เสนอราคาแก่:", contact:"ผู้ติดต่อ",
+      mQuote:"ใบเสนอราคา #", mIssued:"วันที่ออก:", mValid:"วันครบกำหนด:", mSales:"พนักงานขาย", mMobile:"เบอร์โทร:",
+      sProject:"โครงการ", cDesc:"คำอธิบาย", cQty:"จำนวน", cUnit:"หน่วย", cUnitPrice:`ราคาต่อหน่วย (${cur})`, cSubtotal:`ยอดรวม (${cur})`,
+      sDeliv:"สิ่งที่นำส่ง", sPay:"การชำระเงิน", pNo:"ลำดับ", pDesc:"รายละเอียด", pPct:"%", pAmount:`จำนวนเงิน (${cur})`,
+      tSub:"ยอดรวม (ไม่รวมภาษี)", tVat:"ภาษี (7%)", tTotal:"ยอดรวมสุทธิ", sNotes:"หมายเหตุและเงื่อนไข",
+      onBehalf:"ในนามของ", name:"ชื่อ:", role:"ตำแหน่ง:", date:"วันที่:",
+    } : {
+      title:"QUOTATION", coLegal:"Company Limited", taxId:"Tax ID:", tel:"Tel:",
+      quoteFor:"Quote For", contact:"Contact Person",
+      mQuote:"QUOTE #", mIssued:"ISSUED", mValid:"VALID UNTIL", mSales:"SALES", mMobile:"MOBILE",
+      sProject:"Project", cDesc:"Description", cQty:"Qty", cUnit:"Unit", cUnitPrice:"Unit Price (THB)", cSubtotal:"Subtotal (THB)",
+      sDeliv:"Deliverables", sPay:"Payment Schedule", pNo:"#", pDesc:"Description", pPct:"%", pAmount:"Amount (THB)",
+      tSub:"Subtotal (excl. VAT)", tVat:"VAT 7%", tTotal:"TOTAL", sNotes:"Notes &amp; Conditions",
+      onBehalf:"On behalf of", name:"Name:", role:"Title:", date:"Date:",
+    };
     const subT=f.salesPrice||0, vatT=Math.round(subT*0.07), totT=subT+vatT;
     const agentName=USERS.find(u=>u.id===f.salesAgentId)?.name||"—";
     const agentMobP=SALES_MOBILE[f.salesAgentId]||"—";
@@ -1872,14 +1907,15 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
         <td style="width:22px;text-align:center;color:#94a3b8;font-weight:700">${i+1}</td>
         <td>${ins.label||""}</td>
         <td style="text-align:right;width:44px">${ins.pct||0}%</td>
-        <td style="text-align:right;font-weight:700;font-variant-numeric:tabular-nums;width:90px">THB&nbsp;${fmt(Math.round(subT*(ins.pct||0)/100))}</td>
+        <td style="text-align:right;font-weight:700;font-variant-numeric:tabular-nums;width:90px">${cur}&nbsp;${fmt(Math.round(subT*(ins.pct||0)/100))}</td>
       </tr>`).join("");
-    const dlvHtml=(f.deliverables||[]).map(d=>`<div style="display:flex;gap:5px;margin-bottom:3px"><span style="color:#00b3a4;font-weight:900;flex-shrink:0"></span><span>${d.item||""}</span></div>`).join("");
+    const dlvHtml=(f.deliverables||[]).map((d,i)=>`<div style="display:flex;gap:5px;margin-bottom:3px"><span style="color:#00b3a4;font-weight:900;flex-shrink:0;min-width:14px">${i+1}.</span><span>${d.item||""}</span></div>`).join("");
     const custName=customer?.companyEN||"—";
     const custTax=customer?.id||"—";
     const custAddr=[customer?.address,customer?.province].filter(Boolean).join(", ");
     const custContacts=(customer?.contacts||[]).filter(c=>c.active).slice(0,2)
       .map(ct=>`<div style="margin-bottom:2px"><strong>${ct.name}</strong>${ct.title?` <span style="color:#94a3b8">· ${ct.title}</span>`:""}<br/>${[ct.email,ct.phone].filter(Boolean).join(" &nbsp;·&nbsp; ")}</div>`).join("");
+    const acceptLbl = isTH ? `${custName} — เพื่อยืนยันการตอบรับใบเสนอราคาฉบับนี้ กรุณาลงนาม:` : `Accepted by: ${custName}`;
     const notesHtml=(f.notes||"").split("\n").join("<br/>");
     const scopeHtml=f.projectScope?`<div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:3px;padding:5px 8px;font-size:8px;color:#374151;white-space:pre-wrap;margin-top:5px">${f.projectScope}</div>`:"";
     const lineItemsHtml=(f.lineItems||[]).map((li,i)=>{
@@ -1889,16 +1925,22 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
         <td style="text-align:right;width:36px">${li.qty||0}</td>
         <td style="width:44px">${li.unit||""}</td>
         <td style="text-align:right;width:90px;font-variant-numeric:tabular-nums">${fmt(li.unitPrice||0)}</td>
-        <td style="text-align:right;width:90px;font-weight:700;font-variant-numeric:tabular-nums">THB ${fmt(sub)}</td>
+        <td style="text-align:right;width:90px;font-weight:700;font-variant-numeric:tabular-nums">${cur} ${fmt(sub)}</td>
       </tr>`;
     }).join("");
     // PDF logo: use cached base64 from state, or empty
     const pdfLogoHtml = logoB64 ? `<img src="${logoB64}" style="height:40px;width:auto;object-fit:contain" alt="Wave BCG"/>` : "";
+    // Thai needs a Thai-capable font + no uppercasing/letter-spacing (it mangles Thai glyph clusters)
+    const thStyle = isTH ? `
+#page{font-family:'Noto Sans Thai','Inter','Helvetica Neue',Arial,sans-serif}
+.co-name,.quo-title,.proj-val{font-family:'Noto Sans Thai','Inter Tight','Inter',sans-serif!important}
+th,.sec-hdr,.meta-key,.qlbl,.proj-lbl{text-transform:none;letter-spacing:normal}
+` : "";
 
     const w = window.open("","_blank");
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Quotation ${f.quoteNo}</title>
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${L.title} ${f.quoteNo}</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Inter+Tight:wght@700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Inter+Tight:wght@700;800;900&family=Noto+Sans+Thai:wght@400;500;600;700;800;900&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
 @page{size:A4 portrait;margin:8mm 10mm}
 html{width:794px;height:1123px;overflow:hidden;background:#fff}
@@ -1953,6 +1995,7 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
   html,body{width:794px;height:1123px;max-height:1123px;overflow:hidden}
   #page{page-break-after:avoid;page-break-inside:avoid}
 }
+${thStyle}
 </style></head><body>
 <div id="page">
 <!-- HEADER -->
@@ -1960,30 +2003,30 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
   <div style="display:flex;gap:10px;align-items:flex-start">
     ${pdfLogoHtml}
     <div>
-      <div class="co-name"><span style="color:#00b3a4">WAVE BCG</span><span style="color:#0c1a2e"> Company Limited</span></div>
-      <div class="co-addr">Tax ID: ${WAVE_CO.taxId}<br/>${WAVE_CO.address}<br/>Tel: ${WAVE_CO.tel}<br/>${WAVE_CO.email}</div>
+      <div class="co-name"><span style="color:#00b3a4">WAVE BCG</span><span style="color:#0c1a2e"> ${L.coLegal}</span></div>
+      <div class="co-addr">${L.taxId} ${co.taxId}<br/>${co.address}<br/>${L.tel} ${co.tel}<br/>${co.email}</div>
     </div>
   </div>
   <div style="text-align:right">
-    <div class="quo-title">QUOTATION</div>
+    <div class="quo-title">${L.title}</div>
     <table class="meta" style="margin-left:auto;width:auto">
-      <tr><td class="meta-key">QUOTE #</td><td class="meta-val" style="font-family:'Inter',monospace;font-weight:700;letter-spacing:0.02em">${f.quoteNo}</td></tr>
-      <tr><td class="meta-key">ISSUED</td><td class="meta-val">${fmtDate(f.issueDate)}</td></tr>
-      <tr><td class="meta-key">VALID UNTIL</td><td class="meta-val">${fmtDate(f.dueDate)}</td></tr>
-      <tr><td class="meta-key">SALES</td><td class="meta-val">${agentName}</td></tr>
-      <tr><td class="meta-key">MOBILE</td><td class="meta-val">${agentMobP}</td></tr>
+      <tr><td class="meta-key">${L.mQuote}</td><td class="meta-val" style="font-family:'Inter',monospace;font-weight:700;letter-spacing:0.02em">${f.quoteNo}</td></tr>
+      <tr><td class="meta-key">${L.mIssued}</td><td class="meta-val">${df(f.issueDate)}</td></tr>
+      <tr><td class="meta-key">${L.mValid}</td><td class="meta-val">${df(f.dueDate)}</td></tr>
+      <tr><td class="meta-key">${L.mSales}</td><td class="meta-val">${agentName}</td></tr>
+      <tr><td class="meta-key">${L.mMobile}</td><td class="meta-val">${agentMobP}</td></tr>
     </table>
   </div>
 </div>
 <!-- QUOTE FOR -->
 <div class="qfor">
   <div>
-    <span class="qlbl">Quote For</span>
+    <span class="qlbl">${L.quoteFor}</span>
     <div style="font-weight:800;font-size:11px;color:#0c1a2e;margin-bottom:2px">${custName}</div>
-    <div style="color:#64748b;font-size:8px;line-height:1.6">Tax ID: ${custTax}<br/>${custAddr}</div>
+    <div style="color:#64748b;font-size:8px;line-height:1.6">${L.taxId} ${custTax}<br/>${custAddr}</div>
   </div>
   <div>
-    <span class="qlbl">Contact Person</span>
+    <span class="qlbl">${L.contact}</span>
     <div style="font-size:8px;color:#374151">${custContacts||"—"}</div>
   </div>
 </div>
@@ -1991,14 +2034,14 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
 <div class="body">
   <!-- SEC 1: PROJECT -->
   <div>
-    <div class="sec-hdr"><span class="badge">1</span>Project</div>
+    <div class="sec-hdr"><span class="badge">1</span>${L.sProject}</div>
     <table>
       <thead><tr>
-        <th style="text-align:center">Description</th>
-        <th style="text-align:center;width:36px">Qty</th>
-        <th style="text-align:center;width:44px">Unit</th>
-        <th style="text-align:center;width:90px">Unit Price (THB)</th>
-        <th style="text-align:center;width:90px">Subtotal (THB)</th>
+        <th style="text-align:center">${L.cDesc}</th>
+        <th style="text-align:center;width:36px">${L.cQty}</th>
+        <th style="text-align:center;width:44px">${L.cUnit}</th>
+        <th style="text-align:center;width:90px">${L.cUnitPrice}</th>
+        <th style="text-align:center;width:90px">${L.cSubtotal}</th>
       </tr></thead>
       <tbody>${lineItemsHtml}</tbody>
     </table>
@@ -2006,41 +2049,41 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
   </div>
   <!-- SEC 2: DELIVERABLES -->
   <div>
-    <div class="sec-hdr"><span class="badge">2</span>Deliverables</div>
+    <div class="sec-hdr"><span class="badge">2</span>${L.sDeliv}</div>
     <div style="font-size:8.5px">${dlvHtml}</div>
   </div>
   <!-- SEC 3: PAYMENT SCHEDULE -->
   <div>
-    <div class="sec-hdr"><span class="badge">3</span>Payment Schedule</div>
+    <div class="sec-hdr"><span class="badge">3</span>${L.sPay}</div>
     <table>
-      <thead><tr><th style="text-align:center;width:22px">#</th><th style="text-align:center">Description</th><th style="text-align:center;width:44px">%</th><th style="text-align:center;width:90px">Amount (THB)</th></tr></thead>
+      <thead><tr><th style="text-align:center;width:22px">${L.pNo}</th><th style="text-align:center">${L.pDesc}</th><th style="text-align:center;width:44px">${L.pPct}</th><th style="text-align:center;width:90px">${L.pAmount}</th></tr></thead>
       <tbody>${instRowsHtml}</tbody>
     </table>
     <div class="totals-wrap">
       <div class="totals">
-        <div class="tot-row"><span style="color:#64748b">Subtotal (excl. VAT)</span><span style="font-variant-numeric:tabular-nums;font-weight:500">THB ${fmt(subT)}</span></div>
-        <div class="tot-row"><span style="color:#64748b">VAT 7%</span><span style="font-variant-numeric:tabular-nums;font-weight:500">THB ${fmt(vatT)}</span></div>
-        <div class="tot-row tot-final"><span>TOTAL</span><span style="font-variant-numeric:tabular-nums;font-weight:700">THB ${fmt(totT)}</span></div>
+        <div class="tot-row"><span style="color:#64748b">${L.tSub}</span><span style="font-variant-numeric:tabular-nums;font-weight:500">${cur} ${fmt(subT)}</span></div>
+        <div class="tot-row"><span style="color:#64748b">${L.tVat}</span><span style="font-variant-numeric:tabular-nums;font-weight:500">${cur} ${fmt(vatT)}</span></div>
+        <div class="tot-row tot-final"><span>${L.tTotal}</span><span style="font-variant-numeric:tabular-nums;font-weight:700">${cur} ${fmt(totT)}</span></div>
       </div>
     </div>
   </div>
   <!-- SEC 4: NOTES -->
   <div>
-    <div class="sec-hdr"><span class="badge">4</span>Notes &amp; Conditions</div>
+    <div class="sec-hdr"><span class="badge">4</span>${L.sNotes}</div>
     <div style="font-size:8px;color:#374151;line-height:1.6">${notesHtml}</div>
   </div>
 </div>
 <!-- SIGNATURES -->
 <div class="sig-grid">
   <div>
-    <div class="sig-lbl">On behalf of ${WAVE_CO.name}</div>
+    <div class="sig-lbl">${L.onBehalf} ${co.name}</div>
     <div class="sig-line"></div>
-    <div class="sig-detail">Name: <strong>${WAVE_CO.signer}</strong><br/>Title: ${WAVE_CO.signerTitle}<br/>Date: ${fmtDate(f.issueDate)}</div>
+    <div class="sig-detail">${L.name} <strong>${co.signer}</strong><br/>${L.role} ${co.signerTitle}<br/>${L.date} ${df(f.issueDate)}</div>
   </div>
   <div>
-    <div class="sig-lbl">Accepted by: ${custName}</div>
+    <div class="sig-lbl">${acceptLbl}</div>
     <div class="sig-line"></div>
-    <div class="sig-detail">Name: ..........................................................................<br/>Title: ..........................................................................<br/>Date: ..........................................................................</div>
+    <div class="sig-detail">${L.name} ..........................................................................<br/>${L.role} ..........................................................................<br/>${L.date} ..........................................................................</div>
   </div>
 </div>
 </div>
@@ -2228,7 +2271,8 @@ th{background:#f1f5f9;font-weight:700;font-size:7.5px;text-transform:uppercase;l
 
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14,alignItems:"center"}}>
         <Btn variant="ghost" onClick={onClose}>Close</Btn>
-        <Btn variant="export" icon={<DlIcon/>} onClick={exportPDF}>Print / Export PDF</Btn>
+        <Btn variant="export" icon={<DlIcon/>} onClick={()=>exportPDF("en")}>Print / Export PDF (EN)</Btn>
+        <Btn variant="export" icon={<DlIcon/>} onClick={()=>exportPDF("th")}>พิมพ์ / Export PDF (TH)</Btn>
       </div>
     </Modal>
   );
@@ -3650,9 +3694,9 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                 <div style={{padding:"0 20px 16px"}}>
                   <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>Deliverables</Span>
                   <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:6}}>
-                    {(q.deliverables||[]).map(d=>(
+                    {(q.deliverables||[]).map((d,i)=>(
                       <div key={d.id} style={{display:"flex",gap:6,alignItems:"center"}}>
-                        <span style={{color:"#06b6d4",fontWeight:900,fontSize:13,flexShrink:0}}></span>
+                        <span style={{color:"#06b6d4",fontWeight:900,fontSize:12,flexShrink:0,fontFamily:"monospace",minWidth:22,textAlign:"right"}}>{i+1}.</span>
                         <Inp value={d.item} onChange={e=>setQDlv(q.id,d.id,e.target.value)} placeholder="" style={{padding:"3px 8px",fontSize:12,flex:1}}/>
                         <Btn variant="danger" style={{fontSize:13,padding:"1px 5px",flexShrink:0}} onClick={()=>delQDlv(q.id,d.id)}>×</Btn>
                       </div>
