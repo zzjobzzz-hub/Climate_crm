@@ -162,7 +162,7 @@ const successRateColor = pct => pct >= 70 ? "#16a34a" : pct >= 40 ? "#d97706" : 
 
 const calcIC   = rows => (rows||[]).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
 const calcEC   = (rows,coOnly) => (rows||[]).filter(r=>coOnly?!r.clientBorne:true).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
-const calcTask = tasks => (tasks||[]).reduce((s,t)=>s+(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior,0);
+const calcTask = tasks => (tasks||[]).reduce((s,t)=>{const ag=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];const mgr=ag.length>0?ag.reduce((a,x)=>a+(x.manager||0),0):(t.manager||0);const sr=ag.length>0?ag.reduce((a,x)=>a+(x.senior||0),0):(t.senior||0);const jr=ag.length>0?ag.reduce((a,x)=>a+(x.junior||0),0):(t.junior||0);return s+mgr*IH_LEVELS.Manager+sr*IH_LEVELS.Senior+jr*IH_LEVELS.Junior;},0);
 const calcTotalCS = cs => calcIC(cs.internalCosts||[]) + calcEC(cs.externalCosts||[],true) + calcTask(cs.tasks||[]);
 // Legacy helpers kept for per-quotation overrides
 const calcIH  = rows => (rows||[]).reduce((s,r)=>s+(r.days||0)*(r.rate||IH_LEVELS[r.level]||0),0);
@@ -254,12 +254,13 @@ const normalizeForGS = record => {
 };
 
 // Save (upsert) a single record — fire-and-forget, non-blocking (S4: token in body)
+let _onSaveError = null; // registered by App on mount; called on any save failure
 const gsSave = (collection, record, userId="", summary="") => {
   fetch(GS_URL, {
     method:"POST", redirect:"follow",
     headers:{"Content-Type":"text/plain"},
     body: JSON.stringify({action:"save", collection, record:normalizeForGS(record), userId, summary, token:GS_AUTH_TOKEN}),
-  }).catch(()=>{});
+  }).catch(()=>{ if(_onSaveError) _onSaveError(); });
 };
 
 // Save entire collection (S4: token in body)
@@ -867,7 +868,39 @@ const ChevronDown = () => (
     <polyline points="6 9 12 15 18 9"/>
   </svg>
 );
-const ExportBar = ({onCSV,onGS}) => <div style={{display:"flex",gap:6}}><Btn variant="export" size="sm" icon={<DlIcon/>} onClick={onCSV}>CSV</Btn><Btn variant="export" size="sm" icon={<SheetIcon/>} onClick={onGS}>Sheets</Btn></div>;
+// Shared financial summary — used in DeliveryForm, DeliveryCard collapsed, DeliveryCard expanded
+const InstallmentSummary = ({contractValue, received, variant="form"}) => {
+  const balance = (contractValue||0) - (received||0);
+  if(variant==="collapsed") return (
+    <>
+      {[{l:"Contract",v:contractValue||0,c:"#0f172a"},{l:"Received",v:received||0,c:"#16a34a"},{l:"Balance",v:balance,c:"#d97706"}].map(x=>(
+        <div key={x.l} style={{textAlign:"center",minWidth:80}}>
+          <Span s={9} c="#94a3b8" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.06em"}}>{x.l}</Span>
+          <span style={{fontSize:13,fontWeight:900,color:x.c}}>฿{fmt(x.v)}</span>
+        </div>
+      ))}
+    </>
+  );
+  if(variant==="expanded") return (
+    <>
+      {[{l:"Contract",v:contractValue||0,bg:"#fff",bc:"#e2e8f0",c:"#0f172a"},{l:"Received",v:received||0,bg:"#f0fdf4",bc:"#86efac",c:"#16a34a"},{l:"Balance",v:balance,bg:"#fffbeb",bc:"#fde68a",c:"#d97706"}].map(x=>(
+        <div key={x.l} style={{textAlign:"center",padding:"5px 12px",background:x.bg,border:`1px solid ${x.bc}`,borderRadius:7,flexShrink:0}}>
+          <Span s={9} c={x.c} style={{display:"block",marginBottom:1}}>{x.l}</Span>
+          <div style={{fontWeight:900,fontSize:13,color:x.c}}>฿{fmt(x.v)}</div>
+        </div>
+      ))}
+    </>
+  );
+  return (
+    <div style={{display:"flex",gap:16,marginTop:10,padding:"10px 14px",background:"#f8fafc",borderRadius:6,border:"1px solid #e2e8f0"}}>
+      {[{l:"Contract Value",v:contractValue||0},{l:"Total Received",v:received||0,c:"#16a34a"},{l:"Balance",v:balance,c:"#d97706"}].map(x=>(
+        <div key={x.l}><Span s={11} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block"}}>{x.l}</Span><div style={{fontWeight:400,fontSize:14,color:x.c||"#0f172a"}}>฿{fmt(x.v)}</div></div>
+      ))}
+    </div>
+  );
+};
+
+const ExportBar = ({onCSV,onGS}) =><div style={{display:"flex",gap:6}}><Btn variant="export" size="sm" icon={<DlIcon/>} onClick={onCSV}>CSV</Btn><Btn variant="export" size="sm" icon={<SheetIcon/>} onClick={onGS}>Sheets</Btn></div>;
 const GSGuideModal = ({module,headers,onClose}) => (
   <Modal title={`Google Sheets Guide — ${module}`} width={600} onClose={onClose}>
     <FRow label="Tab Name"><div style={{fontFamily:"monospace",padding:"6px 10px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:5,fontWeight:700}}>{module}</div></FRow>
@@ -876,9 +909,28 @@ const GSGuideModal = ({module,headers,onClose}) => (
   </Modal>
 );
 
-// 
+// Error boundary — catches runtime crashes at page level so one broken tab
+// doesn't blank the whole app. Class component required by React's API.
+class ErrorBoundary extends React.Component {
+  constructor(props){super(props);this.state={err:null};}
+  static getDerivedStateFromError(e){return{err:e};}
+  componentDidCatch(err,info){console.error("Page error:",err,info);}
+  render(){
+    if(this.state.err) return (
+      <div style={{padding:40,textAlign:"center"}}>
+        <div style={{fontSize:32,marginBottom:12}}>⚠</div>
+        <div style={{fontSize:15,fontWeight:700,color:"#dc2626",marginBottom:8}}>Something went wrong on this page</div>
+        <div style={{fontSize:12,color:"#94a3b8",marginBottom:20,fontFamily:"monospace",maxWidth:420,margin:"0 auto 20px"}}>{this.state.err?.message}</div>
+        <button onClick={()=>this.setState({err:null})} style={{padding:"8px 24px",background:"#0f172a",color:"#fff",border:"none",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:13}}>Retry</button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
+//
 // LOGIN — S1: Server-side credential validation via GAS
-// 
+//
 const LoginPage = ({onLogin}) => {
   const [email,sEmail]     = useState("");
   const [pwd,sPwd]         = useState("");
@@ -961,7 +1013,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const pipeline      = filteredOpps.filter(o=>o.status!=="Lost").reduce((s,o)=>s+o.salesPrice,0);
   const oppsPipeline  = filteredOpps.filter(o=>o.status==="Proposal"||o.status==="Negotiation").reduce((s,o)=>s+o.salesPrice,0);
   const oppsPipelineCount = filteredOpps.filter(o=>o.status==="Proposal"||o.status==="Negotiation").length;
-  const kpiPct      = Math.min((totalWon/annual)*100,100);
+  const kpiPct      = annual>0 ? Math.min((totalWon/annual)*100,100) : 0;
   const splits      = kpiSplits[year]||DEFAULT_SPLIT.slice();
   const totalSplit  = splits.reduce((s,v)=>s+v,0);
 
@@ -985,7 +1037,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     const prefix = String(ceYear);
     return deliveries.reduce((total,d)=>{
       return total + (d.installments||[]).reduce((s,ins)=>{
-        if(ins.status!=="Invoiced") return s;
+        if(ins.status!=="Received") return s;
         if(!ins.invoiceDate) return s;
         const dateStr = String(ins.invoiceDate);
         if(dateStr.startsWith(prefix)) return s + (ins.amount||0);
@@ -1501,6 +1553,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
   const [logCust,sLog]=useState(null);
   const [delConfirm,sDelConfirm]=useState(null);
   const [sort,setSort]=useState({col:"companyEN",dir:"asc"});
+  const [colWidths,setColWidths] = React.useState([130,220,200,110,180,90,120,140,60,60]);
   const toggleSort=col=>setSort(p=>({col,dir:p.col===col&&p.dir==="asc"?"desc":"asc"}));
   const SortIcon=({col})=>sort.col===col?<span style={{marginLeft:3,fontSize:9,color:"#0f172a"}}>{sort.dir==="asc"?"":""}</span>:<span style={{marginLeft:3,fontSize:9,color:"#cbd5e1"}}>⇅</span>;
   useEffect(()=>{if(initCustId){const c=customers.find(x=>x.id===initCustId);if(c){sE(c);sF(true);}if(onCustReady)onCustReady();}},[initCustId]);
@@ -1572,7 +1625,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
           {l:"Log",       c:null,          w:60},
           {l:"",          c:null,          w:60},
         ];
-        const [colWidths,setColWidths] = React.useState(COLS.map(c=>c.w));
+        // colWidths / setColWidths hoisted to component body (Rules of Hooks)
         const startResize = (i,e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -2321,6 +2374,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
   const mg=margin(f.salesPrice,f.totalCost||0);
   const jobCode=isWon?genJobCode(f.oppCode):"";
   const [delConfirm,setDelConfirm] = useState(false);
+  const [validErr,setValidErr] = useState("");
   return (
     <Modal title={initial?"Edit Opportunity":"New Opportunity"} width={820} onClose={onClose}>
       <div style={{display:"flex",gap:0,borderBottom:"2px solid #e2e8f0",marginBottom:16}}>
@@ -2411,7 +2465,13 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
         {initial&&onDelete&&<Btn variant="danger" icon={<TrashIcon/>} style={{marginRight:"auto"}} onClick={()=>setDelConfirm(true)}>Delete</Btn>}
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn icon={<CheckIcon/>} onClick={()=>onSave({...f,successRate:getSrValue(),jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""})}>Save</Btn>
+        {validErr&&<span style={{fontSize:12,color:"#dc2626",fontWeight:600,marginRight:4}}>{validErr}</span>}
+        <Btn icon={<CheckIcon/>} onClick={()=>{
+          if(!f.custId){setValidErr("Customer is required");return;}
+          if(!(f.salesPrice>0)){setValidErr("Sales Price must be > 0");return;}
+          setValidErr("");
+          onSave({...f,successRate:getSrValue(),jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""});
+        }}>Save</Btn>
       </div>
 
       {delConfirm&&(
@@ -2872,6 +2932,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
   const setCv=v=>sF(p=>({...p,totalContractValue:+v,installments:p.installments.map(ins=>({...ins,amount:Math.round((+v)*(ins.pct||0)/100)}))}));
   const addIns=()=>sF(p=>({...p,installments:[...p.installments,{id:uid(),seq:p.installments.length+1,label:`Installment ${p.installments.length+1}`,pct:0,amount:0,expected_date:"",invoiceNo:"",invoiceDate:"",receiptNo:"",receiptDate:"",status:"Pending"}]}));
   const delIns=idx=>sF(p=>({...p,installments:p.installments.filter((_,i)=>i!==idx)}));
+  const [validErr,setValidErr] = useState("");
   return (
     <Modal title={initial?`Edit — ${f.jobCode||f.id}`:"Add Delivery"} width={1000} onClose={onClose}>
       <div style={{display:"flex",gap:0,borderBottom:"2px solid #e2e8f0",marginBottom:16}}>
@@ -2972,18 +3033,20 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
               ))}</tbody>
             </table>
           </div>
-          <div style={{display:"flex",gap:16,marginTop:10,padding:"10px 14px",background:"#f8fafc",borderRadius:6,border:"1px solid #e2e8f0"}}>
-            {[{l:"Contract Value",v:f.totalContractValue},{l:"Total Received",v:totalRec,c:"#16a34a"},{l:"Balance",v:f.totalContractValue-totalRec,c:"#d97706"}].map(x=>(
-              <div key={x.l}><Span s={11} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block"}}>{x.l}</Span><div style={{fontWeight:400,fontSize:14,color:x.c||"#0f172a"}}>฿{fmt(x.v)}</div></div>
-            ))}
-          </div>
+          <InstallmentSummary contractValue={f.totalContractValue} received={totalRec} variant="form"/>
         </>
       )}
 
       {tab==="cost"&&<CostBreakdown quoteNo={f.quoteNo} costSheets={costSheets}/>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn onClick={()=>onSave(f)}>Save Delivery</Btn>
+        {validErr&&<span style={{fontSize:12,color:"#dc2626",fontWeight:600,marginRight:4}}>{validErr}</span>}
+        <Btn onClick={()=>{
+          if(!f.oppCode){setValidErr("OPP Code is required");return;}
+          if(!(f.totalContractValue>0)){setValidErr("Contract Value must be > 0");return;}
+          setValidErr("");
+          onSave(f);
+        }}>Save Delivery</Btn>
       </div>
     </Modal>
   );
@@ -3082,12 +3145,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
           {lastLog&&<span style={{fontSize:10,color:"#94a3b8"}}>Last saved: {lastLog.ts}</span>}
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",pointerEvents:"none"}}>
-          {[{l:"Contract",v:d.totalContractValue,c:"#0f172a"},{l:"Received",v:totalRec,c:"#16a34a"},{l:"Balance",v:d.totalContractValue-totalRec,c:"#d97706"}].map(x=>(
-            <div key={x.l} style={{textAlign:"center",minWidth:80}}>
-              <Span s={9} c="#94a3b8" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.06em"}}>{x.l}</Span>
-              <span style={{fontSize:13,fontWeight:900,color:x.c}}>฿{fmt(x.v)}</span>
-            </div>
-          ))}
+          <InstallmentSummary contractValue={d.totalContractValue} received={totalRec} variant="collapsed"/>
           <span style={{fontSize:18,color:"#94a3b8",padding:"0 8px"}}>›</span>
         </div>
       </div>
@@ -3152,12 +3210,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
             <input type="date" value={localD.deliveryDate||""} onChange={e=>markDirty({...localD,deliveryDate:e.target.value})} style={{fontSize:12,border:"1px solid #e2e8f0",borderRadius:4,padding:"3px 7px",background:"#fafafa",width:130}}/>
           </div>
           <div style={{width:1,height:32,background:"#e2e8f0",flexShrink:0,alignSelf:"center"}}/>
-          {[{l:"Contract",v:d.totalContractValue,bg:"#fff",bc:"#e2e8f0",c:"#0f172a"},{l:"Received",v:totalRec,bg:"#f0fdf4",bc:"#86efac",c:"#16a34a"},{l:"Balance",v:d.totalContractValue-totalRec,bg:"#fffbeb",bc:"#fde68a",c:"#d97706"}].map(x=>(
-            <div key={x.l} style={{textAlign:"center",padding:"5px 12px",background:x.bg,border:`1px solid ${x.bc}`,borderRadius:7,flexShrink:0}}>
-              <Span s={9} c={x.c} style={{display:"block",marginBottom:1}}>{x.l}</Span>
-              <div style={{fontWeight:900,fontSize:13,color:x.c}}>฿{fmt(x.v)}</div>
-            </div>
-          ))}
+          <InstallmentSummary contractValue={d.totalContractValue} received={totalRec} variant="expanded"/>
         </div>
 
       </div>
@@ -3663,7 +3716,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                     const cfM=q.projectMonths||editCS.projectMonths||3;
                     const allM=Array.from({length:cfM+1},(_,i)=>i+1);
                     const cByM={};
-                    (q.tasks||[]).forEach(t=>{const m=t.payMonth||1;const tc=(t.manager||0)*IH_LEVELS.Manager+(t.senior||0)*IH_LEVELS.Senior+(t.junior||0)*IH_LEVELS.Junior;cByM[m]=(cByM[m]||0)+tc;});
+                    (q.tasks||[]).forEach(t=>{const m=t.payMonth||1;const ag=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];const mgr=ag.length>0?ag.reduce((s,a)=>s+(a.manager||0),0):(t.manager||0);const sr=ag.length>0?ag.reduce((s,a)=>s+(a.senior||0),0):(t.senior||0);const jr=ag.length>0?ag.reduce((s,a)=>s+(a.junior||0),0):(t.junior||0);const tc=mgr*IH_LEVELS.Manager+sr*IH_LEVELS.Senior+jr*IH_LEVELS.Junior;cByM[m]=(cByM[m]||0)+tc;});
                     (q.internalCosts||[]).forEach(r=>{const m=r.payMonth||1;const amt=(r.qty||0)*(r.rate||0);cByM[m]=(cByM[m]||0)+amt;});
                     (q.externalCosts||[]).filter(r=>!r.clientBorne).forEach(r=>{const m=r.payMonth||1;const amt=(r.qty||0)*(r.rate||0);cByM[m]=(cByM[m]||0)+amt;});
                     const rByM={};
@@ -5142,6 +5195,12 @@ const stripJsonSuffix = obj => {
 
   const unreadCount = notifications.filter(n=>!n.read).length;
 
+  // Register save-failure toast so gsSave (module-level) can surface errors
+  useEffect(()=>{
+    _onSaveError=()=>toast("Save failed","Check your connection and retry","error");
+    return()=>{ _onSaveError=null; };
+  },[toast]);
+
   // Close bell on outside click
   const bellRef = useRef();
   useEffect(()=>{
@@ -5154,7 +5213,7 @@ const stripJsonSuffix = obj => {
   const CUST_STRIP = ["status","createdDate","workLog_json"];
   const stripCust  = c => { const o={...c}; CUST_STRIP.forEach(k=>delete o[k]); return o; };
 
-  //  saveItem: update local state + push to Google Sheets 
+  //  saveItem: update local state + push to Google Sheets
   const saveItem = (setter, collection) => item => {
     const norm = (item.custId!==undefined)
       ? {...item,id:String(item.id||""),custId:String(item.custId||"")}
@@ -5162,11 +5221,17 @@ const stripJsonSuffix = obj => {
     setter(p => p.find(x=>x.id===norm.id) ? p.map(x=>x.id===norm.id?norm:x) : [...p,norm]);
     if(collection) gsSave(collection, collection==="customers" ? stripCust(norm) : norm);
   };
-  //  deleteItem: remove from local state + delete from Google Sheets 
+  //  deleteItem: remove from local state + delete from Google Sheets
   const deleteItem = (setter, collection) => id => {
     setter(p => p.filter(x=>x.id!==id));
     if(collection) gsDelete(collection, id);
   };
+  // Pre-computed stable callbacks — avoids creating new fn refs on every render
+  const saveCust   = useMemo(()=>saveItem(sCusts,"customers"),[]);
+  const deleteCust = useMemo(()=>deleteItem(sCusts,"customers"),[]);
+  const deleteOpp  = useMemo(()=>deleteItem(sOpps,"opportunities"),[]);
+  const saveDlv    = useMemo(()=>saveItem(sDlv,"deliveries"),[]);
+  const deleteDlv  = useMemo(()=>deleteItem(sDlv,"deliveries"),[]);
   //  saveOpp: save opp + auto-sync customers.status (Option 1) 
   // Priority: Won > active OPP status > Lost
   const deriveOppStatus = (custId, allOpps) => {
@@ -5178,7 +5243,7 @@ const stripJsonSuffix = obj => {
     if(active) return active.status;
     return "Lost";
   };
-  const saveOpp = opp => {
+  const saveOpp = useCallback(opp => {
     const prev = opps.find(x => x.id === opp.id);
     const justWon = opp.status === "Won" && prev?.status !== "Won";
     const norm = {
@@ -5187,48 +5252,40 @@ const stripJsonSuffix = obj => {
       custId: String(opp.custId||""),
       wonDate: justWon ? nowTS() : (opp.wonDate || ""),
     };
-    // 1. Single sOpps call — build merged list, then sync customer inside same updater
-    sOpps(prev => {
-      // Build new opps list with this opp upserted
-      const next = prev.find(x=>x.id===norm.id)
-        ? prev.map(x=>x.id===norm.id ? norm : x)
-        : [...prev, norm];
-      // Derive customer status from opps (UI only — not persisted to sheet)
-      if(norm.custId) {
-        const newStatus = deriveOppStatus(norm.custId, next);
-        if(newStatus) {
-          sCusts(cList => cList.map(c => {
-            if(c.id !== norm.custId) return c;
-            if(c.status === newStatus) return c;
-            return {...c, status: newStatus}; // update UI state only, no GS save
-          }));
-        }
+    // 1. Build next opps list and update state
+    const nextOpps = opps.find(x=>x.id===norm.id)
+      ? opps.map(x=>x.id===norm.id ? norm : x)
+      : [...opps, norm];
+    sOpps(nextOpps);
+    // 2. Derive customer status from updated list (UI only — not persisted to sheet)
+    if(norm.custId) {
+      const newStatus = deriveOppStatus(norm.custId, nextOpps);
+      if(newStatus) {
+        sCusts(cList => cList.map(c => {
+          if(c.id !== norm.custId) return c;
+          if(c.status === newStatus) return c;
+          return {...c, status: newStatus};
+        }));
       }
-      return next;
-    });
-    // 2. Push opp to GS
+    }
+    // 3. Push opp to GS
     gsSave("opportunities", norm);
-  };
+  }, [opps]);
 
   //  saveCS: update local + push to GS (key = serviceCode, strip quoteOverrides before save)
-  const saveCS = cs => {
-    sCS(p => {
-      const next = p.find(x=>x.serviceCode===cs.serviceCode)
-        ? p.map(x=>x.serviceCode===cs.serviceCode?cs:x)
-        : [...p,cs];
-      // Strip live quoteOverrides before persisting — they are committed into saveLog already
-      const toSave = {...cs, quoteOverrides:[]};
-      gsSave("costsheets", toSave);
-      return next;
-    });
-  };
+  const saveCS = useCallback(cs => {
+    sCS(p => p.find(x=>x.serviceCode===cs.serviceCode)
+      ? p.map(x=>x.serviceCode===cs.serviceCode?cs:x)
+      : [...p,cs]);
+    gsSave("costsheets", {...cs, quoteOverrides:[]});
+  }, []);
 
-  //  saveTimesheet: upsert by id 
-  const saveTimesheet = record => {
+  //  saveTimesheet: upsert by id
+  const saveTimesheet = useCallback(record => {
     const norm = {...record, id: String(record.id||uid())};
     sTS(prev => prev.find(x=>x.id===norm.id) ? prev.map(x=>x.id===norm.id?norm:x) : [...prev,norm]);
     gsSave("timesheet", norm);
-  };
+  }, []);
 
   //  Sync status badge 
   const SyncBadge = () => {
@@ -5251,7 +5308,14 @@ const stripJsonSuffix = obj => {
 
   return (
     <div style={{minHeight:"100vh",background:"#f8fafc",fontFamily:"'DM Sans','Noto Sans Thai',system-ui,sans-serif",fontSize:15}}>
-      <style>{`@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}} input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0} input[type=number]{-moz-appearance:textfield}`}</style>
+      <style>{`@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}} @keyframes spin{to{transform:rotate(360deg)}} input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0} input[type=number]{-moz-appearance:textfield}`}</style>
+      {gsStatus==="loading"&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(248,250,252,.94)",zIndex:9000,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,backdropFilter:"blur(2px)"}}>
+          <div style={{width:44,height:44,border:"4px solid #e2e8f0",borderTopColor:BRAND.teal,borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
+          <div style={{fontSize:15,fontWeight:700,color:"#0f172a"}}>Loading CRM data…</div>
+          <div style={{fontSize:12,color:"#94a3b8"}}>Connecting to Google Sheets</div>
+        </div>
+      )}
       <div style={{background:"#fff",borderBottom:"1px solid #e2e8f0",position:"sticky",top:0,zIndex:100}}>
         <div style={{maxWidth:1440,margin:"0 auto",padding:"0 24px",display:"flex",alignItems:"center",gap:0}}>
           <div onClick={()=>sPage("dashboard")} title="Wave BCG · Climate CRM" style={{display:"flex",alignItems:"center",gap:9,paddingRight:18,borderRight:"1px solid #f1f5f9",marginRight:4,flexShrink:0,cursor:"pointer"}}>
@@ -5308,13 +5372,13 @@ const stripJsonSuffix = obj => {
         </div>
       </div>
       <div style={{maxWidth:1440,margin:"0 auto",padding:24}}>
-        {page==="dashboard" && <DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI} toast={toast} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}}/>}
-        {page==="customers" && <CustomersPage user={user} customers={customers} opps={opps} onSave={saveItem(sCusts,"customers")} onDelete={deleteItem(sCusts,"customers")} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)} userList={userList}/>}
-        {page==="opps"      && <OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} onDelete={deleteItem(sOpps,"opportunities")} onSaveCS={saveCS} deliveries={deliveries} onSaveDelivery={saveItem(sDlv,"deliveries")} onDeleteDelivery={deleteItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)} userList={userList} onMentionNotify={handleMentionNotify}/>}
-        {page==="delivery"  && <DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveItem(sDlv,"deliveries")} toast={toast} costSheets={costSheets} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}} userList={userList} onMentionNotify={handleMentionNotify}/>}
-        {page==="costsheet" && <CostSheetPage costSheets={costSheets} onSave={saveCS} customers={customers} opps={opps} user={user} onSaveOpp={saveOpp} toast={toast} initSvcCode={initSvcCode} onSvcReady={()=>sSvcCode(null)} initCsCode={initCsCode} onCsReady={()=>sCsCode(null)}/>}
-        {page==="timesheet" && <TimesheetPage user={user} opps={opps} customers={customers} costSheets={costSheets} timesheets={timesheets} onSaveTimesheet={saveTimesheet} toast={toast} userList={userList}/>}
-        {page==="setup"     && <SetupPage/>}
+        {page==="dashboard" && <ErrorBoundary><DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI} toast={toast} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}}/></ErrorBoundary>}
+        {page==="customers" && <ErrorBoundary><CustomersPage user={user} customers={customers} opps={opps} onSave={saveCust} onDelete={deleteCust} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)} userList={userList}/></ErrorBoundary>}
+        {page==="opps"      && <ErrorBoundary><OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} onDelete={deleteOpp} onSaveCS={saveCS} deliveries={deliveries} onSaveDelivery={saveDlv} onDeleteDelivery={deleteDlv} toast={toast} costSheets={costSheets} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)} userList={userList} onMentionNotify={handleMentionNotify}/></ErrorBoundary>}
+        {page==="delivery"  && <ErrorBoundary><DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveDlv} toast={toast} costSheets={costSheets} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}} userList={userList} onMentionNotify={handleMentionNotify}/></ErrorBoundary>}
+        {page==="costsheet" && <ErrorBoundary><CostSheetPage costSheets={costSheets} onSave={saveCS} customers={customers} opps={opps} user={user} onSaveOpp={saveOpp} toast={toast} initSvcCode={initSvcCode} onSvcReady={()=>sSvcCode(null)} initCsCode={initCsCode} onCsReady={()=>sCsCode(null)}/></ErrorBoundary>}
+        {page==="timesheet" && <ErrorBoundary><TimesheetPage user={user} opps={opps} customers={customers} costSheets={costSheets} timesheets={timesheets} onSaveTimesheet={saveTimesheet} toast={toast} userList={userList}/></ErrorBoundary>}
+        {page==="setup"     && <ErrorBoundary><SetupPage/></ErrorBoundary>}
       </div>
       <Toast toasts={toasts}/>
     </div>
