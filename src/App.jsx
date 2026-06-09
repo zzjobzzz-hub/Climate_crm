@@ -3599,7 +3599,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                   {/* Months */}
                   <div style={{flex:"0 0 52px"}}>
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Mo.</Span>
-                    <Inp type="number" value={months} onChange={e=>setQF(q.id,"projectMonths",+e.target.value)} style={{fontSize:11,padding:"3px 5px"}}/>
+                    <NumInp value={months} onChange={v=>setQF(q.id,"projectMonths",Math.max(1,Math.round(v)))} style={{fontSize:11,padding:"3px 5px"}}/>
                   </div>
                   {/* Margin badge */}
                   <div style={{flex:"0 0 72px",padding:"5px 8px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center",flexShrink:0}}>
