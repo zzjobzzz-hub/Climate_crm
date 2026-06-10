@@ -182,9 +182,6 @@ const genOppCode = opps => `OPP-${YEAR}-${padNum(nextNum(opps,"oppCode"))}`;
 const genQuoteNo = opps => `QT-${YEAR}-${padNum(nextNum(opps,"quoteNo"))}`;
 const genJobCode = opp  => (opp||"").replace(/^OPP-/,"JOB-");
 const genCSCode  = qtNo => (qtNo||"").replace(/^QT-/,"CS-");
-// MEMO number — format M{2-digit BE year}-{3-digit seq}, e.g. M69-001.
-// Sequence is the next running number across existing memoNo values (on opps).
-const genMemoNo  = opps => `M${String(YEAR).slice(-2)}-${padNum(nextNum(opps,"memoNo"))}`;
 
 const toCSV = (h,rows) => { const e=v=>`"${String(v==null?"":v).replace(/"/g,'""')}"`;return[h.map(e).join(","),...rows.map(r=>r.map(e).join(","))].join("\n"); };
 const dlCSV = (fn,h,rows) => { const b=new Blob([toCSV(h,rows)],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=fn;a.click(); };
@@ -2365,7 +2362,7 @@ ${thStyle}
 
 const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS,onDelete,initTab="detail",userList=[],onMentionNotify=()=>{}}) => {
   const newOppCode=genOppCode(opps); const newQtNo=genQuoteNo(opps);
-  const blank={id:newOppCode,custId:customers[0]?.id||"",oppCode:newOppCode,quoteNo:newQtNo,memoNo:genMemoNo(opps),jobCode:"",serviceCode:SERVICES[0].code,serviceType:SERVICES[0].name,salesPrice:SERVICES[0].stdPrice,totalCost:SERVICES[0].stdCost,status:"Proposal",assignedTo:SALES_USERS[0]?.id||"",createdDate:today(),lostReason:"",activityLog:[],remark:"",ranking:"Medium",successRate:""};
+  const blank={id:newOppCode,custId:customers[0]?.id||"",oppCode:newOppCode,quoteNo:newQtNo,memoNo:"",jobCode:"",serviceCode:SERVICES[0].code,serviceType:SERVICES[0].name,salesPrice:SERVICES[0].stdPrice,totalCost:SERVICES[0].stdCost,status:"Proposal",assignedTo:SALES_USERS[0]?.id||"",createdDate:today(),lostReason:"",activityLog:[],remark:"",ranking:"Medium",successRate:""};
   const [f,sF] = useState(initial?{...initial,activityLog:initial.activityLog||[]}:blank);
   const [tab,sTab] = useState(initTab);
   const [noteInput,sNoteInput] = useState("");
@@ -3920,7 +3917,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
     const csCode=genCSCode(quoteNo);
     const oppCode=genOppCode(opps);
     sECS(p=>({...p,quoteOverrides:[{
-      id:uid(),csCode,oppCode,quoteNo,memoNo:genMemoNo(opps),custId:"",salesAgent:"",contactPersonId:"",salesPrice:0,
+      id:uid(),csCode,oppCode,quoteNo,memoNo:"",custId:"",salesAgent:"",contactPersonId:"",salesPrice:0,
       projectTitle:"",
       projectScope:"",
       projectMonths:editCS.projectMonths||3,
@@ -4045,7 +4042,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
     const oppCode = genOppCode(opps);
     sECS(p=>({...p, quoteOverrides:[{
       ...snapshot,
-      id:uid(), csCode, quoteNo, oppCode, memoNo:genMemoNo(opps),
+      id:uid(), csCode, quoteNo, oppCode, memoNo:"",
       custId:"", salesAgent:"", contactPersonId:"",
       notes: toItemList(snapshot.notes),
     }]}));
