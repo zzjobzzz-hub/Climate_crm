@@ -182,6 +182,9 @@ const genOppCode = opps => `OPP-${YEAR}-${padNum(nextNum(opps,"oppCode"))}`;
 const genQuoteNo = opps => `QT-${YEAR}-${padNum(nextNum(opps,"quoteNo"))}`;
 const genJobCode = opp  => (opp||"").replace(/^OPP-/,"JOB-");
 const genCSCode  = qtNo => (qtNo||"").replace(/^QT-/,"CS-");
+// MEMO number — format M{2-digit BE year}-{3-digit seq}, e.g. M69-001.
+// Sequence is the next running number across existing memoNo values (on opps).
+const genMemoNo  = opps => `M${String(YEAR).slice(-2)}-${padNum(nextNum(opps,"memoNo"))}`;
 
 const toCSV = (h,rows) => { const e=v=>`"${String(v==null?"":v).replace(/"/g,'""')}"`;return[h.map(e).join(","),...rows.map(r=>r.map(e).join(","))].join("\n"); };
 const dlCSV = (fn,h,rows) => { const b=new Blob([toCSV(h,rows)],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=fn;a.click(); };
@@ -214,7 +217,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // S4: All requests include GS_AUTH_TOKEN verified server-side
 // 
-const GS_URL = "https://script.google.com/macros/s/AKfycbyGzoWRRX6r2VNxZ9pn_9mSGXC12pYERHPz2oKwFYGE8TKHac8tZO6DsIju8pMSsEHAIA/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbwPMgnGT56NC4WT3WSzEoh67ZTt0wFRgiuOO1mHWqxO4Rlk3rAfcrYgkD7lavbVkWnY/exec";
 
 // S1: Server-side login — credentials validated in GAS, never in browser
 const gsLogin = async (email, password) => {
@@ -2362,7 +2365,7 @@ ${thStyle}
 
 const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS,onDelete,initTab="detail",userList=[],onMentionNotify=()=>{}}) => {
   const newOppCode=genOppCode(opps); const newQtNo=genQuoteNo(opps);
-  const blank={id:newOppCode,custId:customers[0]?.id||"",oppCode:newOppCode,quoteNo:newQtNo,jobCode:"",serviceCode:SERVICES[0].code,serviceType:SERVICES[0].name,salesPrice:SERVICES[0].stdPrice,totalCost:SERVICES[0].stdCost,status:"Proposal",assignedTo:SALES_USERS[0]?.id||"",createdDate:today(),lostReason:"",activityLog:[],remark:"",ranking:"Medium",successRate:""};
+  const blank={id:newOppCode,custId:customers[0]?.id||"",oppCode:newOppCode,quoteNo:newQtNo,memoNo:genMemoNo(opps),jobCode:"",serviceCode:SERVICES[0].code,serviceType:SERVICES[0].name,salesPrice:SERVICES[0].stdPrice,totalCost:SERVICES[0].stdCost,status:"Proposal",assignedTo:SALES_USERS[0]?.id||"",createdDate:today(),lostReason:"",activityLog:[],remark:"",ranking:"Medium",successRate:""};
   const [f,sF] = useState(initial?{...initial,activityLog:initial.activityLog||[]}:blank);
   const [tab,sTab] = useState(initTab);
   const [noteInput,sNoteInput] = useState("");
@@ -2387,6 +2390,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
           <G2>
 <FRow label="OPP Code"><Inp value={f.oppCode} readOnly style={{border:"none",background:"transparent",fontFamily:"monospace",fontWeight:600,color:"#1e40af",cursor:"default"}}/></FRow>
 <FRow label="Quote No."><button onClick={()=>f.quoteNo&&sTab("quotation")} style={{fontFamily:"monospace",fontWeight:600,fontSize:14,background:"none",color:f.quoteNo?"#1e40af":"#94a3b8",border:"none",padding:"8px 0",cursor:f.quoteNo?"pointer":"default",textDecoration:f.quoteNo?"underline":"none"}}>{f.quoteNo||"—"}</button></FRow>
+            <FRow label="Memo No." tip="Format: M + 2-digit year (BE) + 3-digit number, e.g. M69-001"><Inp value={f.memoNo||""} onChange={e=>set("memoNo",e.target.value)} placeholder="e.g. M69-001" style={{fontFamily:"monospace",fontWeight:600}}/></FRow>
             {f.csCode&&<div style={{gridColumn:"1/-1",marginTop:4}}><FRow label="Cost Sheet & Pricing Code (CS Code)"><div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>{onSave({...f,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""});if(onGoToCS)onGoToCS(f.serviceCode,f.csCode);}} style={{fontFamily:"monospace",fontWeight:700,fontSize:13,background:"none",color:"#1e40af",padding:"4px 0",border:"none",cursor:"pointer",textDecoration:"underline"}}>{f.csCode}</button><Span s={11} c="#64748b">Click to open Cost Sheet (saves first)</Span></div></FRow></div>}
             <FRow label="Customer"><Inp value={customers.find(c=>c.id===f.custId)?.companyEN||f.custId} readOnly style={{border:"none",background:"transparent",fontWeight:400,cursor:"default"}}/></FRow>
             <FRow label="Nickname / Catchword" tip="Short label shown on kanban card"><Inp value={f.nickname||""} onChange={e=>set("nickname",e.target.value)} placeholder="e.g. BKK Hotel, Phase 2…"/></FRow>
@@ -2526,6 +2530,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
       const c=customers.find(x=>x.id===o.custId);
       if(col==="oppCode")    return o.oppCode||"";
       if(col==="quoteNo")    return o.quoteNo||"";
+      if(col==="memoNo")     return (o.memoNo||"").toLowerCase();
       if(col==="csCode")     return o.csCode||"";
       if(col==="company")    return (c?.companyEN||"").toLowerCase();
       if(col==="ranking")    return ["High","Medium","Low"].indexOf(o.ranking||"Medium");
@@ -2637,6 +2642,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
                     <div style={{fontSize:12,fontWeight:700,color:"#0f172a",marginBottom:o.nickname?1:4,lineHeight:1.3}}>{c?.companyEN||"-"}</div>
                     {o.nickname&&<div style={{fontSize:10,color:"#94a3b8",marginBottom:4,fontStyle:"italic",lineHeight:1.3}}>{o.nickname}</div>}
                     {o.csCode&&<div style={{marginBottom:5}}><span style={{fontFamily:"monospace",fontWeight:700,fontSize:10,background:"#fef3c7",color:"#92400e",padding:"2px 7px",borderRadius:4,border:"1px solid #fde68a"}}>{o.csCode}</span></div>}
+                    {o.memoNo&&<div style={{fontSize:10,color:"#64748b",marginBottom:5,fontFamily:"monospace"}}>Memo: {o.memoNo}</div>}
                     <div style={{display:"flex",gap:5,marginBottom:6,flexWrap:"wrap"}}><SvcBadge code={o.serviceCode}/><span style={{background:+mg>=30?"#dcfce7":"#fee2e2",color:+mg>=30?"#16a34a":"#dc2626",fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4}}>{mg}%</span></div>
                     {(()=>{const sr=calcSuccessRate(o);const clr=successRateColor(sr);return(<div style={{marginBottom:6}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}><span style={{fontSize:9,color:"#94a3b8",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Success</span><span style={{fontSize:10,fontWeight:800,color:clr}}>{sr}%</span></div><div style={{height:4,background:"#e2e8f0",borderRadius:99,overflow:"hidden"}}><div style={{height:"100%",width:`${sr}%`,background:clr,borderRadius:99,transition:"width .3s"}}/></div></div>);})()}
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -2697,6 +2703,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
             {[
               {label:"OPP Code",     col:"oppCode"},
               {label:"QT No.",       col:"quoteNo"},
+              {label:"Memo No.",     col:"memoNo"},
               {label:"CS Code",      col:"csCode"},
               {label:"Company",      col:"company"},
               {label:"Code",         col:"serviceCode"},
@@ -2723,6 +2730,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
                   ? <button onClick={e=>{e.stopPropagation();sE(o);sQT(o);}} style={{fontFamily:"monospace",fontSize:11,background:"none",border:"none",color:"#1e40af",cursor:"pointer",padding:0,textDecoration:"underline",fontWeight:600}}>{o.quoteNo}</button>
                   : "—"}
               </TD>
+              <TD style={{fontFamily:"monospace",fontSize:11,color:o.memoNo?"#64748b":"#cbd5e1"}}>{o.memoNo||"—"}</TD>
               <TD>
                 {o.csCode
                   ? <button onClick={e=>{e.stopPropagation();if(onGoToCS)onGoToCS(o.serviceCode,o.csCode);}} style={{fontFamily:"monospace",fontWeight:700,fontSize:11,background:"none",color:"#1e40af",padding:"2px 0",border:"none",cursor:"pointer",textDecoration:"underline"}}>{o.csCode}</button>
@@ -3569,6 +3577,11 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Quote No.</Span>
                     <Inp value={q.quoteNo||""} onChange={e=>setQF(q.id,"quoteNo",e.target.value)} style={{fontSize:11,fontFamily:"monospace",padding:"3px 6px"}}/>
                   </div>
+                  {/* Memo No. */}
+                  <div style={{flex:"0 0 100px"}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Memo No.</Span>
+                    <Inp value={q.memoNo||""} onChange={e=>setQF(q.id,"memoNo",e.target.value)} placeholder="e.g. M69-001" style={{fontSize:11,fontFamily:"monospace",padding:"3px 6px"}}/>
+                  </div>
                   {/* Customer */}
                   <div style={{flex:"1 1 160px",minWidth:0}}>
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Customer</Span>
@@ -3907,7 +3920,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
     const csCode=genCSCode(quoteNo);
     const oppCode=genOppCode(opps);
     sECS(p=>({...p,quoteOverrides:[{
-      id:uid(),csCode,oppCode,quoteNo,custId:"",salesAgent:"",contactPersonId:"",salesPrice:0,
+      id:uid(),csCode,oppCode,quoteNo,memoNo:genMemoNo(opps),custId:"",salesAgent:"",contactPersonId:"",salesPrice:0,
       projectTitle:"",
       projectScope:"",
       projectMonths:editCS.projectMonths||3,
@@ -3945,7 +3958,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
         const cust=customers.find(c=>c.id===q.custId);
         const existingOpp=opps.find(o=>o.oppCode===q.oppCode);
         const opp={
-          id:q.oppCode,custId:q.custId,oppCode:q.oppCode,quoteNo:q.quoteNo,csCode,jobCode:existingOpp?.jobCode||"",
+          id:q.oppCode,custId:q.custId,oppCode:q.oppCode,quoteNo:q.quoteNo,memoNo:q.memoNo||"",csCode,jobCode:existingOpp?.jobCode||"",
           serviceCode:editCS.serviceCode,serviceType:editCS.serviceType,salesPrice:q.salesPrice,totalCost:qCost,
           status:existingOpp?.status||"Proposal",
           assignedTo:q.salesAgent||cust?.assignedTo||SALES_USERS[0]?.id||user.id,
@@ -3963,6 +3976,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           serviceCode: editCS.serviceCode,
           oppCode:     q.oppCode,
           quoteNo:     q.quoteNo,
+          memoNo:      q.memoNo||"",
           custId:      q.custId,
           salesAgent:  q.salesAgent||"",
           contactPersonId: q.contactPersonId||"",
@@ -4031,7 +4045,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
     const oppCode = genOppCode(opps);
     sECS(p=>({...p, quoteOverrides:[{
       ...snapshot,
-      id:uid(), csCode, quoteNo, oppCode,
+      id:uid(), csCode, quoteNo, oppCode, memoNo:genMemoNo(opps),
       custId:"", salesAgent:"", contactPersonId:"",
       notes: toItemList(snapshot.notes),
     }]}));
@@ -5073,6 +5087,7 @@ const stripJsonSuffix = obj => {
           csCode:          String(parsed.csCode||""),
           oppCode:         String(parsed.oppCode||""),
           quoteNo:         String(parsed.quoteNo||""),
+          memoNo:          String(parsed.memoNo||""),
           custId:          String(parsed.custId||""),
           salesAgent:      String(parsed.salesAgent||""),
           contactPersonId: String(parsed.contactPersonId||""),
