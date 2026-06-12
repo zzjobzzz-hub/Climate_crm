@@ -3837,27 +3837,49 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
   const [selCode,sCode] = useState(SERVICES[0].code);
   const [highlightCs,sHighlightCs] = useState(null);
   const csRefs = React.useRef({});
+  const [pendingCs,setPendingCs] = useState(null);
   useEffect(()=>{if(initSvcCode){sCode(initSvcCode);sView("quote");if(onSvcReady)onSvcReady();}},[initSvcCode]);
+  // Deep-link resolver: after load, snapshots live in saveLog (quoteOverrides is empty), so locate the
+  // owning service by csCode, select its tab, and stage the csCode to auto-open once editCS settles.
   useEffect(()=>{
-    if(initCsCode){
-      // Find which service this CS code belongs to
-      const cs=costSheets.find(c=>(c.quoteOverrides||[]).some(q=>q.csCode===initCsCode));
-      if(cs){sCode(cs.serviceCode);sView("quote");}
-      sHighlightCs(initCsCode);
-      if(onCsReady)onCsReady();
-      // Scroll to the card after render
-      setTimeout(()=>{
-        const el=csRefs.current[initCsCode];
-        if(el)el.scrollIntoView({behavior:"smooth",block:"center"});
-      },300);
-    }
-  },[initCsCode]);
+    if(!initCsCode) return;
+    const owner=costSheets.find(c=>
+      (c.saveLog||[]).some(l=>l.quoteSnapshot && l.quoteSnapshot.csCode===initCsCode) ||
+      (c.quoteOverrides||[]).some(q=>q.csCode===initCsCode)
+    );
+    if(!owner) return; // costSheets may still be loading — retry when it changes
+    sCode(owner.serviceCode);
+    setPendingCs(initCsCode);
+    if(onCsReady)onCsReady();
+  },[initCsCode,costSheets]);
   const [view,sView]    = useState("quote");
   const [gs,sGS]        = useState(false);
   const cs = useMemo(()=>costSheets.find(c=>c.serviceCode===selCode)||buildDefaultCS(SERVICES.find(s=>s.code===selCode)||SERVICES[0]),[costSheets,selCode]);
   const [editCS,sECS] = useState(cs);
   const [editPrice,sEP] = useState(0);
   useEffect(()=>{const f=costSheets.find(c=>c.serviceCode===selCode)||buildDefaultCS(SERVICES.find(s=>s.code===selCode)||SERVICES[0]);sECS(f);sEP(f.stdPrice||0);},[selCode,costSheets]);
+  // Auto-open the staged quotation card once editCS reflects the resolved service.
+  // Reuses the same snapshot→override transform as the Edit button, minus the "Re-opened" log entry.
+  useEffect(()=>{
+    if(!pendingCs) return;
+    if((editCS.quoteOverrides||[]).length>0) return; // a card is already open
+    const entry=[...(editCS.saveLog||[])]
+      .filter(l=>l.quoteSnapshot && l.quoteSnapshot.csCode===pendingCs)
+      .sort((a,b)=>(b.ts||"").localeCompare(a.ts||""))[0];
+    if(!entry) return; // editCS not yet the owning service
+    const snap=entry.quoteSnapshot;
+    sECS(p=>({...p,quoteOverrides:[{...snap,id:uid(),notes:toItemList(snap.notes),deliverables:toItemList(snap.deliverables)}]}));
+    sHighlightCs(pendingCs);
+    const cs2=pendingCs;
+    setPendingCs(null);
+    setTimeout(()=>{const el=csRefs.current[cs2];if(el)el.scrollIntoView({behavior:"smooth",block:"center"});},300);
+  },[editCS,pendingCs]);
+  // Keep the address bar in sync with the open quotation (silent — replaceState fires no hashchange).
+  useEffect(()=>{
+    const openCs=(editCS.quoteOverrides||[])[0]?.csCode;
+    const target=openCs?`#costsheet/${openCs}`:"#costsheet";
+    if(location.hash!==target) history.replaceState(null,"",target);
+  },[editCS.quoteOverrides]);
 
   // COGS calcs
   const totalIC = calcIC(editCS.internalCosts||[]);
@@ -4983,12 +5005,25 @@ function App() {
   // S3: Restore session from localStorage — checks expiry timestamp
   const [user,sUser] = useState(()=>loadSession());
 
-  // Hash-based routing — syncs with browser back/forward
-  const getPageFromHash = () => { const h=location.hash.replace("#",""); return NAV.find(n=>n.key===h)?h:"dashboard"; };
+  // Hash-based routing — syncs with browser back/forward.
+  // Supports an optional sub-path param, e.g. "#costsheet/CS-2569-039".
+  const parseHash = () => {
+    const raw = location.hash.replace(/^#/, "");
+    const [seg, rawParam] = raw.split("/");
+    return {
+      page:  NAV.find(n=>n.key===seg) ? seg : "dashboard",
+      param: rawParam ? decodeURIComponent(rawParam) : null,
+    };
+  };
+  const getPageFromHash = () => parseHash().page;
   const [page,setPageState] = useState(getPageFromHash);
   const sPage = (p) => { location.hash = p; setPageState(p); };
   useEffect(()=>{
-    const onHash = () => setPageState(getPageFromHash());
+    const onHash = () => {
+      const {page:hp, param} = parseHash();
+      setPageState(hp);
+      if(param) sCsCode(param); // forward "#costsheet/<csCode>" deep links; never clear here
+    };
     window.addEventListener("hashchange", onHash);
     return ()=>window.removeEventListener("hashchange", onHash);
   },[]);
@@ -4997,7 +5032,7 @@ function App() {
   const [deliveries,sDlv]    = useState(SEED_DELIVERIES);
   const [costSheets,sCS]     = useState(SEED_COST_SHEETS);
   const [initSvcCode,sSvcCode] = useState(null);
-  const [initCsCode,sCsCode]   = useState(null);
+  const [initCsCode,sCsCode]   = useState(()=>parseHash().param);
   const [initCustId,sCustId]   = useState(null);
   const [initOppCode,sOppCode] = useState(null);
   const [kpiSplits,sKPI]     = useState({2569:DEFAULT_SPLIT.slice(),2570:DEFAULT_SPLIT.slice(),2571:DEFAULT_SPLIT.slice()});
