@@ -150,6 +150,9 @@ const toItemList = v => {
   // render would remount inputs every keystroke → edits/deletes wouldn't stick).
   return arr.map((it,i) => (it && it.id) ? it : {id:`li-${i}`, item:(it && typeof it==="object") ? (it.item||"") : (it||"")});
 };
+// Quotation length caps — keep the exported PDF on one A4 page so the signature block isn't clipped.
+// Derived from the fixed-height page layout (see Project Scope / Deliverables / Notes in QuoteCard).
+const SCOPE_MAX_CHARS = 400, DELIV_MAX = 6, NOTES_MAX = 6;
 const calcSuccessRate = o => {
   if(o.status==="Won") return 100;
   if(o.status==="Lost") return 0;
@@ -214,7 +217,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // S4: All requests include GS_AUTH_TOKEN verified server-side
 // 
-const GS_URL = "https://script.google.com/macros/s/AKfycby5Oxr-XFrXxfy4zMZMqEGtGugmjaK1LZt4A2_eYdOqi29oOwtbqC95kjoJVs4lf1uoUg/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbyGzoWRRX6r2VNxZ9pn_9mSGXC12pYERHPz2oKwFYGE8TKHac8tZO6DsIju8pMSsEHAIA/exec";
 
 // S1: Server-side login — credentials validated in GAS, never in browser
 const gsLogin = async (email, password) => {
@@ -3777,14 +3780,22 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                     <Inp value={q.projectTitle||""} onChange={e=>setQF(q.id,"projectTitle",e.target.value)} placeholder="" style={{fontSize:12}}/>
                   </div>
                   <div>
-                    <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Project Scope</Span><Span s={11} c="#94a3b8">— Scope details e.g. Project Address, Boundary, Base Year</Span></div>
-                    <Txta value={q.projectScope||""} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder="" style={{minHeight:80,fontSize:12}}/>
+                    <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}>
+                      <Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Project Scope</Span>
+                      <Span s={11} c="#94a3b8">— Scope details e.g. Project Address, Boundary, Base Year</Span>
+                      <Span s={11} w={700} c={(q.projectScope||"").length>=SCOPE_MAX_CHARS?"#d97706":"#94a3b8"} style={{marginLeft:"auto",fontVariantNumeric:"tabular-nums"}}>{(q.projectScope||"").length} / {SCOPE_MAX_CHARS}</Span>
+                    </div>
+                    <Txta value={q.projectScope||""} maxLength={SCOPE_MAX_CHARS} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder={`Scope details e.g. Project Address, Boundary, Base Year — max ${SCOPE_MAX_CHARS} characters so the signature stays on the quotation page.`} style={{minHeight:80,fontSize:12}}/>
                   </div>
                 </div>
 
                 {/*  DELIVERABLES (full width, editable list + preview)  */}
                 <div style={{padding:"0 20px 16px"}}>
-                  <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>Deliverables</Span>
+                  <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:8}}>
+                    <Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Deliverables</Span>
+                    <Span s={11} c="#94a3b8">— max {DELIV_MAX} items so the signature stays on the page</Span>
+                    <Span s={11} w={700} c={(q.deliverables||[]).length>=DELIV_MAX?"#d97706":"#94a3b8"} style={{marginLeft:"auto",fontVariantNumeric:"tabular-nums"}}>{(q.deliverables||[]).length} / {DELIV_MAX} items</Span>
+                  </div>
                   <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:6}}>
                     {(q.deliverables||[]).map((d,i)=>(
                       <div key={d.id} style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -3793,13 +3804,19 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                         <Btn variant="danger" style={{fontSize:13,padding:"1px 5px",flexShrink:0}} onClick={()=>delQDlv(q.id,d.id)}>×</Btn>
                       </div>
                     ))}
-                    <button onClick={()=>addQDlv(q.id)} style={{alignSelf:"flex-start",marginTop:4,fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 10px",cursor:"pointer",fontWeight:600}}>+ Deliverable</button>
+                    {(()=>{const full=(q.deliverables||[]).length>=DELIV_MAX;return(
+                    <button onClick={()=>{if(!full)addQDlv(q.id);}} disabled={full} title={full?`Max ${DELIV_MAX} items`:""} style={{alignSelf:"flex-start",marginTop:4,fontSize:13,color:full?"#94a3b8":"#1e40af",background:"#fff",border:`1px dashed ${full?"#e2e8f0":"#bfdbfe"}`,borderRadius:4,padding:"2px 10px",cursor:full?"not-allowed":"pointer",fontWeight:600}}>+ Deliverable</button>
+                    );})()}
                   </div>
                 </div>
 
                 {/*  NOTES & CONDITIONS (full width)  */}
                 <div style={{padding:"0 20px 16px"}}>
-                  <Span s={11} w={800} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>Notes & Conditions</Span>
+                  <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:8}}>
+                    <Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Notes & Conditions</Span>
+                    <Span s={11} c="#94a3b8">— max {NOTES_MAX} items so the signature stays on the page</Span>
+                    <Span s={11} w={700} c={toItemList(q.notes).length>=NOTES_MAX?"#d97706":"#94a3b8"} style={{marginLeft:"auto",fontVariantNumeric:"tabular-nums"}}>{toItemList(q.notes).length} / {NOTES_MAX} items</Span>
+                  </div>
                   <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:6}}>
                     {toItemList(q.notes).map((n,i)=>(
                       <div key={n.id} style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -3808,7 +3825,9 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                         <Btn variant="danger" style={{fontSize:13,padding:"1px 5px",flexShrink:0}} onClick={()=>delQNote(q.id,n.id)}>×</Btn>
                       </div>
                     ))}
-                    <button onClick={()=>addQNote(q.id)} style={{alignSelf:"flex-start",marginTop:4,fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 10px",cursor:"pointer",fontWeight:600}}>+ Note</button>
+                    {(()=>{const full=toItemList(q.notes).length>=NOTES_MAX;return(
+                    <button onClick={()=>{if(!full)addQNote(q.id);}} disabled={full} title={full?`Max ${NOTES_MAX} items`:""} style={{alignSelf:"flex-start",marginTop:4,fontSize:13,color:full?"#94a3b8":"#1e40af",background:"#fff",border:`1px dashed ${full?"#e2e8f0":"#bfdbfe"}`,borderRadius:4,padding:"2px 10px",cursor:full?"not-allowed":"pointer",fontWeight:600}}>+ Note</button>
+                    );})()}
                   </div>
                 </div>
 
