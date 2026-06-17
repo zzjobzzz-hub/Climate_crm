@@ -1315,12 +1315,13 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
             <div style={{background:"#f1f5f9",borderRadius:5,height:10}}><div style={{background:kpiPct>=75?"#16a34a":kpiPct>=50?"#f59e0b":"#0f172a",height:"100%",width:`${kpiPct}%`,borderRadius:5,transition:"width .5s"}}/></div>
           </Card>
 
-          <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:12,marginBottom:14}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:12,marginBottom:14}}>
             <SC label="Customers"        val={customers.length}           sub={`${customers.filter(c=>c.ranking==="High").length} High Priority`}/>
-            <SC label="Revenue"          val={`฿${fmtM(revenue)}`}       sub={`Expected ${new Date().getFullYear()}`} c="#0ea5e9"/>
-            <SC label="Won YTD"          val={`฿${fmtM(totalWon)}`}      sub={`${wonOpps.length} deals closed`} c="#16a34a"/>
-            <SC label="Invoice Received" val={`฿${fmtM(invoiceReceived)}`} sub={`By invoice date ${new Date().getFullYear()}`} c="#f59e0b" tooltip/>
-            <SC label="Opportunities (Proposal+Nego)" val={`฿${fmtM(oppsPipeline)}`} sub={`${oppsPipelineCount} deals active`} c="#a78bfa"/>
+            <SC label="Last Year POs" val={`฿${fmtM(205000)}`} sub="Paid this year" c="#0891b2"/>
+            <SC label="This Year Expected Revenue" val={`฿${fmtM(revenue)}`} c="#0ea5e9"/>
+            <SC label="Won YTD"          val={`฿${fmtM(totalWon)}`}      sub={`${wonOpps.length} deals closed`} c="#1e40af"/>
+            <SC label="Invoice Received" val={`฿${fmtM(invoiceReceived)}`} sub={`By invoice date ${new Date().getFullYear()}`}/>
+            <SC label="Opportunities (Proposal+Nego)" val={`฿${fmtM(oppsPipeline)}`} sub={`${oppsPipelineCount} deals active`}/>
             <SC label="Pipeline (Proposal+Nego+Won)" val={`฿${fmtM(pipeline)}`} sub={`${filteredOpps.filter(o=>!["Won","Lost"].includes(o.status)).length} active`}/>
           </div>
           {SCTooltip()}
@@ -1344,7 +1345,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
                   const blH=Math.round((d.bl/maxV)*BAR_H);
                   const recH=Math.round((d.rec/maxV)*BAR_H);
                   return (
-                    <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",position:"relative",zIndex:1}}>
+                    <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",position:"relative",zIndex:1,borderLeft:i>0?"1px solid #f1f5f9":"none"}}>
                       <div style={{width:"100%",display:"flex",gap:1,alignItems:"flex-end",height:BAR_H}}>
                         {/* Forecast */}
                         <div style={{flex:1,position:"relative",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:"100%"}}>
@@ -5017,7 +5018,6 @@ const NAV = [
   {key:"opps",label:"Opportunities"},
   {key:"delivery",label:"Delivery"},
   {key:"timesheet",label:"Time Sheet"},
-  {key:"setup",label:"Setup"},
 ];
 
 function App() {
@@ -5444,7 +5444,6 @@ const stripJsonSuffix = obj => {
         {page==="delivery"  && <ErrorBoundary><DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveDlv} toast={toast} costSheets={costSheets} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}} userList={userList} onMentionNotify={handleMentionNotify}/></ErrorBoundary>}
         {page==="costsheet" && <ErrorBoundary><CostSheetPage costSheets={costSheets} onSave={saveCS} customers={customers} opps={opps} user={user} onSaveOpp={saveOpp} toast={toast} initSvcCode={initSvcCode} onSvcReady={()=>sSvcCode(null)} initCsCode={initCsCode} onCsReady={()=>sCsCode(null)}/></ErrorBoundary>}
         {page==="timesheet" && <ErrorBoundary><TimesheetPage user={user} opps={opps} customers={customers} costSheets={costSheets} timesheets={timesheets} onSaveTimesheet={saveTimesheet} toast={toast} userList={userList}/></ErrorBoundary>}
-        {page==="setup"     && <ErrorBoundary><SetupPage/></ErrorBoundary>}
       </div>
       <Toast toasts={toasts}/>
     </div>
