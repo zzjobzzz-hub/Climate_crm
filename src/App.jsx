@@ -1125,12 +1125,12 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
 
   const [hovSC,sHovSC]=useState(null); // which SC card is hovered
   const [hovPos,sHovPos]=useState({x:0,y:0});
-  const SC = ({label,val,sub,detail,c="#2B2B2B",tooltip}) => (
+  const SC = ({label,val,sub,detail,c="#2B2B2B",grad,tooltip}) => (
     <Card style={{padding:"14px 18px",position:"relative",cursor:tooltip?"default":"auto"}}
       onMouseEnter={tooltip?e=>{const r=e.currentTarget.getBoundingClientRect();sHovSC(label);sHovPos({x:r.left,y:r.bottom+8})}:undefined}
       onMouseLeave={tooltip?()=>sHovSC(null):undefined}>
       <Span s={10} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:4,lineHeight:1.3,minHeight:"2.6em"}}>{label}</Span>
-      <div style={{fontSize:22,fontWeight:900,color:c,letterSpacing:"-0.02em",lineHeight:1.1}}>{val}</div>
+      <div style={{fontSize:22,fontWeight:900,letterSpacing:"-0.02em",lineHeight:1.1,...(grad?{background:grad,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent"}:{color:c})}}>{val}</div>
       {sub&&<Span s={11} c="#94a3b8" style={{marginTop:3,display:"block"}}>{sub}</Span>}
       {detail&&<div style={{marginTop:6,display:"flex",flexWrap:"wrap",gap:"3px 8px"}}>{detail}</div>}
     </Card>
@@ -1317,11 +1317,11 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
 
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:12,marginBottom:14}}>
             <SC label="Customers"        val={customers.length}/>
-            <SC label="Last Year POs" val={`฿${fmtM(205000)}`} sub="Paid this year"/>
+            <SC label="Last Year POs Paid this year" val={`฿${fmtM(205000)}`}/>
             <SC label="This Year Expected Revenue" val={`฿${fmtM(revenue)}`} c="#0ea5e9"/>
             <SC label="Won YTD"          val={`฿${fmtM(totalWon)}`}      sub={`${wonOpps.length} deals closed`} c="#1e40af"/>
-            <SC label="Invoice Received" val={`฿${fmtM(invoiceReceived)}`}/>
-            <SC label="Opportunities (Proposal+Nego)" val={`฿${fmtM(oppsPipeline)}`}/>
+            <SC label="Invoice Received" val={`฿${fmtM(invoiceReceived)}`} c="#22c55e"/>
+            <SC label="Opportunities" val={`฿${fmtM(oppsPipeline)}`} grad="linear-gradient(90deg,#a78bfa,#f59e0b)"/>
             <SC label="Pipeline (Proposal+Nego+Won)" val={`฿${fmtM(pipeline)}`}/>
           </div>
           {SCTooltip()}
