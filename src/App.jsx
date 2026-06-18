@@ -2733,11 +2733,6 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("opps.csv",OPP_HDR,list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);return[o.oppCode,o.quoteNo,o.csCode||"",o.jobCode||"",c?.companyEN||"",o.serviceCode,o.serviceType,o.salesPrice,o.totalCost||0,mg,marginAmt(o.salesPrice,o.totalCost||0),o.status,USERS.find(u=>u.id===o.assignedTo)?.name||"",o.createdDate,o.lostReason||""];}))}>CSV</Btn>
-          <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-            {[["table"," Table"],["kanban","⊞ Kanban"]].map(([k,l])=>(
-              <button key={k} onClick={()=>sView(k)} style={{padding:"7px 14px",border:"none",background:view===k?"#0f172a":"#fff",color:view===k?"#fff":"#64748b",cursor:"pointer",fontSize:12,fontWeight:view===k?700:400}}>{l}</button>
-            ))}
-          </div>
         </div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
@@ -2746,11 +2741,23 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
         <MultiSelect label="Status"  options={OPP_STATUSES.map(s=>({value:s,label:s}))}       selected={fSt}  onChange={setFSt}  width={140}/>
         <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fSvc} onChange={setFSvc} width={140}/>
         <MultiSelect label="Agents"  options={SALES_USERS.map(u=>({value:u.id,label:u.name.split(" ")[0]}))} selected={fAg} onChange={setFAg} width={155}/>
-        {view==="kanban"&&<><div style={{flex:1}}/><div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-          {[["recent","↓ Latest"],["oldest","↑ Oldest"]].map(([k,l])=>(
-            <button key={k} onClick={()=>setKanbanSort(k)} style={{padding:"7px 12px",border:"none",background:kanbanSort===k?"#334155":"#fff",color:kanbanSort===k?"#fff":"#64748b",cursor:"pointer",fontSize:11,fontWeight:kanbanSort===k?600:400,whiteSpace:"nowrap"}}>{l}</button>
-          ))}
-        </div></>}
+        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
+          {view==="kanban"&&(
+            <div style={{display:"flex",alignItems:"center",gap:7}}>
+              <Span s={11} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em"}}>Sort</Span>
+              <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
+                {[["recent","↓ Latest"],["oldest","↑ Oldest"]].map(([k,l])=>(
+                  <button key={k} onClick={()=>setKanbanSort(k)} style={{padding:"7px 12px",border:"none",background:kanbanSort===k?"#334155":"#fff",color:kanbanSort===k?"#fff":"#64748b",cursor:"pointer",fontSize:11,fontWeight:kanbanSort===k?600:400,whiteSpace:"nowrap"}}>{l}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
+            {[["table"," Table"],["kanban","⊞ Kanban"]].map(([k,l])=>(
+              <button key={k} onClick={()=>sView(k)} style={{padding:"7px 14px",border:"none",background:view===k?"#0f172a":"#fff",color:view===k?"#fff":"#64748b",cursor:"pointer",fontSize:12,fontWeight:view===k?700:400}}>{l}</button>
+            ))}
+          </div>
+        </div>
       </div>
       {view==="table"&&(
         <Card><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}>
@@ -3393,7 +3400,6 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
 
   const totContract = list.reduce((s,d)=>s+(d.totalContractValue||0),0);
   const totReceived = list.reduce((s,d)=>s+(d.installments||[]).filter(i=>i.status==="Received").reduce((x,i)=>x+(i.amount||0),0),0);
-  const totBalance  = totContract - totReceived;
 
   return (
     <div>
@@ -3404,6 +3410,14 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=(d.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}>CSV</Btn>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
+        <FilterIcon/>
+        <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:200,minWidth:140}}/>
+        <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fDSvc} onChange={setFDSvc} width={140}/>
+        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:7}}>
+          <Span s={11} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em"}}>Sort</Span>
           <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
             {[["recent","↓ Latest"],["oldest","↑ Oldest"],["contractDate","↓ Contract"],["contractValue","↓ Value"]].map(([k,l])=>(
               <button key={k} onClick={()=>sSortBy(k)} style={{padding:"6px 11px",border:"none",borderRight:"1px solid #e2e8f0",background:sortBy===k?"#334155":"#fff",color:sortBy===k?"#fff":"#64748b",cursor:"pointer",fontSize:11,fontWeight:sortBy===k?600:400,whiteSpace:"nowrap"}}>{l}</button>
@@ -3411,24 +3425,19 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
           </div>
         </div>
       </div>
-      <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
-        <FilterIcon/>
-        <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:200,minWidth:140}}/>
-        <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fDSvc} onChange={setFDSvc} width={140}/>
-        <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
-          {[
-            {l:"Contract",v:totContract,bg:"#fff",bc:"#e2e8f0",c:"#0f172a"},
-            {l:"Received",v:totReceived,bg:"#f0fdf4",bc:"#86efac",c:"#16a34a"},
-            {l:"Balance", v:totBalance, bg:"#fffbeb",bc:"#fde68a",c:"#d97706"},
-          ].map(x=>(
-            <div key={x.l} style={{textAlign:"center",padding:"4px 12px",background:x.bg,border:`1px solid ${x.bc}`,borderRadius:6}}>
-              <Span s={9} c="#94a3b8" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.06em"}}>{x.l}</Span>
-              <div style={{fontWeight:900,fontSize:14,color:x.c,whiteSpace:"nowrap"}}>฿{fmtM(x.v)}</div>
-            </div>
-          ))}
-        </div>
-      </div>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        {list.length>0&&(
+          <Card style={{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,background:"#f1f5f9",border:"1px solid #cbd5e1"}}>
+            <div style={{flex:1,minWidth:280,display:"flex",alignItems:"center",gap:8}}>
+              <Span s={14} w={900} c="#0f172a" style={{letterSpacing:"0.02em",textTransform:"uppercase"}}>Total</Span>
+              <Span s={11} c="#94a3b8">{list.length} deliveries</Span>
+            </div>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <InstallmentSummary contractValue={totContract} received={totReceived} variant="collapsed"/>
+              <span style={{fontSize:18,padding:"0 8px",visibility:"hidden"}}>›</span>
+            </div>
+          </Card>
+        )}
         {list.map(d => {
           return (
             <DeliveryCard key={d.id} d={d} opps={opps} costSheets={costSheets} customers={customers} user={user}
