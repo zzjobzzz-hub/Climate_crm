@@ -2746,9 +2746,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
             <div style={{display:"flex",alignItems:"center",gap:7}}>
               <Span s={11} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em"}}>Sort</Span>
               <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-                {[["recent","↓ Latest"],["oldest","↑ Oldest"]].map(([k,l])=>(
-                  <button key={k} onClick={()=>setKanbanSort(k)} style={{padding:"7px 12px",border:"none",background:kanbanSort===k?"#334155":"#fff",color:kanbanSort===k?"#fff":"#64748b",cursor:"pointer",fontSize:11,fontWeight:kanbanSort===k?600:400,whiteSpace:"nowrap"}}>{l}</button>
-                ))}
+                <button onClick={()=>setKanbanSort(p=>p==="recent"?"oldest":"recent")} style={{padding:"7px 12px",border:"none",background:"#334155",color:"#fff",cursor:"pointer",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{kanbanSort==="recent"?"↓":"↑"} Latest</button>
               </div>
             </div>
           )}
@@ -3373,29 +3371,26 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
   const [form,sF]=useState(false); const [edit,sE]=useState(null); const [gs,sGS]=useState(false);
   const [initTab,sInitTab]=useState("detail"); // which tab to open in DeliveryForm
   const [quotationOpp,sQT]=useState(null); // for inline Quotation Preview modal
-  const [sortBy,sSortBy]=useState("recent"); // recent | oldest | contractDate | contractValue
+  const [sortBy,sSortBy]=useState("date");  // date | contractDate | contractValue
+  const [sortDir,sSortDir]=useState("desc"); // desc | asc
+  const clickSort=field=>{ if(sortBy===field) sSortDir(d=>d==="desc"?"asc":"desc"); else { sSortBy(field); sSortDir("desc"); } };
+  const arrow=field=> sortBy===field ? (sortDir==="desc"?"↓":"↑") : "↓";
   // Req 9: expandable sections per delivery card
 
   const list=deliveries
     .filter(d=>{const c=customers.find(x=>x.id===d.custId);const q=search.toLowerCase();return(!search||(d.jobCode||"").toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||(d.contractNo||"").toLowerCase().includes(q)||(d.oppCode||"").toLowerCase().includes(q))&&(fDSvc.length===0||fDSvc.includes(d.serviceCode));})
     .sort((a,b)=>{
-      if(sortBy==="oldest"){
-        const ta=a.contractDate||a.saveLog?.[0]?.ts||"";
-        const tb=b.contractDate||b.saveLog?.[0]?.ts||"";
-        return (ta||"").localeCompare(tb||"");
-      }
+      let base;
       if(sortBy==="contractDate"){
-        return (b.contractDate||"").localeCompare(a.contractDate||"");
+        base=(b.contractDate||"").localeCompare(a.contractDate||"");
+      } else if(sortBy==="contractValue"){
+        base=(b.totalContractValue||0)-(a.totalContractValue||0);
+      } else {
+        // date — by latest saveLog ts
+        const getLatest=d=>[...(d.saveLog||[])].sort((x,y)=>(y.ts||"").localeCompare(x.ts||""))[0]?.ts||"";
+        base=(getLatest(b)||"").localeCompare(getLatest(a)||"");
       }
-      if(sortBy==="contractValue"){
-        return (b.totalContractValue||0)-(a.totalContractValue||0);
-      }
-      // default: recent — by latest saveLog ts
-      const getLatest=d=>{
-        const sl=[...(d.saveLog||[])].sort((x,y)=>(y.ts||"").localeCompare(x.ts||""))[0]?.ts||"";
-        return sl;
-      };
-      return (getLatest(b)||"").localeCompare(getLatest(a)||"");
+      return sortDir==="asc" ? -base : base;
     });
 
   const totContract = list.reduce((s,d)=>s+(d.totalContractValue||0),0);
@@ -3419,8 +3414,8 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:7}}>
           <Span s={11} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em"}}>Sort</Span>
           <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-            {[["recent","↓ Latest"],["oldest","↑ Oldest"],["contractDate","↓ Contract"],["contractValue","↓ Value"]].map(([k,l])=>(
-              <button key={k} onClick={()=>sSortBy(k)} style={{padding:"6px 11px",border:"none",borderRight:"1px solid #e2e8f0",background:sortBy===k?"#334155":"#fff",color:sortBy===k?"#fff":"#64748b",cursor:"pointer",fontSize:11,fontWeight:sortBy===k?600:400,whiteSpace:"nowrap"}}>{l}</button>
+            {[["date","Latest"],["contractDate","Contract"],["contractValue","Value"]].map(([k,l])=>(
+              <button key={k} onClick={()=>clickSort(k)} style={{padding:"6px 11px",border:"none",borderRight:"1px solid #e2e8f0",background:sortBy===k?"#334155":"#fff",color:sortBy===k?"#fff":"#64748b",cursor:"pointer",fontSize:11,fontWeight:sortBy===k?600:400,whiteSpace:"nowrap"}}>{arrow(k)} {l}</button>
             ))}
           </div>
         </div>
@@ -3430,7 +3425,6 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
           <Card style={{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,background:"#f1f5f9",border:"1px solid #cbd5e1"}}>
             <div style={{flex:1,minWidth:280,display:"flex",alignItems:"center",gap:8}}>
               <Span s={14} w={900} c="#0f172a" style={{letterSpacing:"0.02em",textTransform:"uppercase"}}>Total</Span>
-              <Span s={11} c="#94a3b8">{list.length} deliveries</Span>
             </div>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
               <InstallmentSummary contractValue={totContract} received={totReceived} variant="collapsed"/>
