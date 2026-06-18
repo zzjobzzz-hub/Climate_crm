@@ -3639,6 +3639,21 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Price</Span>
                     <NumInp value={q.salesPrice} onChange={v=>updQO(q.id,q=>({...q,salesPrice:v,lineItems:(q.lineItems||[]).map((li,i)=>i===0?{...li,unitPrice:v}:li)}))} style={{fontSize:12,fontWeight:700,padding:"3px 6px"}}/>
                   </div>
+                  {/* Discount */}
+                  <div style={{flex:"0 0 92px"}}>
+                    <label style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",marginBottom:2,userSelect:"none"}}>
+                      <input type="checkbox" checked={!!q.discountEnabled}
+                        onChange={e=>setQF(q.id,"discountEnabled",e.target.checked)}
+                        style={{width:12,height:12,cursor:"pointer",accentColor:"#0f172a",flexShrink:0}}/>
+                      <Span s={9} c="#94a3b8" style={{textTransform:"uppercase"}}>Disc %</Span>
+                    </label>
+                    <NumInp value={q.discountPct||0}
+                      onChange={v=>setQF(q.id,"discountPct",Math.min(100,Math.max(0,v)))}
+                      showZero disabled={!q.discountEnabled}
+                      style={{fontSize:12,padding:"3px 6px",opacity:q.discountEnabled?1:0.45}}/>
+                    {q.discountEnabled && (q.salesPrice||0)-qNetPrice>0 &&
+                      <Span s={9} c="#dc2626" style={{display:"block",marginTop:2,fontWeight:700}}>−฿{fmt((q.salesPrice||0)-qNetPrice)}</Span>}
+                  </div>
                   {/* Months */}
                   <div style={{flex:"0 0 52px"}}>
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Mo.</Span>
@@ -3866,20 +3881,6 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
 
                 {/* Cost + margin + Save/Cancel footer */}
                 <div style={{borderTop:"1px solid #e2e8f0",padding:"12px 20px",background:"#f8fafc",display:"flex",justifyContent:"flex-end",alignItems:"center",gap:16,flexWrap:"wrap"}}>
-                  {/* Discount toggle — when on, margin & opp price use the net (post-discount) price */}
-                  <div style={{marginRight:"auto",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                    <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",userSelect:"none"}}>
-                      <input type="checkbox" checked={!!q.discountEnabled} onChange={e=>setQF(q.id,"discountEnabled",e.target.checked)} style={{width:15,height:15,cursor:"pointer",accentColor:"#0f172a"}}/>
-                      <Span s={11} w={700} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Discount</Span>
-                    </label>
-                    {q.discountEnabled&&(
-                      <div style={{display:"flex",alignItems:"center",gap:4}}>
-                        <NumInp value={q.discountPct||0} onChange={v=>setQF(q.id,"discountPct",Math.min(100,Math.max(0,v)))} showZero style={{width:64,padding:"4px 6px",fontSize:12,textAlign:"right"}}/>
-                        <Span s={12} w={700} c="#64748b">%</Span>
-                        <Span s={11} c="#dc2626" style={{marginLeft:4}}>−฿{fmt((q.salesPrice||0)-qNetPrice)}</Span>
-                      </div>
-                    )}
-                  </div>
                   {[{l:"COGS",v:qIC+qEC},{l:"OPEX",v:qOPEX},{l:"Total Cost",v:qTC,bold:true}].map(x=>(
                     <div key={x.l} style={{textAlign:"center"}}>
                       <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>{x.l}</Span>
