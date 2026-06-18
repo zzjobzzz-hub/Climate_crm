@@ -1092,14 +1092,6 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
       .filter(ins=>ins.status==="Received" && ins.invoiceDate && String(ins.invoiceDate).startsWith(prefix))
       .map(ins=>({name:custName(d.custId),amount:ins.amount||0}))));
   },[deliveries,customers]);
-  const oppsBreakdown = useMemo(()=>
-    groupByCompany(filteredOpps.filter(o=>o.status==="Proposal"||o.status==="Negotiation")
-      .map(o=>({name:custName(o.custId),amount:o.salesPrice||0})))
-  ,[filteredOpps,customers]);
-  const pipelineBreakdown = useMemo(()=>
-    groupByCompany(filteredOpps.filter(o=>o.status!=="Lost")
-      .map(o=>({name:custName(o.custId),amount:o.salesPrice||0})))
-  ,[filteredOpps,customers]);
 
   // Convert any date string to BE year format for consistent comparison
   const toBEDate = d => {
@@ -1358,10 +1350,8 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
               tip={{title:"Won YTD", items:wonBreakdown, total:totalWon}}/>
             <SC label="Received" val={`฿${fmtM(invoiceReceived)}`} c="#22c55e"
               tip={{title:`Received ${new Date().getFullYear()}`, items:receivedBreakdown, total:invoiceReceived}}/>
-            <SC label="Opportunities" val={`฿${fmtM(oppsPipeline)}`} grad="linear-gradient(90deg,#a78bfa,#f59e0b)"
-              tip={{title:"Opportunities (Proposal + Nego)", items:oppsBreakdown, total:oppsPipeline}}/>
-            <SC label="Pipeline (Proposal+Nego+Won)" val={`฿${fmtM(pipeline)}`}
-              tip={{title:"Pipeline (Proposal + Nego + Won)", items:pipelineBreakdown, total:pipeline}}/>
+            <SC label="Opportunities" val={`฿${fmtM(oppsPipeline)}`} grad="linear-gradient(90deg,#a78bfa,#f59e0b)"/>
+            <SC label="Pipeline (Proposal+Nego+Won)" val={`฿${fmtM(pipeline)}`}/>
           </div>
           {SCTooltip()}
 
@@ -3423,23 +3413,23 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
           </div>
         </div>
       </div>
-      <Card style={{padding:"12px 18px",marginBottom:14,display:"flex",gap:12,flexWrap:"wrap"}}>
-        {[
-          {l:"Total Contract",v:totContract,bg:"#fff",bc:"#e2e8f0",c:"#0f172a"},
-          {l:"Total Received",v:totReceived,bg:"#f0fdf4",bc:"#86efac",c:"#16a34a"},
-          {l:"Total Balance", v:totBalance, bg:"#fffbeb",bc:"#fde68a",c:"#d97706"},
-        ].map(x=>(
-          <div key={x.l} style={{flex:1,minWidth:140,textAlign:"center",padding:"8px 14px",background:x.bg,border:`1px solid ${x.bc}`,borderRadius:7}}>
-            <Span s={10} c="#94a3b8" style={{display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.06em"}}>{x.l}</Span>
-            <div style={{fontWeight:900,fontSize:18,color:x.c}}>฿{fmt(x.v)}</div>
-          </div>
-        ))}
-      </Card>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         <FilterIcon/>
         <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:200,minWidth:140}}/>
         <MultiSelect label="Status"  options={DLV_STATUSES.map(s=>({value:s,label:s}))} selected={fDS}    onChange={setFDS}    width={140}/>
         <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fDSvc} onChange={setFDSvc} width={140}/>
+        <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
+          {[
+            {l:"Contract",v:totContract,bg:"#fff",bc:"#e2e8f0",c:"#0f172a"},
+            {l:"Received",v:totReceived,bg:"#f0fdf4",bc:"#86efac",c:"#16a34a"},
+            {l:"Balance", v:totBalance, bg:"#fffbeb",bc:"#fde68a",c:"#d97706"},
+          ].map(x=>(
+            <div key={x.l} style={{textAlign:"center",padding:"4px 12px",background:x.bg,border:`1px solid ${x.bc}`,borderRadius:6}}>
+              <Span s={9} c="#94a3b8" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.06em"}}>{x.l}</Span>
+              <div style={{fontWeight:900,fontSize:14,color:x.c,whiteSpace:"nowrap"}}>฿{fmtM(x.v)}</div>
+            </div>
+          ))}
+        </div>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         {list.map(d => {
