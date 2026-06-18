@@ -3201,7 +3201,6 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
       <div onClick={()=>setOpen(true)} style={{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,background:"#fff",cursor:"pointer",userSelect:"none"}}>
         <div style={{display:"flex",alignItems:"center",gap:12,flex:1,minWidth:280,flexWrap:"wrap",pointerEvents:"none"}}>
           <span style={{fontSize:18,fontWeight:900,color:"#0f172a",fontFamily:"monospace",letterSpacing:"-0.02em"}}>{d.jobCode||d.id}</span>
-          <Badge value={d.deliveryStatus} colorMap={Object.fromEntries(DLV_STATUSES.map(s=>[s,{c:STATUS_CLR[s]}]))}/>
           <SvcBadge code={d.serviceCode}/>
           <span style={{fontSize:12,color:"#64748b"}}>{cust?.companyEN||d.custId}</span>
           <span style={{fontSize:11,fontFamily:"monospace",color:"#94a3b8"}}>{d.quoteNo||""}</span>
@@ -3230,7 +3229,6 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
       <div style={{padding:"12px 20px",background:dirty?"#fffbeb":"#f8fafc",borderBottom:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:18,fontWeight:900,color:"#0f172a",fontFamily:"monospace"}}>{localD.jobCode||d.id}</span>
-          <Badge value={localD.deliveryStatus} colorMap={Object.fromEntries(DLV_STATUSES.map(s=>[s,{c:STATUS_CLR[s]}]))}/>
           <SvcBadge code={d.serviceCode}/>
           {dirty&&<span style={{fontSize:11,fontWeight:700,color:"#d97706",background:"#fef3c7",padding:"2px 8px",borderRadius:10}}> Unsaved changes</span>}
         </div>
@@ -3364,7 +3362,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
 
 const DLV_HDR = ["Delivery ID","Customer","OPP Code","Quote No.","Job Code","Contract No.","Contract Date","Service Type","Contract Value","Status","Step","Delivery Date","Total Received","Balance"];
 const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,onGoToCS,onGoToCust,onGoToOpp,userList=[],onMentionNotify=()=>{}}) => {
-  const [search,sS]=useState(""); const [fDS,setFDS]=useState([]); const [fDSvc,setFDSvc]=useState([]);
+  const [search,sS]=useState(""); const [fDSvc,setFDSvc]=useState([]);
   const [form,sF]=useState(false); const [edit,sE]=useState(null); const [gs,sGS]=useState(false);
   const [initTab,sInitTab]=useState("detail"); // which tab to open in DeliveryForm
   const [quotationOpp,sQT]=useState(null); // for inline Quotation Preview modal
@@ -3372,7 +3370,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
   // Req 9: expandable sections per delivery card
 
   const list=deliveries
-    .filter(d=>{const c=customers.find(x=>x.id===d.custId);const q=search.toLowerCase();return(!search||(d.jobCode||"").toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||(d.contractNo||"").toLowerCase().includes(q)||(d.oppCode||"").toLowerCase().includes(q))&&(fDS.length===0||fDS.includes(d.deliveryStatus))&&(fDSvc.length===0||fDSvc.includes(d.serviceCode));})
+    .filter(d=>{const c=customers.find(x=>x.id===d.custId);const q=search.toLowerCase();return(!search||(d.jobCode||"").toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||(d.contractNo||"").toLowerCase().includes(q)||(d.oppCode||"").toLowerCase().includes(q))&&(fDSvc.length===0||fDSvc.includes(d.serviceCode));})
     .sort((a,b)=>{
       if(sortBy==="oldest"){
         const ta=a.contractDate||a.saveLog?.[0]?.ts||"";
@@ -3416,7 +3414,6 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         <FilterIcon/>
         <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:200,minWidth:140}}/>
-        <MultiSelect label="Status"  options={DLV_STATUSES.map(s=>({value:s,label:s}))} selected={fDS}    onChange={setFDS}    width={140}/>
         <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fDSvc} onChange={setFDSvc} width={140}/>
         <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
           {[
