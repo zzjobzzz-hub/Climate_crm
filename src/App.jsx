@@ -1068,6 +1068,39 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     return Object.entries(map).sort((a,b)=>b[1]-a[1]);
   },[deliveries,customers]);
 
+  // Group [{name,amount}] → [name,amount][] sorted desc (drops zero/empty)
+  const groupByCompany = rows => {
+    const map={};
+    rows.forEach(({name,amount})=>{ if(amount) map[name]=(map[name]||0)+amount; });
+    return Object.entries(map).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  };
+  const custName = id => customers.find(c=>c.id===id)?.companyEN || id;
+
+  // Per-card breakdowns (company → value) for hover tooltips
+  const revenueBreakdown = useMemo(()=>{
+    const prefix = String(new Date().getFullYear());
+    return groupByCompany(deliveries.flatMap(d=>(d.installments||[])
+      .filter(ins=>ins.expected_date && String(ins.expected_date).startsWith(prefix))
+      .map(ins=>({name:custName(d.custId),amount:ins.amount||0}))));
+  },[deliveries,customers]);
+  const wonBreakdown = useMemo(()=>
+    groupByCompany(wonOpps.map(o=>({name:custName(o.custId),amount:o.salesPrice||0})))
+  ,[filteredOpps,customers]);
+  const receivedBreakdown = useMemo(()=>{
+    const prefix = String(new Date().getFullYear());
+    return groupByCompany(deliveries.flatMap(d=>(d.installments||[])
+      .filter(ins=>ins.status==="Received" && ins.invoiceDate && String(ins.invoiceDate).startsWith(prefix))
+      .map(ins=>({name:custName(d.custId),amount:ins.amount||0}))));
+  },[deliveries,customers]);
+  const oppsBreakdown = useMemo(()=>
+    groupByCompany(filteredOpps.filter(o=>o.status==="Proposal"||o.status==="Negotiation")
+      .map(o=>({name:custName(o.custId),amount:o.salesPrice||0})))
+  ,[filteredOpps,customers]);
+  const pipelineBreakdown = useMemo(()=>
+    groupByCompany(filteredOpps.filter(o=>o.status!=="Lost")
+      .map(o=>({name:custName(o.custId),amount:o.salesPrice||0})))
+  ,[filteredOpps,customers]);
+
   // Convert any date string to BE year format for consistent comparison
   const toBEDate = d => {
     if (!d) return "";
@@ -1123,12 +1156,12 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   let ytdFc=0,ytdBl=0,ytdRec=0;
   const rows=monthData.map(d=>{ytdFc+=d.fc;ytdBl+=d.bl;ytdRec+=d.rec;return{...d,ytdFc,ytdBl,ytdRec,ytdRem:ytdFc-ytdBl};});
 
-  const [hovSC,sHovSC]=useState(null); // which SC card is hovered
+  const [hovSC,sHovSC]=useState(null); // tooltip payload {title,items,total} of hovered card
   const [hovPos,sHovPos]=useState({x:0,y:0});
-  const SC = ({label,val,sub,detail,c="#2B2B2B",grad,tooltip}) => (
-    <Card style={{padding:"14px 18px",position:"relative",cursor:tooltip?"default":"auto"}}
-      onMouseEnter={tooltip?e=>{const r=e.currentTarget.getBoundingClientRect();sHovSC(label);sHovPos({x:r.left,y:r.bottom+8})}:undefined}
-      onMouseLeave={tooltip?()=>sHovSC(null):undefined}>
+  const SC = ({label,val,sub,detail,c="#2B2B2B",grad,tip}) => (
+    <Card style={{padding:"14px 18px",position:"relative",cursor:tip?"default":"auto"}}
+      onMouseEnter={tip?e=>{const r=e.currentTarget.getBoundingClientRect();sHovSC(tip);sHovPos({x:Math.min(r.left,window.innerWidth-300),y:r.bottom+8})}:undefined}
+      onMouseLeave={tip?()=>sHovSC(null):undefined}>
       <Span s={10} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:4,lineHeight:1.3,minHeight:"2.6em"}}>{label}</Span>
       <div style={{fontSize:22,fontWeight:900,letterSpacing:"-0.02em",lineHeight:1.1,...(grad?{background:grad,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent"}:{color:c})}}>{val}</div>
       {sub&&<Span s={11} c="#94a3b8" style={{marginTop:3,display:"block"}}>{sub}</Span>}
@@ -1138,20 +1171,21 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const SCTooltip = () => hovSC ? (
     <div style={{position:"fixed",left:hovPos.x,top:hovPos.y,zIndex:9999,
       background:"#1e293b",color:"#fff",borderRadius:8,padding:"10px 14px",
-      boxShadow:"0 4px 20px rgba(0,0,0,0.25)",minWidth:220,pointerEvents:"none"}}>
+      boxShadow:"0 4px 20px rgba(0,0,0,0.25)",minWidth:240,maxHeight:300,overflow:"hidden",
+      pointerEvents:"none",animation:"fadeInUp .16s ease"}}>
       <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>
-        Received {new Date().getFullYear()}
+        {hovSC.title}
       </div>
-      {invoiceBreakdown.map(([name,amt])=>(
+      {(hovSC.items||[]).map(([name,amt])=>(
         <div key={name} style={{display:"flex",justifyContent:"space-between",gap:16,marginBottom:3}}>
           <span style={{fontSize:12,color:"#e2e8f0"}}>{name}</span>
           <span style={{fontSize:12,fontWeight:700,color:"#fbbf24"}}>฿{fmt(amt)}</span>
         </div>
       ))}
-      {invoiceBreakdown.length===0&&<div style={{fontSize:12,color:"#64748b"}}>No invoiced installments</div>}
+      {(!hovSC.items||hovSC.items.length===0)&&<div style={{fontSize:12,color:"#64748b"}}>No records</div>}
       <div style={{borderTop:"1px solid #334155",marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between"}}>
         <span style={{fontSize:12,fontWeight:700,color:"#fff"}}>Total</span>
-        <span style={{fontSize:12,fontWeight:800,color:"#fbbf24"}}>฿{fmt(invoiceReceived)}</span>
+        <span style={{fontSize:12,fontWeight:800,color:"#fbbf24"}}>฿{fmt(hovSC.total)}</span>
       </div>
     </div>
   ) : null;
@@ -1318,11 +1352,16 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:12,marginBottom:14}}>
             <SC label="Customers"        val={customers.length}/>
             <SC label="Last Year POs Paid this year" val={`฿${fmtM(205000)}`}/>
-            <SC label="This Year Expected Revenue" val={`฿${fmtM(revenue)}`} c="#0ea5e9"/>
-            <SC label="Won YTD"          val={`฿${fmtM(totalWon)}`}      sub={`${wonOpps.length} deals closed`} c="#1e40af"/>
-            <SC label="Received" val={`฿${fmtM(invoiceReceived)}`} c="#22c55e"/>
-            <SC label="Opportunities" val={`฿${fmtM(oppsPipeline)}`} grad="linear-gradient(90deg,#a78bfa,#f59e0b)"/>
-            <SC label="Pipeline (Proposal+Nego+Won)" val={`฿${fmtM(pipeline)}`}/>
+            <SC label="This Year Expected Revenue" val={`฿${fmtM(revenue)}`} c="#0ea5e9"
+              tip={{title:`Expected Revenue ${new Date().getFullYear()}`, items:revenueBreakdown, total:revenue}}/>
+            <SC label="Won YTD"          val={`฿${fmtM(totalWon)}`}      sub={`${wonOpps.length} deals closed`} c="#1e40af"
+              tip={{title:"Won YTD", items:wonBreakdown, total:totalWon}}/>
+            <SC label="Received" val={`฿${fmtM(invoiceReceived)}`} c="#22c55e"
+              tip={{title:`Received ${new Date().getFullYear()}`, items:receivedBreakdown, total:invoiceReceived}}/>
+            <SC label="Opportunities" val={`฿${fmtM(oppsPipeline)}`} grad="linear-gradient(90deg,#a78bfa,#f59e0b)"
+              tip={{title:"Opportunities (Proposal + Nego)", items:oppsBreakdown, total:oppsPipeline}}/>
+            <SC label="Pipeline (Proposal+Nego+Won)" val={`฿${fmtM(pipeline)}`}
+              tip={{title:"Pipeline (Proposal + Nego + Won)", items:pipelineBreakdown, total:pipeline}}/>
           </div>
           {SCTooltip()}
 
@@ -3364,6 +3403,10 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
       return (getLatest(b)||"").localeCompare(getLatest(a)||"");
     });
 
+  const totContract = list.reduce((s,d)=>s+(d.totalContractValue||0),0);
+  const totReceived = list.reduce((s,d)=>s+(d.installments||[]).filter(i=>i.status==="Received").reduce((x,i)=>x+(i.amount||0),0),0);
+  const totBalance  = totContract - totReceived;
+
   return (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -3380,6 +3423,18 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
           </div>
         </div>
       </div>
+      <Card style={{padding:"12px 18px",marginBottom:14,display:"flex",gap:12,flexWrap:"wrap"}}>
+        {[
+          {l:"Total Contract",v:totContract,bg:"#fff",bc:"#e2e8f0",c:"#0f172a"},
+          {l:"Total Received",v:totReceived,bg:"#f0fdf4",bc:"#86efac",c:"#16a34a"},
+          {l:"Total Balance", v:totBalance, bg:"#fffbeb",bc:"#fde68a",c:"#d97706"},
+        ].map(x=>(
+          <div key={x.l} style={{flex:1,minWidth:140,textAlign:"center",padding:"8px 14px",background:x.bg,border:`1px solid ${x.bc}`,borderRadius:7}}>
+            <Span s={10} c="#94a3b8" style={{display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.06em"}}>{x.l}</Span>
+            <div style={{fontWeight:900,fontSize:18,color:x.c}}>฿{fmt(x.v)}</div>
+          </div>
+        ))}
+      </Card>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         <FilterIcon/>
         <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:200,minWidth:140}}/>
@@ -5434,7 +5489,7 @@ const stripJsonSuffix = obj => {
 
   return (
     <div style={{minHeight:"100vh",background:"#f8fafc",fontFamily:"'DM Sans','Noto Sans Thai',system-ui,sans-serif",fontSize:15}}>
-      <style>{`@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}} @keyframes spin{to{transform:rotate(360deg)}} input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0} input[type=number]{-moz-appearance:textfield}`}</style>
+      <style>{`@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}} @keyframes spin{to{transform:rotate(360deg)}} @keyframes fadeInUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}} input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0} input[type=number]{-moz-appearance:textfield}`}</style>
       {gsStatus==="loading"&&(
         <div style={{position:"fixed",inset:0,background:"rgba(248,250,252,.94)",zIndex:9000,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,backdropFilter:"blur(2px)"}}>
           <div style={{width:44,height:44,border:"4px solid #e2e8f0",borderTopColor:BRAND.teal,borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
