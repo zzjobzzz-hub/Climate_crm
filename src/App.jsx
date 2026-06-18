@@ -1140,7 +1140,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
       background:"#1e293b",color:"#fff",borderRadius:8,padding:"10px 14px",
       boxShadow:"0 4px 20px rgba(0,0,0,0.25)",minWidth:220,pointerEvents:"none"}}>
       <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>
-        Invoice Received {new Date().getFullYear()}
+        Received {new Date().getFullYear()}
       </div>
       {invoiceBreakdown.map(([name,amt])=>(
         <div key={name} style={{display:"flex",justifyContent:"space-between",gap:16,marginBottom:3}}>
@@ -1320,7 +1320,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
             <SC label="Last Year POs Paid this year" val={`฿${fmtM(205000)}`}/>
             <SC label="This Year Expected Revenue" val={`฿${fmtM(revenue)}`} c="#0ea5e9"/>
             <SC label="Won YTD"          val={`฿${fmtM(totalWon)}`}      sub={`${wonOpps.length} deals closed`} c="#1e40af"/>
-            <SC label="Invoice Received" val={`฿${fmtM(invoiceReceived)}`} c="#22c55e"/>
+            <SC label="Received" val={`฿${fmtM(invoiceReceived)}`} c="#22c55e"/>
             <SC label="Opportunities" val={`฿${fmtM(oppsPipeline)}`} grad="linear-gradient(90deg,#a78bfa,#f59e0b)"/>
             <SC label="Pipeline (Proposal+Nego+Won)" val={`฿${fmtM(pipeline)}`}/>
           </div>
