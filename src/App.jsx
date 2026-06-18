@@ -152,7 +152,7 @@ const toItemList = v => {
 };
 // Quotation length caps — keep the exported PDF on one A4 page so the signature block isn't clipped.
 // Derived from the fixed-height page layout (see Project Scope / Deliverables / Notes in QuoteCard).
-const SCOPE_MAX_CHARS = 400, DELIV_MAX = 6, NOTES_MAX = 6;
+const SCOPE_MAX_CHARS = 3000, SCOPE_MAX_LINES = 15, DELIV_MAX = 6, NOTES_MAX = 6;
 const calcSuccessRate = o => {
   if(o.status==="Won") return 100;
   if(o.status==="Lost") return 0;
@@ -1882,6 +1882,8 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
     projectTitle:  savedQD.projectTitle  || qSnap?.projectTitle  || qSnap?.serviceType   || opp?.serviceType || cs?.serviceType || "",
     projectDuration: savedQD.projectDuration || qSnap?.projectMonths || cs?.projectMonths || 3,
     salesAgentId:  savedQD.salesAgentId  || qSnap?.salesAgent    || opp?.assignedTo   || SALES_USERS[0]?.id || "",
+    discountEnabled: savedQD.discountEnabled!==undefined ? savedQD.discountEnabled : (qSnap?.discountEnabled||false),
+    discountPct:     savedQD.discountPct!==undefined     ? savedQD.discountPct     : (qSnap?.discountPct||0),
   } : {
     quoteNo:         qQuoteNo,
     issueDate:       qIssueDate,
@@ -1893,6 +1895,8 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
     projectStartDate:"",
     deliverables: buildDeliverables(),
     salesPrice:   qPrice,
+    discountEnabled: qSnap?.discountEnabled||false,
+    discountPct:     qSnap?.discountPct||0,
     lineItems: buildLineItems(),
     installments: buildInstallments(),
     notes: buildNotes(),
@@ -1923,9 +1927,14 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
 
   const agent    = USERS.find(u=>u.id===f.salesAgentId);
   const agentMob = SALES_MOBILE[f.salesAgentId]||"";
-  const subTotal = f.salesPrice||0;
-  const vat      = Math.round(subTotal*0.07);
-  const total    = subTotal + vat;
+  // Discount reduces the list price before VAT; installments & VAT are computed on the net.
+  const listPrice   = f.salesPrice||0;
+  const discountPct = f.discountEnabled ? (f.discountPct||0) : 0;
+  const discountAmt = Math.round(listPrice*discountPct/100);
+  const netPrice    = listPrice - discountAmt;
+  const subTotal = netPrice;            // base for installments
+  const vat      = Math.round(netPrice*0.07);
+  const total    = netPrice + vat;
   const instSum  = (f.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
   const instOk   = Math.abs(instSum-100)<0.1;
 
@@ -1959,7 +1968,7 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
       mQuote:"ใบเสนอราคา #", mIssued:"วันที่ออก:", mValid:"วันครบกำหนด:", mSales:"พนักงานขาย", mMobile:"เบอร์โทร:",
       sProject:"โครงการ", sScope:"ขอบเขตงาน", cDesc:"คำอธิบาย", cQty:"จำนวน", cUnit:"หน่วย", cUnitPrice:"ราคาต่อหน่วย", cSubtotal:"ยอดรวม",
       sDeliv:"สิ่งที่นำส่ง", sPay:"การชำระเงิน", pNo:"ลำดับ", pDesc:"รายละเอียด", pPct:"%", pAmount:"จำนวนเงิน",
-      tSub:"ยอดรวม (ไม่รวมภาษี)", tVat:"ภาษี (7%)", tTotal:"ยอดรวมสุทธิ", sNotes:"หมายเหตุและเงื่อนไข",
+      tSub:"ยอดรวม (ไม่รวมภาษี)", tDiscount:"ส่วนลด", tNet:"ยอดหลังหักส่วนลด", tVat:"ภาษี (7%)", tTotal:"ยอดรวมสุทธิ", sNotes:"หมายเหตุและเงื่อนไข",
       onBehalf:"ในนามของ", name:"ชื่อ:", role:"ตำแหน่ง:", date:"วันที่:",
     } : {
       title:"QUOTATION", coLegal:"Company Limited", taxId:"Tax ID:", tel:"Tel:",
@@ -1967,10 +1976,15 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
       mQuote:"QUOTE #", mIssued:"ISSUED", mValid:"VALID UNTIL", mSales:"SALES", mMobile:"MOBILE",
       sProject:"Project", sScope:"Scope", cDesc:"Description", cQty:"Qty", cUnit:"Unit", cUnitPrice:"Unit Price", cSubtotal:"Subtotal",
       sDeliv:"Deliverables", sPay:"Payment Schedule", pNo:"#", pDesc:"Description", pPct:"%", pAmount:"Amount",
-      tSub:"Subtotal (excl. VAT)", tVat:"VAT 7%", tTotal:"TOTAL", sNotes:"Notes &amp; Conditions",
+      tSub:"Subtotal (excl. VAT)", tDiscount:"Discount", tNet:"Net (excl. VAT)", tVat:"VAT 7%", tTotal:"TOTAL", sNotes:"Notes &amp; Conditions",
       onBehalf:"On behalf of", name:"Name:", role:"Title:", date:"Date:",
     };
-    const subT=f.salesPrice||0, vatT=Math.round(subT*0.07), totT=subT+vatT;
+    // Discount reduces the list price before VAT; installments are computed on the net.
+    const listT=f.salesPrice||0;
+    const discPctT=f.discountEnabled?(f.discountPct||0):0;
+    const discAmtT=Math.round(listT*discPctT/100);
+    const netT=listT-discAmtT;
+    const subT=netT, vatT=Math.round(netT*0.07), totT=netT+vatT;
     const agentName=USERS.find(u=>u.id===f.salesAgentId)?.name||"—";
     const agentMobP=SALES_MOBILE[f.salesAgentId]||"—";
     const instRowsHtml=(f.installments||[]).map((ins,i)=>`
@@ -2142,7 +2156,9 @@ ${thStyle}
     </table>
     <div class="totals-wrap">
       <div class="totals">
-        <div class="tot-row"><span class="k">${L.tSub}</span><span class="v">${cur} ${fmt(subT)}</span></div>
+        <div class="tot-row"><span class="k">${L.tSub}</span><span class="v">${cur} ${fmt(listT)}</span></div>
+        ${discPctT>0?`<div class="tot-row"><span class="k" style="color:#dc2626">${L.tDiscount} (${discPctT}%)</span><span class="v" style="color:#dc2626">− ${cur} ${fmt(discAmtT)}</span></div>
+        <div class="tot-row"><span class="k">${L.tNet}</span><span class="v">${cur} ${fmt(netT)}</span></div>`:""}
         <div class="tot-row"><span class="k">${L.tVat}</span><span class="v">${cur} ${fmt(vatT)}</span></div>
         <div class="tot-row tot-final"><span class="k">${L.tTotal}</span><span class="v">${cur} ${fmt(totT)}</span></div>
       </div>
@@ -2186,6 +2202,7 @@ ${thStyle}
           ["Sales Agent", agent?.name||"—",     false],
           ["Mobile",      agentMob||"—",        false],
           ["Sales Price (THB)", `฿${fmt(f.salesPrice)}`, false],
+          ...(discountPct>0?[["Discount", `${discountPct}% (−฿${fmt(discountAmt)})`, false]]:[]),
           ["Duration (months)", `${f.projectDuration} months`, false],
           ["Est. Start Date", f.projectStartDate||"—", false],
         ].map(([label,val,mono])=>(
@@ -2315,10 +2332,18 @@ ${thStyle}
           </table>
           <div style={{display:"flex",justifyContent:"flex-end",marginTop:12}}>
             <div style={{width:300}}>
-              {[{l:"Subtotal (excl. VAT)",v:subTotal,b:false},{l:"VAT 7%",v:vat,b:false},{l:"TOTAL",v:total,b:true}].map(x=>(
+              {[
+                {l:"Subtotal (excl. VAT)",v:listPrice,b:false},
+                ...(discountPct>0?[
+                  {l:`Discount (${discountPct}%)`,v:discountAmt,b:false,disc:true},
+                  {l:"Net (excl. VAT)",v:netPrice,b:false},
+                ]:[]),
+                {l:"VAT 7%",v:vat,b:false},
+                {l:"TOTAL",v:total,b:true},
+              ].map(x=>(
                 <div key={x.l} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:x.b?"6px 0 0":"4px 0",borderTop:x.b?"1.5px solid #0c1a2e":"none",borderBottom:x.b?"none":"1px solid #eef1f5",marginTop:x.b?2:0}}>
-                  <span style={{fontWeight:x.b?800:500,color:x.b?"#0c1a2e":"#5b6675",fontSize:x.b?12.5:11.5,textTransform:x.b?"uppercase":"none",letterSpacing:x.b?"0.04em":"normal"}}>{x.l}</span>
-                  <span style={{fontWeight:x.b?900:600,color:x.b?"#0c1a2e":"#243042",fontSize:x.b?15:11.5,fontVariantNumeric:"tabular-nums",fontFamily:x.b?"'Inter Tight','Inter',sans-serif":"inherit"}}>฿{fmt(x.v)}</span>
+                  <span style={{fontWeight:x.b?800:500,color:x.disc?"#dc2626":x.b?"#0c1a2e":"#5b6675",fontSize:x.b?12.5:11.5,textTransform:x.b?"uppercase":"none",letterSpacing:x.b?"0.04em":"normal"}}>{x.l}</span>
+                  <span style={{fontWeight:x.b?900:600,color:x.disc?"#dc2626":x.b?"#0c1a2e":"#243042",fontSize:x.b?15:11.5,fontVariantNumeric:"tabular-nums",fontFamily:x.b?"'Inter Tight','Inter',sans-serif":"inherit"}}>{x.disc?"−":""}฿{fmt(x.v)}</span>
                 </div>
               ))}
             </div>
@@ -3553,7 +3578,11 @@ const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
 // 
 const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQInst,setQDlv,setQNote,addQEC,addQTK,addQInst,addQDlv,addQNote,delQIC,delQEC,delQTK,delQInst,delQO,delQDlv,delQNote,updQO,handleSave,highlight,cardRef}) => {
   const qIC=calcIC(q.internalCosts||[]),qEC=calcEC(q.externalCosts||[],true),qOPEX=calcTask(q.tasks||[]);
-  const qTC=qIC+qEC+qOPEX,qMg=margin(q.salesPrice,qTC);
+  const qTC=qIC+qEC+qOPEX;
+  // Discount: gross price stays in q.salesPrice; margin & opp price use the net (post-discount) figure.
+  const qDiscPct=q.discountEnabled?(q.discountPct||0):0;
+  const qNetPrice=Math.round((q.salesPrice||0)*(1-qDiscPct/100));
+  const qMg=margin(qNetPrice,qTC);
   const months=q.projectMonths||editCS.projectMonths||3;
   const instSum=(q.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
 
@@ -3618,7 +3647,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                   {/* Margin badge */}
                   <div style={{flex:"0 0 72px",padding:"5px 8px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center",flexShrink:0}}>
                     <div style={{fontWeight:900,fontSize:15,color:+qMg>=30?"#16a34a":"#dc2626",lineHeight:1.2}}>{qMg}%</div>
-                    <div style={{fontWeight:700,fontSize:13,color:+qMg>=30?"#16a34a":"#dc2626"}}>฿{fmt(marginAmt(q.salesPrice,qTC))}</div>
+                    <div style={{fontWeight:700,fontSize:13,color:+qMg>=30?"#16a34a":"#dc2626"}}>฿{fmt(marginAmt(qNetPrice,qTC))}</div>
                   </div>
                   {/* Close button */}
 
@@ -3784,9 +3813,12 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                     <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}>
                       <Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Project Scope</Span>
                       <Span s={11} c="#94a3b8">— Scope details e.g. Project Address, Boundary, Base Year</Span>
-                      <Span s={11} w={700} c={(q.projectScope||"").length>=SCOPE_MAX_CHARS?"#d97706":"#94a3b8"} style={{marginLeft:"auto",fontVariantNumeric:"tabular-nums"}}>{(q.projectScope||"").length} / {SCOPE_MAX_CHARS}</Span>
+                      <div style={{marginLeft:"auto",display:"flex",gap:10,alignItems:"baseline"}}>
+                        <Span s={11} w={700} c={(q.projectScope||"").split("\n").length>=SCOPE_MAX_LINES?"#d97706":"#94a3b8"} style={{fontVariantNumeric:"tabular-nums"}}>{(q.projectScope||"").split("\n").length} / {SCOPE_MAX_LINES} lines</Span>
+                        <Span s={11} w={700} c={(q.projectScope||"").length>=SCOPE_MAX_CHARS?"#d97706":"#94a3b8"} style={{fontVariantNumeric:"tabular-nums"}}>{(q.projectScope||"").length} / {SCOPE_MAX_CHARS}</Span>
+                      </div>
                     </div>
-                    <Txta value={q.projectScope||""} maxLength={SCOPE_MAX_CHARS} onChange={e=>setQF(q.id,"projectScope",e.target.value)} placeholder={`Scope details e.g. Project Address, Boundary, Base Year — max ${SCOPE_MAX_CHARS} characters so the signature stays on the quotation page.`} style={{minHeight:80,fontSize:12}}/>
+                    <Txta value={q.projectScope||""} maxLength={SCOPE_MAX_CHARS} onChange={e=>{const v=e.target.value;if(v.split("\n").length<=SCOPE_MAX_LINES)setQF(q.id,"projectScope",v);}} placeholder={`Scope details e.g. Project Address, Boundary, Base Year — max ${SCOPE_MAX_LINES} lines / ${SCOPE_MAX_CHARS} characters so the signature stays on the quotation page.`} style={{minHeight:80,fontSize:12}}/>
                   </div>
                 </div>
 
@@ -3834,12 +3866,32 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
 
                 {/* Cost + margin + Save/Cancel footer */}
                 <div style={{borderTop:"1px solid #e2e8f0",padding:"12px 20px",background:"#f8fafc",display:"flex",justifyContent:"flex-end",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+                  {/* Discount toggle — when on, margin & opp price use the net (post-discount) price */}
+                  <div style={{marginRight:"auto",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                    <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",userSelect:"none"}}>
+                      <input type="checkbox" checked={!!q.discountEnabled} onChange={e=>setQF(q.id,"discountEnabled",e.target.checked)} style={{width:15,height:15,cursor:"pointer",accentColor:"#0f172a"}}/>
+                      <Span s={11} w={700} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Discount</Span>
+                    </label>
+                    {q.discountEnabled&&(
+                      <div style={{display:"flex",alignItems:"center",gap:4}}>
+                        <NumInp value={q.discountPct||0} onChange={v=>setQF(q.id,"discountPct",Math.min(100,Math.max(0,v)))} showZero style={{width:64,padding:"4px 6px",fontSize:12,textAlign:"right"}}/>
+                        <Span s={12} w={700} c="#64748b">%</Span>
+                        <Span s={11} c="#dc2626" style={{marginLeft:4}}>−฿{fmt((q.salesPrice||0)-qNetPrice)}</Span>
+                      </div>
+                    )}
+                  </div>
                   {[{l:"COGS",v:qIC+qEC},{l:"OPEX",v:qOPEX},{l:"Total Cost",v:qTC,bold:true}].map(x=>(
                     <div key={x.l} style={{textAlign:"center"}}>
                       <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>{x.l}</Span>
                       <Span s={13} w={x.bold?900:700}>฿{fmt(x.v)}</Span>
                     </div>
                   ))}
+                  {qDiscPct>0&&(
+                    <div style={{textAlign:"center"}}>
+                      <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>Net Price</Span>
+                      <Span s={13} w={900} c="#0f172a">฿{fmt(qNetPrice)}</Span>
+                    </div>
+                  )}
                   <div style={{padding:"5px 12px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center"}}>
                     <Span s={9} c={+qMg>=30?"#16a34a":"#dc2626"} style={{display:"block"}}>Margin</Span>
                     <Span s={15} w={900} c={+qMg>=30?"#16a34a":"#dc2626"}>{qMg}%</Span>
@@ -3959,7 +4011,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
     const csCode=genCSCode(quoteNo);
     const oppCode=genOppCode(opps);
     sECS(p=>({...p,quoteOverrides:[{
-      id:uid(),csCode,oppCode,quoteNo,memoNo:"",custId:"",salesAgent:"",contactPersonId:"",salesPrice:0,
+      id:uid(),csCode,oppCode,quoteNo,memoNo:"",custId:"",salesAgent:"",contactPersonId:"",salesPrice:0,discountEnabled:false,discountPct:0,
       projectTitle:"",
       projectScope:"",
       projectMonths:editCS.projectMonths||3,
@@ -3993,12 +4045,15 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
         const qIC=calcIC(q.internalCosts||[]),qEC=calcEC(q.externalCosts||[],true),qOPEX=calcTask(q.tasks||[]);
         const qCost=qIC+qEC+qOPEX;
         const csCode=q.csCode||genCSCode(q.quoteNo||"");
-        const qMg=margin(q.salesPrice,qCost);
+        // Net (post-discount) price drives the Opportunity sales price + margin; gross stays in the quote.
+        const qDiscPct=q.discountEnabled?(q.discountPct||0):0;
+        const qNet=Math.round((q.salesPrice||0)*(1-qDiscPct/100));
+        const qMg=margin(qNet,qCost);
         const cust=customers.find(c=>c.id===q.custId);
         const existingOpp=opps.find(o=>o.oppCode===q.oppCode);
         const opp={
           id:q.oppCode,custId:q.custId,oppCode:q.oppCode,quoteNo:q.quoteNo,memoNo:q.memoNo||"",csCode,jobCode:existingOpp?.jobCode||"",
-          serviceCode:editCS.serviceCode,serviceType:editCS.serviceType,salesPrice:q.salesPrice,totalCost:qCost,
+          serviceCode:editCS.serviceCode,serviceType:editCS.serviceType,salesPrice:qNet,totalCost:qCost,
           status:existingOpp?.status||"Proposal",
           assignedTo:q.salesAgent||cust?.assignedTo||SALES_USERS[0]?.id||user.id,
           createdDate:existingOpp?.createdDate||today(),lostReason:existingOpp?.lostReason||"",
@@ -4020,6 +4075,8 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           salesAgent:  q.salesAgent||"",
           contactPersonId: q.contactPersonId||"",
           salesPrice:  q.salesPrice,
+          discountEnabled: q.discountEnabled||false,
+          discountPct: q.discountPct||0,
           projectTitle:q.projectTitle||"",
           projectScope:q.projectScope||"",
           projectMonths:q.projectMonths||editCS.projectMonths||3,
@@ -4035,7 +4092,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
         savedQOIds.push(q.id);
         newSaveEntries.push({
           id:uid(),ts:nowTS(),author:user.id,
-          note:`Quotation ${existingOpp?"updated":"saved"} → ${csCode} · ${q.quoteNo} · ${cust?.companyEN||q.custId} · Price ฿${fmt(q.salesPrice)} · Cost ฿${fmt(qCost)} · Margin ${qMg}%`,
+          note:`Quotation ${existingOpp?"updated":"saved"} → ${csCode} · ${q.quoteNo} · ${cust?.companyEN||q.custId} · Price ฿${fmt(qNet)}${qDiscPct>0?` (−${qDiscPct}%)`:""} · Cost ฿${fmt(qCost)} · Margin ${qMg}%`,
           quoteSnapshot:{...q,csCode,_savedTs:nowTS(),_savedBy:user.id},  // stored for re-edit
         });
       }
@@ -5143,6 +5200,8 @@ const stripJsonSuffix = obj => {
           salesAgent:      String(parsed.salesAgent||""),
           contactPersonId: String(parsed.contactPersonId||""),
           salesPrice:      parsed.salesPrice||0,
+          discountEnabled: parsed.discountEnabled===true||parsed.discountEnabled==="true",
+          discountPct:     +parsed.discountPct||0,
           projectTitle:    String(parsed.projectTitle||""),
           projectScope:    String(parsed.projectScope||""),
           projectMonths:   parsed.projectMonths||3,
