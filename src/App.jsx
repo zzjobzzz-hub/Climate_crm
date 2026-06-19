@@ -3693,7 +3693,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                   {/* Customer */}
                   <div style={{flex:"1 1 160px",minWidth:0}}>
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Customer <span style={{color:"#dc2626",fontWeight:800}}>*</span></Span>
-                    <Sel value={q.custId||""} onChange={e=>setQF(q.id,"custId",e.target.value)} style={{fontSize:11,padding:"3px 6px",width:"100%",...(!q.custId?{borderColor:"#dc2626",background:"#fef2f2"}:{})}}>
+                    <Sel value={q.custId||""} onChange={e=>setQF(q.id,"custId",e.target.value)} style={{fontSize:11,padding:"3px 6px",width:"100%"}}>
                       <option value="">— Select —</option>{[...customers].sort((a,b)=>(a.companyEN||"").localeCompare(b.companyEN||"")).map(c=><option key={c.id} value={c.id}>{c.companyEN}</option>)}
                     </Sel>
                   </div>
@@ -3745,13 +3745,6 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                   {/* Close button */}
 
                 </div>
-
-                {/* Required-customer alert */}
-                {!q.custId && (
-                  <div style={{padding:"8px 16px",background:"#fef2f2",borderBottom:"1px solid #fecaca",color:"#dc2626",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
-                    <span>⚠</span> Please select a <strong>Customer</strong> — required before saving this quotation.
-                  </div>
-                )}
 
                 {/* Cost grids */}
                 <div style={{padding:16,display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
@@ -4117,7 +4110,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           id:q.oppCode,custId:q.custId,oppCode:q.oppCode,quoteNo:q.quoteNo,memoNo:q.memoNo||"",csCode,jobCode:existingOpp?.jobCode||"",
           serviceCode:editCS.serviceCode,serviceType:editCS.serviceType,salesPrice:qNet,totalCost:qCost,
           status:existingOpp?.status||"KYC",
-          assignedTo:q.salesAgent||cust?.assignedTo||"",
+          assignedTo:q.salesAgent||"",
           createdDate:existingOpp?.createdDate||today(),lostReason:existingOpp?.lostReason||"",
           activityLog:[
             ...(existingOpp?.activityLog||[]),
