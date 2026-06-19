@@ -996,6 +996,12 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     const saved = kpiSplits[year+"_annual"];
     if(saved !== undefined && saved !== null && saved !== "") sAnn(+saved);
   },[year,kpiSplits]);
+  // "Last Year POs Paid this year" — editable, persisted per year alongside the KPI row.
+  const LAST_YEAR_PO_DEFAULT = 205000; // preserves current ฿2.05M until edited
+  const [lastYearPO,sLYPO] = useState(()=>{const v=kpiSplits[(new Date().getFullYear()+543)+"_lastYearPO"];return (v===undefined||v===null||v==="")?LAST_YEAR_PO_DEFAULT:+v;});
+  useEffect(()=>{const v=kpiSplits[year+"_lastYearPO"];if(v!==undefined&&v!==null&&v!=="")sLYPO(+v);},[year,kpiSplits]);
+  const [editingPO,setEditingPO]=useState(false);
+  const [poInput,setPoInput]=useState("");
   // Req 14: multi-select dashboard filters
   const [fSt,setFSt]   = useState([]);
   const [fSvc,setFSvc] = useState([]);
@@ -1048,8 +1054,8 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     },0);
   },[deliveries]);
 
-  // Annual KPI Progress is measured against Received (invoiced & received this year)
-  const kpiPct = annual>0 ? Math.min((invoiceReceived/annual)*100,100) : 0;
+  // Annual KPI Progress is measured against Received + Last Year POs Paid this year
+  const kpiPct = annual>0 ? Math.min(((invoiceReceived+lastYearPO)/annual)*100,100) : 0;
 
   const invoiceBreakdown = useMemo(()=>{
     const ceYear = new Date().getFullYear();
@@ -1131,15 +1137,25 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const upSplit=(i,v)=>setKpiSplits(p=>({...p,[year]:splits.map((x,j)=>j===i?+v:x)}));
   const saveKpi=()=>{
     const entry={id:uid(),ts:nowTS(),author:user.id,note:`KPI saved — ${year} · Annual ฿${fmtM(annual)} · Split total ${totalSplit.toFixed(1)}%`};
-    setKpiSplits(p=>({...p,[year]:splits,[year+"_annual"]:annual,[year+"_log"]:[...(p[year+"_log"]||[]),entry]}));
+    setKpiSplits(p=>({...p,[year]:splits,[year+"_annual"]:annual,[year+"_lastYearPO"]:lastYearPO,[year+"_log"]:[...(p[year+"_log"]||[]),entry]}));
     // Persist to Google Sheets — one row per year, primary key = year
     gsSave("kpi", {
       year:   year,
       annual: annual,
       splits: splits,
+      lastYearPO: lastYearPO,
       saveLog:[entry],
     });
     toast("KPI & Forecast saved",`${year} splits saved by ${user.name}`);
+  };
+  // Inline-save the editable "Last Year POs Paid" figure (writes the full kpi row so the
+  // GS upsert doesn't blank annual/splits).
+  const saveLastYearPO=v=>{
+    const n=Math.max(0,Math.round(v||0));
+    sLYPO(n);
+    setKpiSplits(p=>({...p,[year+"_lastYearPO"]:n}));
+    gsSave("kpi",{year,annual,splits,lastYearPO:n,saveLog:[{id:uid(),ts:nowTS(),author:user.id,note:`Last Year POs Paid set to ฿${fmt(n)} for ${year}`}]});
+    toast("Saved",`Last Year POs Paid = ฿${fmt(n)}`);
   };
   const BAR_H=160;
   const maxV=Math.max(...monthData.map(d=>Math.max(d.fc,d.bl,d.rec)),1);
@@ -1338,14 +1354,26 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
           <Card style={{padding:20,marginBottom:14}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
               <Span s={13} w={700}>Annual KPI Progress</Span>
-              <Span s={14} w={600} c="#0f172a">฿{fmtM(invoiceReceived)} / ฿{fmtM(annual)} ({kpiPct.toFixed(1)}%)</Span>
+              <Span s={14} w={600} c="#0f172a">฿{fmtM(invoiceReceived+lastYearPO)} / ฿{fmtM(annual)} ({kpiPct.toFixed(1)}%)</Span>
             </div>
             <div style={{background:"#f1f5f9",borderRadius:5,height:10}}><div style={{background:kpiPct>=75?"#16a34a":kpiPct>=50?"#f59e0b":"#0f172a",height:"100%",width:`${kpiPct}%`,borderRadius:5,transition:"width .5s"}}/></div>
           </Card>
 
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:12,marginBottom:14}}>
             <SC label="Customers"        val={customers.length}/>
-            <SC label="Last Year POs Paid this year" val={`฿${fmtM(205000)}`}/>
+            <Card style={{padding:"14px 18px",position:"relative"}}>
+              <Span s={10} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:4,lineHeight:1.3,minHeight:"2.6em"}}>Last Year POs Paid this year</Span>
+              {editingPO
+                ? <input autoFocus value={poInput} inputMode="numeric"
+                    onChange={e=>setPoInput(e.target.value.replace(/[^0-9.]/g,""))}
+                    onBlur={()=>{setEditingPO(false);saveLastYearPO(+poInput||0);}}
+                    onKeyDown={e=>{if(e.key==="Enter"){setEditingPO(false);saveLastYearPO(+poInput||0);}if(e.key==="Escape")setEditingPO(false);}}
+                    style={{...SI,fontSize:20,fontWeight:900,padding:"2px 6px",width:"100%"}}/>
+                : <div onClick={()=>{setPoInput(String(lastYearPO||0));setEditingPO(true);}} title="Click to edit"
+                    style={{fontSize:22,fontWeight:900,letterSpacing:"-0.02em",lineHeight:1.1,color:"#2B2B2B",cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>
+                    ฿{fmtM(lastYearPO)}<span style={{color:"#cbd5e1"}}><EditIcon s={13}/></span>
+                  </div>}
+            </Card>
             <SC label="This Year Expected Revenue" val={`฿${fmtM(revenue)}`} c="#d97706"
               tip={{title:`Expected Revenue ${new Date().getFullYear()}`, items:revenueBreakdown, total:revenue}}/>
             <SC label="Won YTD"          val={`฿${fmtM(totalWon)}`}      sub={`${wonOpps.length} deals closed`} c="#1e40af"
@@ -2835,6 +2863,9 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
             });
           }
         }
+        // Also delete the persisted quotation snapshot row from the costsheet_quotes GS tab
+        // (keyed by csCode) so it doesn't reappear on reload.
+        if(o.csCode) gsDelete("costsheet_quotes", o.csCode);
         sF(false);sE(null);sQT(null);
         toast("Opportunity deleted",o.oppCode,"error");
       }}/>}
@@ -5327,6 +5358,8 @@ const stripJsonSuffix = obj => {
           kpiObj[r.year] = safeArr(r.splits).length ? r.splits : DEFAULT_SPLIT.slice();
           if(r.annual !== undefined && r.annual !== null && r.annual !== "")
             kpiObj[r.year+"_annual"] = +r.annual;
+          if(r.lastYearPO !== undefined && r.lastYearPO !== null && r.lastYearPO !== "")
+            kpiObj[r.year+"_lastYearPO"] = +r.lastYearPO;
         });
         if(Object.keys(kpiObj).length) sKPI(p=>({...p,...kpiObj}));
       }
