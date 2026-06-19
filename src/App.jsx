@@ -166,14 +166,14 @@ const successRateColor = pct => pct >= 70 ? "#16a34a" : pct >= 40 ? "#d97706" : 
 const calcIC   = rows => (rows||[]).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
 const calcEC   = (rows,coOnly) => (rows||[]).filter(r=>coOnly?!r.clientBorne:true).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
 const calcTask = tasks => (tasks||[]).reduce((s,t)=>{const ag=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];const mgr=ag.length>0?ag.reduce((a,x)=>a+(x.manager||0),0):(t.manager||0);const sr=ag.length>0?ag.reduce((a,x)=>a+(x.senior||0),0):(t.senior||0);const jr=ag.length>0?ag.reduce((a,x)=>a+(x.junior||0),0):(t.junior||0);return s+mgr*IH_LEVELS.Manager+sr*IH_LEVELS.Senior+jr*IH_LEVELS.Junior;},0);
-const calcTotalCS = cs => calcIC(cs.internalCosts||[]) + calcEC(cs.externalCosts||[],true) + calcTask(cs.tasks||[]);
+const calcTotalCS = cs => calcIC(cs.costs||[]) + calcTask(cs.tasks||[]);
 // Legacy helpers kept for per-quotation overrides
 const calcIH  = rows => (rows||[]).reduce((s,r)=>s+(r.days||0)*(r.rate||IH_LEVELS[r.level]||0),0);
 const calcOS  = rows => (rows||[]).reduce((s,r)=>s+(r.amount||0),0);
 const calcTrv = (rows,co) => (rows||[]).filter(r=>co?!r.clientBorne:r.clientBorne).reduce((s,r)=>s+(r.amount||0),0);
 const calcQCost = q => {
-  const ic=calcIC(q.internalCosts||[]),ec=calcEC(q.externalCosts||[],true),opex=calcTask(q.tasks||[]);
-  return ic+ec+opex;
+  const ic=calcIC(q.costs||[]),opex=calcTask(q.tasks||[]);
+  return ic+opex;
 };
 const margin     = (p,c) => p>0?((p-c)/p*100).toFixed(1):"0.0";
 const marginAmt  = (p,c) => Math.round((p||0)-(c||0));
@@ -199,8 +199,7 @@ const buildDefaultCS = s => ({
   serviceCode: s.code, serviceType: s.name,
   stdCost: s.stdCost, stdPrice: s.stdPrice,
   minPrice: Math.round(s.stdPrice*.85), maxPrice: Math.round(s.stdPrice*1.3),
-  internalCosts: [],  // add via + Internal
-  externalCosts: [],  // add via + External
+  costs: [],          // unified COGS cost rows
   tasks: [],          // add via + Task
   projectMonths: 3,
   quoteOverrides: [],
@@ -241,7 +240,7 @@ const gsGet = async (collection) => {
 
 // Normalize a record before saving — moves plain JSON fields into _json twins
 // This ensures the sheet never has data split across both "contacts" and "contacts_json"
-const GS_JSON_FIELDS = ["contacts","saveLog","activityLog","internalCosts","externalCosts","tasks","quoteOverrides","quotationData","installments","splits"];
+const GS_JSON_FIELDS = ["contacts","saveLog","activityLog","costs","tasks","quoteOverrides","quotationData","installments","splits"];
 const normalizeForGS = record => {
   const out = {...record};
   GS_JSON_FIELDS.forEach(field => {
@@ -2601,7 +2600,7 @@ const OPP_HDR = ["OPP Code","Quote No.","CS Code","Job Code","Company","Service 
 const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSaveDelivery,onDeleteDelivery,toast,costSheets,onGoToCS,initOppCode,onOppReady,userList=[],onMentionNotify}) => {
   const [search,sS]=useState(""); const [fSt,setFSt]=useState([]); const [fAg,setFAg]=useState([]); const [fSvc,setFSvc]=useState([]);
   const [view,sView]=useState("kanban"); const [form,sF]=useState(false); const [edit,sE]=useState(null);
-  const [kanbanSort,setKanbanSort]=useState("recent"); // recent | oldest
+  const [kanbanSort,setKanbanSort]=useState("recent"); // recent | oldest | ranking
   const [logOpp,sLog]=useState(null); const [gs,sGS]=useState(false); const [quotationOpp,sQT]=useState(null);
   const [dragId,setDragId]=useState(null); const [dragOver,setDragOver]=useState(null);
   const [sort,setSort]=useState({col:"oppCode",dir:"asc"});
@@ -2659,7 +2658,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
   const kanbanView = (
     <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
       {OPP_STATUSES.map(status => {
-        const col=list.filter(o=>o.status===status).sort((a,b)=>{const ta=a.createdDate||"";const tb=b.createdDate||"";return kanbanSort==="recent"?tb.localeCompare(ta):ta.localeCompare(tb);});
+        const col=list.filter(o=>o.status===status).sort((a,b)=>{if(kanbanSort==="ranking"){const r=o=>["High","Medium","Low"].indexOf(o.ranking||"Medium");return r(a)-r(b);}const ta=a.createdDate||"";const tb=b.createdDate||"";return kanbanSort==="recent"?tb.localeCompare(ta):ta.localeCompare(tb);});
         const cv=col.reduce((s,o)=>s+o.salesPrice,0);
         const isDragTarget = dragOver===status;
         return (
@@ -2776,7 +2775,8 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
             <div style={{display:"flex",alignItems:"center",gap:7}}>
               <Span s={11} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em"}}>Sort</Span>
               <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-                <button onClick={()=>setKanbanSort(p=>p==="recent"?"oldest":"recent")} style={{padding:"7px 12px",border:"none",background:"#334155",color:"#fff",cursor:"pointer",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{kanbanSort==="recent"?"↓":"↑"} Latest</button>
+                <button onClick={()=>setKanbanSort(p=>p==="recent"?"oldest":"recent")} style={{padding:"7px 12px",border:"none",borderRight:"1px solid #e2e8f0",background:kanbanSort==="ranking"?"#fff":"#334155",color:kanbanSort==="ranking"?"#64748b":"#fff",cursor:"pointer",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{kanbanSort==="oldest"?"↑":"↓"} Latest</button>
+                <button onClick={()=>setKanbanSort("ranking")} style={{padding:"7px 12px",border:"none",background:kanbanSort==="ranking"?"#334155":"#fff",color:kanbanSort==="ranking"?"#fff":"#64748b",cursor:"pointer",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>↑ Ranking</button>
               </div>
             </div>
           )}
@@ -3654,9 +3654,9 @@ const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
 // 
 // COST SHEET (COGS + OPEX + Cashflow)
 // 
-const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQInst,setQDlv,setQNote,addQEC,addQTK,addQInst,addQDlv,addQNote,delQIC,delQEC,delQTK,delQInst,delQO,delQDlv,delQNote,updQO,handleSave,highlight,cardRef}) => {
-  const qIC=calcIC(q.internalCosts||[]),qEC=calcEC(q.externalCosts||[],true),qOPEX=calcTask(q.tasks||[]);
-  const qTC=qIC+qEC+qOPEX;
+const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,setQDlv,setQNote,addQTK,addQInst,addQDlv,addQNote,delQIC,delQTK,delQInst,delQO,delQDlv,delQNote,updQO,handleSave,highlight,cardRef}) => {
+  const qIC=calcIC(q.costs||[]),qOPEX=calcTask(q.tasks||[]);
+  const qTC=qIC+qOPEX;
   // Discount: gross price stays in q.salesPrice; margin & opp price use the net (post-discount) figure.
   const qDiscPct=q.discountEnabled?(q.discountPct||0):0;
   const qNetPrice=Math.round((q.salesPrice||0)*(1-qDiscPct/100));
@@ -3757,11 +3757,11 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                       <colgroup><col style={{width:20}}/><col style={{width:"25%"}}/><col style={{width:"12%"}}/><col style={{width:"7%"}}/><col style={{width:"7%"}}/><col style={{width:"12%"}}/><col style={{width:"11%"}}/><col style={{width:"7%"}}/><col style={{width:"4%"}}/></colgroup>
                       <TH cols={["#","Label","Vendor","Unit","Qty","Rate","Total","Pay M.",""]}/>
                       <tbody>
-                        {(q.internalCosts||[]).map((r,idx)=>(
+                        {(q.costs||[]).map((r,idx)=>(
                           <tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
                             <td style={{padding:"3px 3px",textAlign:"center",fontSize:11,color:"#94a3b8",fontWeight:700}}>{idx+1}</td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQIC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px",fontSize:11,color:"#94a3b8",textAlign:"center"}}>—</td>
+                            <td style={{padding:"3px 3px"}}><Inp value={r.vendorName||""} onChange={e=>setQIC(q.id,r.id,"vendorName",e.target.value)} placeholder="Vendor" style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.unit} onChange={e=>setQIC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><NumInp value={r.qty} onChange={v=>setQIC(q.id,r.id,"qty",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><NumInp value={r.rate} onChange={v=>setQIC(q.id,r.id,"rate",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
@@ -3774,29 +3774,12 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                             <td><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQIC(q.id,r.id)}>×</Btn></td>
                           </tr>
                         ))}
-                        {(q.externalCosts||[]).map((r,idx)=>(
-                          <tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
-                            <td style={{padding:"3px 3px",textAlign:"center",fontSize:11,color:"#94a3b8",fontWeight:700}}>{(q.internalCosts||[]).length+idx+1}</td>
-                            <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQEC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><Inp value={r.vendorName||""} onChange={e=>setQEC(q.id,r.id,"vendorName",e.target.value)} placeholder="Vendor" style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><Inp value={r.unit||""} onChange={e=>setQEC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><NumInp value={r.qty} onChange={v=>setQEC(q.id,r.id,"qty",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px"}}><NumInp value={r.rate} onChange={v=>setQEC(q.id,r.id,"rate",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px",fontWeight:700,fontSize:13}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
-                            <td style={{padding:"3px 3px"}}>
-                              <Sel value={r.payMonth||1} onChange={e=>setQEC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:11,width:"100%"}}>
-                                {Array.from({length:(months||3)+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
-                              </Sel>
-                            </td>
-                            <td><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQEC(q.id,r.id)}>×</Btn></td>
-                          </tr>
-                        ))}
                         <tr style={{borderTop:"1px solid #e2e8f0"}}>
                           <td colSpan={5} style={{padding:"5px 4px"}}>
-                            <button onClick={()=>addQEC(q.id)} style={{fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 12px",cursor:"pointer",fontWeight:600}}>+ Add</button>
+                            <button onClick={()=>addQIC(q.id)} style={{fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 12px",cursor:"pointer",fontWeight:600}}>+ Add</button>
                           </td>
                           <td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap",color:"#94a3b8",fontSize:11,fontWeight:600}}>Total COGS</td>
-                          <td colSpan={2} style={{padding:"5px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a"}}>฿{fmt(qIC+qEC)}</td>
+                          <td colSpan={2} style={{padding:"5px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a"}}>฿{fmt(qIC)}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -3853,8 +3836,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
                     const allM=Array.from({length:cfM+1},(_,i)=>i+1);
                     const cByM={};
                     (q.tasks||[]).forEach(t=>{const m=t.payMonth||1;const ag=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];const mgr=ag.length>0?ag.reduce((s,a)=>s+(a.manager||0),0):(t.manager||0);const sr=ag.length>0?ag.reduce((s,a)=>s+(a.senior||0),0):(t.senior||0);const jr=ag.length>0?ag.reduce((s,a)=>s+(a.junior||0),0):(t.junior||0);const tc=mgr*IH_LEVELS.Manager+sr*IH_LEVELS.Senior+jr*IH_LEVELS.Junior;cByM[m]=(cByM[m]||0)+tc;});
-                    (q.internalCosts||[]).forEach(r=>{const m=r.payMonth||1;const amt=(r.qty||0)*(r.rate||0);cByM[m]=(cByM[m]||0)+amt;});
-                    (q.externalCosts||[]).filter(r=>!r.clientBorne).forEach(r=>{const m=r.payMonth||1;const amt=(r.qty||0)*(r.rate||0);cByM[m]=(cByM[m]||0)+amt;});
+                    (q.costs||[]).forEach(r=>{const m=r.payMonth||1;const amt=(r.qty||0)*(r.rate||0);cByM[m]=(cByM[m]||0)+amt;});
                     const rByM={};
                     (q.installments||[]).forEach(ins=>{const m=ins.recvMonth||1;rByM[m]=(rByM[m]||0)+Math.round(q.salesPrice*(ins.pct||0)/100);});
                     let run=0;
@@ -3959,7 +3941,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQEC,setQTK,setQ
 
                 {/* Cost + margin + Save/Cancel footer */}
                 <div style={{borderTop:"1px solid #e2e8f0",padding:"12px 20px",background:"#f8fafc",display:"flex",justifyContent:"flex-end",alignItems:"center",gap:16,flexWrap:"wrap"}}>
-                  {[{l:"COGS",v:qIC+qEC},{l:"OPEX",v:qOPEX},{l:"Total Cost",v:qTC,bold:true}].map(x=>(
+                  {[{l:"COGS",v:qIC},{l:"OPEX",v:qOPEX},{l:"Total Cost",v:qTC,bold:true}].map(x=>(
                     <div key={x.l} style={{textAlign:"center"}}>
                       <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>{x.l}</Span>
                       <Span s={13} w={x.bold?900:700}>฿{fmt(x.v)}</Span>
@@ -4033,21 +4015,16 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
   },[editCS.quoteOverrides]);
 
   // COGS calcs
-  const totalIC = calcIC(editCS.internalCosts||[]);
-  const totalEC = calcEC(editCS.externalCosts||[],true); // co-borne only
-  const totalECClient = (editCS.externalCosts||[]).filter(r=>r.clientBorne).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
-  const totalCOGS = totalIC + totalEC;
+  const totalIC = calcIC(editCS.costs||[]);
+  const totalCOGS = totalIC;
   // OPEX calcs
   const totalOPEX = calcTask(editCS.tasks||[]);
   const totalCost = totalCOGS + totalOPEX;
   const mg = margin(editPrice, totalCost);
 
-  const setIC=(id,k,v)=>sECS(p=>({...p,internalCosts:(p.internalCosts||[]).map(r=>r.id===id?{...r,[k]:v}:r)}));
-  const addIC=()=>sECS(p=>({...p,internalCosts:[...(p.internalCosts||[]),{id:uid(),label:"",unit:"Unit",qty:0,rate:0}]}));
-  const delIC=id=>sECS(p=>({...p,internalCosts:(p.internalCosts||[]).filter(r=>r.id!==id)}));
-  const setEC=(id,k,v)=>sECS(p=>({...p,externalCosts:(p.externalCosts||[]).map(r=>r.id===id?{...r,[k]:v}:r)}));
-  const addEC=()=>sECS(p=>({...p,externalCosts:[...(p.externalCosts||[]),{id:uid(),label:"",unit:"Job",qty:0,rate:0,vendorName:"",clientBorne:false}]}));
-  const delEC=id=>sECS(p=>({...p,externalCosts:(p.externalCosts||[]).filter(r=>r.id!==id)}));
+  const setIC=(id,k,v)=>sECS(p=>({...p,costs:(p.costs||[]).map(r=>r.id===id?{...r,[k]:v}:r)}));
+  const addIC=()=>sECS(p=>({...p,costs:[...(p.costs||[]),{id:uid(),label:"",vendorName:"",unit:"Unit",qty:0,rate:0}]}));
+  const delIC=id=>sECS(p=>({...p,costs:(p.costs||[]).filter(r=>r.id!==id)}));
   const setTK=(id,k,v)=>sECS(p=>({...p,tasks:(p.tasks||[]).map(t=>t.id===id?{...t,[k]:v}:t)}));
   const addTK=()=>sECS(p=>({...p,tasks:[...(p.tasks||[]),{id:uid(),taskName:"",manager:0,senior:0,junior:0,payMonth:1,agents:[]}]}));
   const delTK=id=>sECS(p=>({...p,tasks:(p.tasks||[]).filter(t=>t.id!==id)}));
@@ -4059,12 +4036,9 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
   const addQTK=qid=>updQO(qid,q=>({...q,tasks:[...(q.tasks||[]),{id:uid(),taskName:"",manager:0,senior:0,junior:0,payMonth:1,agents:[]}]}));
   const delQTK=(qid,tid)=>updQO(qid,q=>({...q,tasks:(q.tasks||[]).filter(t=>t.id!==tid)}));
 
-  const setQIC=(qid,rid,k,v)=>updQO(qid,q=>({...q,internalCosts:(q.internalCosts||[]).map(r=>r.id===rid?{...r,[k]:v}:r)}));
-  const addQIC=qid=>updQO(qid,q=>({...q,internalCosts:[...(q.internalCosts||[]),{id:uid(),label:"",unit:"Unit",qty:0,rate:0,payMonth:1}]}));
-  const delQIC=(qid,rid)=>updQO(qid,q=>({...q,internalCosts:(q.internalCosts||[]).filter(r=>r.id!==rid)}));
-  const setQEC=(qid,rid,k,v)=>updQO(qid,q=>({...q,externalCosts:(q.externalCosts||[]).map(r=>r.id===rid?{...r,[k]:v}:r)}));
-  const addQEC=qid=>updQO(qid,q=>({...q,externalCosts:[...(q.externalCosts||[]),{id:uid(),label:"",unit:"Job",qty:0,rate:0,vendorName:"",clientBorne:false,payMonth:1}]}));
-  const delQEC=(qid,rid)=>updQO(qid,q=>({...q,externalCosts:(q.externalCosts||[]).filter(r=>r.id!==rid)}));
+  const setQIC=(qid,rid,k,v)=>updQO(qid,q=>({...q,costs:(q.costs||[]).map(r=>r.id===rid?{...r,[k]:v}:r)}));
+  const addQIC=qid=>updQO(qid,q=>({...q,costs:[...(q.costs||[]),{id:uid(),label:"",vendorName:"",unit:"Unit",qty:0,rate:0,payMonth:1}]}));
+  const delQIC=(qid,rid)=>updQO(qid,q=>({...q,costs:(q.costs||[]).filter(r=>r.id!==rid)}));
 
   const setQInst=(qid,iid,k,v)=>updQO(qid,q=>({...q,installments:(q.installments||[]).map(i=>i.id===iid?{...i,[k]:v}:i)}));
   const addQInst=qid=>updQO(qid,q=>({...q,installments:[...(q.installments||[]),{id:uid(),seq:(q.installments||[]).length+1,label:"",pct:0,detail:"",recvMonth:1}]}));
@@ -4094,8 +4068,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
       projectTitle:"",
       projectScope:"",
       projectMonths:editCS.projectMonths||3,
-      internalCosts:[],
-      externalCosts:[],
+      costs:[],
       tasks:[],
       installments:[
         {id:uid(),seq:1,label:"",pct:40,detail:"",recvMonth:1},
@@ -4121,8 +4094,8 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
     (editCS.quoteOverrides||[]).forEach(q=>{
       // Commit any QO that has custId + oppCode (new OR re-opened re-edit)
       if(q.custId&&q.oppCode){
-        const qIC=calcIC(q.internalCosts||[]),qEC=calcEC(q.externalCosts||[],true),qOPEX=calcTask(q.tasks||[]);
-        const qCost=qIC+qEC+qOPEX;
+        const qIC=calcIC(q.costs||[]),qOPEX=calcTask(q.tasks||[]);
+        const qCost=qIC+qOPEX;
         const csCode=q.csCode||genCSCode(q.quoteNo||"");
         // Net (post-discount) price drives the Opportunity sales price + margin; gross stays in the quote.
         const qDiscPct=q.discountEnabled?(q.discountPct||0):0;
@@ -4134,7 +4107,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           id:q.oppCode,custId:q.custId,oppCode:q.oppCode,quoteNo:q.quoteNo,memoNo:q.memoNo||"",csCode,jobCode:existingOpp?.jobCode||"",
           serviceCode:editCS.serviceCode,serviceType:editCS.serviceType,salesPrice:qNet,totalCost:qCost,
           status:existingOpp?.status||"KYC",
-          assignedTo:q.salesAgent||cust?.assignedTo||SALES_USERS[0]?.id||user.id,
+          assignedTo:q.salesAgent||cust?.assignedTo||"",
           createdDate:existingOpp?.createdDate||today(),lostReason:existingOpp?.lostReason||"",
           activityLog:[
             ...(existingOpp?.activityLog||[]),
@@ -4160,7 +4133,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           projectScope:q.projectScope||"",
           projectMonths:q.projectMonths||editCS.projectMonths||3,
           notes_json:  toItemList(q.notes),
-          costs_json:  [...(q.internalCosts||[]), ...(q.externalCosts||[])],
+          costs_json:  q.costs||[],
           tasks_json:  q.tasks||[],
           installments_json: q.installments||[],
           lineItems_json:    q.lineItems||[],
@@ -4304,9 +4277,9 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           {(editCS.quoteOverrides||[]).map((q)=>(
             <QuoteCard key={q.id} q={q} editCS={editCS} customers={customers} opps={opps} user={user}
               highlight={highlightCs===q.csCode} cardRef={el=>{if(el)csRefs.current[q.csCode]=el;}}
-              setQF={setQF} setQIC={setQIC} setQEC={setQEC} setQTK={setQTK} setQInst={setQInst} setQDlv={setQDlv} setQNote={setQNote}
-              addQEC={addQEC} addQTK={addQTK} addQInst={addQInst} addQDlv={addQDlv} addQNote={addQNote}
-              delQIC={delQIC} delQEC={delQEC} delQTK={delQTK} delQInst={delQInst} delQO={delQO} delQDlv={delQDlv} delQNote={delQNote}
+              setQF={setQF} setQIC={setQIC} setQTK={setQTK} setQInst={setQInst} setQDlv={setQDlv} setQNote={setQNote}
+              addQTK={addQTK} addQInst={addQInst} addQDlv={addQDlv} addQNote={addQNote}
+              delQIC={delQIC} delQTK={delQTK} delQInst={delQInst} delQO={delQO} delQDlv={delQDlv} delQNote={delQNote}
               updQO={updQO} handleSave={handleSave}
             />
           ))}
@@ -5285,9 +5258,8 @@ const stripJsonSuffix = obj => {
           projectScope:    String(parsed.projectScope||""),
           projectMonths:   parsed.projectMonths||3,
           notes:           toItemList(parsed.notes),
-          // internalCosts + externalCosts expected by QuoteCard — map merged costs array to internalCosts
-          internalCosts:   costs,
-          externalCosts:   [],
+          // unified cost rows expected by QuoteCard
+          costs:           costs,
           tasks:           safeArr(parsed.tasks),
           installments:    safeArr(parsed.installments),
           lineItems:       safeArr(parsed.lineItems),
@@ -5313,8 +5285,8 @@ const stripJsonSuffix = obj => {
             const ec = safeArr(stripped.externalCosts);
             if(ic.length||ec.length){
               stripped.costs = [
-                ...ic.map(r=>({id:r.id||uid(),label:r.label||"",unit:r.unit||"",qty:r.qty||0,rate:r.rate||0,payMonth:r.payMonth||1})),
-                ...ec.map(r=>({id:r.id||uid(),label:r.label||"",unit:r.unit||"",qty:r.qty||0,rate:r.rate||0,payMonth:r.payMonth||1})),
+                ...ic.map(r=>({id:r.id||uid(),label:r.label||"",vendorName:r.vendorName||"",unit:r.unit||"",qty:r.qty||0,rate:r.rate||0,payMonth:r.payMonth||1})),
+                ...ec.map(r=>({id:r.id||uid(),label:r.label||"",vendorName:r.vendorName||"",unit:r.unit||"",qty:r.qty||0,rate:r.rate||0,payMonth:r.payMonth||1})),
               ];
             }
           }
