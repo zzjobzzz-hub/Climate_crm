@@ -42,7 +42,7 @@ let MANAGER_USERS = [];
 // CONSTANTS
 // 
 const CRM_STATUSES = ["Lead","Qualified","Email Profile","Meeting","Proposal","Negotiation","Won","Lost"];
-const OPP_STATUSES = ["Proposal","Negotiation","Won","Lost"];
+const OPP_STATUSES = ["KYC","Proposal","Negotiation","Won","Lost"];
 const DLV_STATUSES = ["In Progress","Pending Client","Under Review","Delivered","Completed","On Hold"];
 // Req 8: Add "Verification" before "Final Delivery"
 const DLV_STEPS = ["Contract Signed","Kick-off Meeting","Data Collection","Analysis","Report Draft",
@@ -58,13 +58,13 @@ const SALES_MOBILE = {"songyot.kr":"062-197-4449","theerayut.c":"080-441-2295"};
 
 const STATUS_CLR = {
   Lead:"#94a3b8",Qualified:"#60a5fa","Email Profile":"#818cf8",Meeting:"#f472b6",
-  Proposal:"#a78bfa",Negotiation:"#f59e0b",Won:"#22c55e",Lost:"#ef4444",
+  KYC:"#64748b",Proposal:"#a78bfa",Negotiation:"#f59e0b",Won:"#22c55e",Lost:"#ef4444",
   "In Progress":"#3b82f6","Pending Client":"#f59e0b","Under Review":"#8b5cf6",
   Delivered:"#06b6d4",Completed:"#16a34a","On Hold":"#ef4444",
 };
 const RANK_CLR = { High:{c:"#16a34a",bg:"#dcfce7"}, Medium:{c:"#d97706",bg:"#fef3c7"}, Low:{c:"#dc2626",bg:"#fee2e2"} };
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const STAGE_COLORS = ["#818cf8","#f59e0b","#22c55e","#ef4444"];
+const STAGE_COLORS = ["#64748b","#818cf8","#f59e0b","#22c55e","#ef4444"];
 const SVC_PALETTE = ["#3b82f6","#f59e0b","#22c55e","#ef4444","#8b5cf6","#06b6d4","#f472b6","#84cc16",
                      "#a78bfa","#fb923c","#14b8a6","#e879f9","#fbbf24","#34d399","#60a5fa","#f87171","#c084fc","#4ade80"];
 
@@ -1016,7 +1016,6 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const pipeline      = filteredOpps.filter(o=>o.status!=="Lost").reduce((s,o)=>s+o.salesPrice,0);
   const oppsPipeline  = filteredOpps.filter(o=>o.status==="Proposal"||o.status==="Negotiation").reduce((s,o)=>s+o.salesPrice,0);
   const oppsPipelineCount = filteredOpps.filter(o=>o.status==="Proposal"||o.status==="Negotiation").length;
-  const kpiPct      = annual>0 ? Math.min((totalWon/annual)*100,100) : 0;
   const splits      = kpiSplits[year]||DEFAULT_SPLIT.slice();
   const totalSplit  = splits.reduce((s,v)=>s+v,0);
 
@@ -1025,7 +1024,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     const ceYear = new Date().getFullYear();
     const prefix = String(ceYear);
     return deliveries.reduce((total,d)=>{
-      return total + (d.installments||[]).reduce((s,ins)=>{
+      return total + safeArr(d.installments).reduce((s,ins)=>{
         if(!ins.expected_date) return s;
         const dateStr = String(ins.expected_date);
         if(dateStr.startsWith(prefix)) return s + (ins.amount||0);
@@ -1039,7 +1038,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     const ceYear = new Date().getFullYear();
     const prefix = String(ceYear);
     return deliveries.reduce((total,d)=>{
-      return total + (d.installments||[]).reduce((s,ins)=>{
+      return total + safeArr(d.installments).reduce((s,ins)=>{
         if(ins.status!=="Received") return s;
         if(!ins.invoiceDate) return s;
         const dateStr = String(ins.invoiceDate);
@@ -1049,12 +1048,15 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     },0);
   },[deliveries]);
 
+  // Annual KPI Progress is measured against Received (invoiced & received this year)
+  const kpiPct = annual>0 ? Math.min((invoiceReceived/annual)*100,100) : 0;
+
   const invoiceBreakdown = useMemo(()=>{
     const ceYear = new Date().getFullYear();
     const prefix = String(ceYear);
     const map={};
     deliveries.forEach(d=>{
-      const total=(d.installments||[]).reduce((s,ins)=>{
+      const total=safeArr(d.installments).reduce((s,ins)=>{
         if(ins.status!=="Invoiced"||!ins.invoiceDate) return s;
         if(!String(ins.invoiceDate).startsWith(prefix)) return s;
         return s+(ins.amount||0);
@@ -1079,7 +1081,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   // Per-card breakdowns (company → value) for hover tooltips
   const revenueBreakdown = useMemo(()=>{
     const prefix = String(new Date().getFullYear());
-    return groupByCompany(deliveries.flatMap(d=>(d.installments||[])
+    return groupByCompany(deliveries.flatMap(d=>safeArr(d.installments)
       .filter(ins=>ins.expected_date && String(ins.expected_date).startsWith(prefix))
       .map(ins=>({name:custName(d.custId),amount:ins.amount||0}))));
   },[deliveries,customers]);
@@ -1088,7 +1090,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   ,[filteredOpps,customers]);
   const receivedBreakdown = useMemo(()=>{
     const prefix = String(new Date().getFullYear());
-    return groupByCompany(deliveries.flatMap(d=>(d.installments||[])
+    return groupByCompany(deliveries.flatMap(d=>safeArr(d.installments)
       .filter(ins=>ins.status==="Received" && ins.invoiceDate && String(ins.invoiceDate).startsWith(prefix))
       .map(ins=>({name:custName(d.custId),amount:ins.amount||0}))));
   },[deliveries,customers]);
@@ -1189,7 +1191,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
       const ms=`${year}-${String(MONTHS.indexOf(pMonth)+1).padStart(2,"0")}`;
       return o.createdDate?.startsWith(ms);
     });
-    const PIPELINE_STAGE_ORDER = ["Proposal","Negotiation","Won","Lost"];
+    const PIPELINE_STAGE_ORDER = ["KYC","Proposal","Negotiation","Won","Lost"];
     const byStage = PIPELINE_STAGE_ORDER.map(st => {
       const items=monthOpps.filter(o=>o.status===st);
       const total=items.reduce((s,o)=>s+o.salesPrice,0);
@@ -1283,7 +1285,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
                 </tr>
               </thead>
               <tbody>
-                {allSvcs.length===0&&<tr><td colSpan={6} style={{padding:20,textAlign:"center",color:"#94a3b8"}}>No data</td></tr>}
+                {allSvcs.length===0&&<tr><td colSpan={7} style={{padding:20,textAlign:"center",color:"#94a3b8"}}>No data</td></tr>}
                 {allSvcs.map(code => {
                   const rowOpps=monthOpps.filter(o=>o.serviceCode===code);
                   const rowTotal=rowOpps.reduce((s,o)=>s+o.salesPrice,0);
@@ -1336,7 +1338,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
           <Card style={{padding:20,marginBottom:14}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
               <Span s={13} w={700}>Annual KPI Progress</Span>
-              <Span s={14} w={600} c="#0f172a">฿{fmtM(totalWon)} / ฿{fmtM(annual)} ({kpiPct.toFixed(1)}%)</Span>
+              <Span s={14} w={600} c="#0f172a">฿{fmtM(invoiceReceived)} / ฿{fmtM(annual)} ({kpiPct.toFixed(1)}%)</Span>
             </div>
             <div style={{background:"#f1f5f9",borderRadius:5,height:10}}><div style={{background:kpiPct>=75?"#16a34a":kpiPct>=50?"#f59e0b":"#0f172a",height:"100%",width:`${kpiPct}%`,borderRadius:5,transition:"width .5s"}}/></div>
           </Card>
@@ -2627,7 +2629,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
   //  Drag and Drop state 
 
   const kanbanView = (
-    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
       {OPP_STATUSES.map(status => {
         const col=list.filter(o=>o.status===status).sort((a,b)=>{const ta=a.createdDate||"";const tb=b.createdDate||"";return kanbanSort==="recent"?tb.localeCompare(ta):ta.localeCompare(tb);});
         const cv=col.reduce((s,o)=>s+o.salesPrice,0);
@@ -2698,7 +2700,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
                     {o.nickname&&<div style={{fontSize:10,color:"#94a3b8",marginBottom:4,fontStyle:"italic",lineHeight:1.3}}>{o.nickname}</div>}
                     {o.csCode&&<div style={{marginBottom:5}}><span style={{fontFamily:"monospace",fontWeight:700,fontSize:10,background:"#fef3c7",color:"#92400e",padding:"2px 7px",borderRadius:4,border:"1px solid #fde68a"}}>{o.csCode}</span></div>}
                     {o.memoNo&&<div style={{fontSize:10,color:"#64748b",marginBottom:5,fontFamily:"monospace"}}>Memo: {o.memoNo}</div>}
-                    <div style={{display:"flex",gap:5,marginBottom:6,flexWrap:"wrap"}}><SvcBadge code={o.serviceCode}/><span style={{background:+mg>=30?"#dcfce7":"#fee2e2",color:+mg>=30?"#16a34a":"#dc2626",fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4}}>{mg}%</span></div>
+                    <div style={{display:"flex",gap:5,marginBottom:6,flexWrap:"wrap"}}><SvcBadge code={o.serviceCode}/><span style={{background:+mg>=30?"#dcfce7":"#fee2e2",color:+mg>=30?"#16a34a":"#dc2626",fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4}}>{mg}%</span><span style={{background:RANK_CLR[o.ranking||"Medium"]?.bg,color:RANK_CLR[o.ranking||"Medium"]?.c,fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4}}>{o.ranking||"Medium"}</span></div>
                     {(()=>{const sr=calcSuccessRate(o);const clr=successRateColor(sr);return(<div style={{marginBottom:6}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}><span style={{fontSize:9,color:"#94a3b8",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Success</span><span style={{fontSize:10,fontWeight:800,color:clr}}>{sr}%</span></div><div style={{height:4,background:"#e2e8f0",borderRadius:99,overflow:"hidden"}}><div style={{height:"100%",width:`${sr}%`,background:clr,borderRadius:99,transition:"width .3s"}}/></div></div>);})()}
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                       <span style={{fontWeight:900,fontSize:13}}>฿{fmt(o.salesPrice)}</span>
@@ -3126,17 +3128,17 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
   const [dirty, setDirty]     = useState(false);   // unsaved changes?
   const [localD, setLocalD]   = useState(d);       // staged local copy
   const [noteInput, setNoteInput] = useState("");
-  const [localInst, setLocalInst] = useState(d.installments||[]);
+  const [localInst, setLocalInst] = useState(safeArr(d.installments));
 
   // Sync from parent when d changes (e.g. after save)
-  useEffect(()=>{ setLocalD(d); setLocalInst(d.installments||[]); },[d.id, d.saveLog?.length]);
+  useEffect(()=>{ setLocalD(d); setLocalInst(safeArr(d.installments)); },[d.id, d.saveLog?.length]);
   const [editLogId,setEditLogId]=useState(null);
   const [editLogText,setEditLogText]=useState("");
 
   const opp   = opps.find(o=>o.oppCode===d.oppCode);
   const cust  = customers.find(c=>c.id===d.custId);
   const agent = USERS.find(u=>u.id===(d.assignedTo||opp?.assignedTo));
-  const totalRec = (d.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);
+  const totalRec = safeArr(d.installments).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);
   const lastLog = [...(d.saveLog||[])].sort((a,b)=>(b.ts||"").localeCompare(a.ts||""))[0];
 
   //  Helpers 
@@ -3158,7 +3160,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
   };
 
   const handleDiscard = () => {
-    setLocalD(d); setLocalInst(d.installments||[]);
+    setLocalD(d); setLocalInst(safeArr(d.installments));
     setDirty(false); setOpen(false);
   };
 
@@ -3186,7 +3188,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
     }));
     markDirty(null, inst);
   };
-  useEffect(()=>{ if((d.installments||[]).length===0&&d.quoteNo) syncInst(true); },[]);
+  useEffect(()=>{ if(safeArr(d.installments).length===0&&d.quoteNo) syncInst(true); },[]);
 
   const changeLocalIns=(insId,k,v)=>{
     const next=localInst.map(ins=>{
@@ -3394,7 +3396,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
     });
 
   const totContract = list.reduce((s,d)=>s+(d.totalContractValue||0),0);
-  const totReceived = list.reduce((s,d)=>s+(d.installments||[]).filter(i=>i.status==="Received").reduce((x,i)=>x+(i.amount||0),0),0);
+  const totReceived = list.reduce((s,d)=>s+safeArr(d.installments).filter(i=>i.status==="Received").reduce((x,i)=>x+(i.amount||0),0),0);
 
   return (
     <div>
@@ -3404,7 +3406,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
           <CountPill n={list.length} label="deliveries"/>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=(d.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}>CSV</Btn>
+          <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=safeArr(d.installments).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}>CSV</Btn>
         </div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
@@ -4100,7 +4102,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
         const opp={
           id:q.oppCode,custId:q.custId,oppCode:q.oppCode,quoteNo:q.quoteNo,memoNo:q.memoNo||"",csCode,jobCode:existingOpp?.jobCode||"",
           serviceCode:editCS.serviceCode,serviceType:editCS.serviceType,salesPrice:qNet,totalCost:qCost,
-          status:existingOpp?.status||"Proposal",
+          status:existingOpp?.status||"KYC",
           assignedTo:q.salesAgent||cust?.assignedTo||SALES_USERS[0]?.id||user.id,
           createdDate:existingOpp?.createdDate||today(),lostReason:existingOpp?.lostReason||"",
           activityLog:[
@@ -5214,7 +5216,7 @@ const stripJsonSuffix = obj => {
     ]).then(([c,o,d,cs,k,u,cq,ts])=>{
       if(c.length) sCusts(c.map(x=>stripJsonSuffix({...x,id:String(x.id||"")})));
       if(o.length) sOpps(o.map(x=>stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")})));
-      if(d.length) sDlv(d.map(x=>stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")})));
+      if(d.length) sDlv(d.map(x=>{const s=stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")});return {...s, installments: safeArr(s.installments)};}));
       // S2: Populate module-level USERS arrays for all dropdowns/lookups throughout app
       if(u.length){
         const safe = u.map(x=>({id:String(x.id||""),email:String(x.email||""),name:String(x.name||""),role:String(x.role||"")}));
