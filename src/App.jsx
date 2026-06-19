@@ -1148,38 +1148,38 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   let ytdFc=0,ytdBl=0,ytdRec=0;
   const rows=monthData.map(d=>{ytdFc+=d.fc;ytdBl+=d.bl;ytdRec+=d.rec;return{...d,ytdFc,ytdBl,ytdRec,ytdRem:ytdFc-ytdBl};});
 
-  const [hovSC,sHovSC]=useState(null); // tooltip payload {title,items,total} of hovered card
-  const [hovPos,sHovPos]=useState({x:0,y:0});
+  const [detailSC,setDetailSC]=useState(null); // click-opened breakdown payload {title,items,total}
   const SC = ({label,val,sub,detail,c="#2B2B2B",grad,tip}) => (
-    <Card style={{padding:"14px 18px",position:"relative",cursor:tip?"default":"auto"}}
-      onMouseEnter={tip?e=>{const r=e.currentTarget.getBoundingClientRect();sHovSC(tip);sHovPos({x:Math.min(r.left,window.innerWidth-300),y:r.bottom+8})}:undefined}
-      onMouseLeave={tip?()=>sHovSC(null):undefined}>
+    <Card style={{padding:"14px 18px",position:"relative",cursor:tip?"pointer":"auto"}}
+      onClick={tip?()=>setDetailSC(tip):undefined}>
       <Span s={10} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:4,lineHeight:1.3,minHeight:"2.6em"}}>{label}</Span>
       <div style={{fontSize:22,fontWeight:900,letterSpacing:"-0.02em",lineHeight:1.1,...(grad?{background:grad,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent"}:{color:c})}}>{val}</div>
       {sub&&<Span s={11} c="#94a3b8" style={{marginTop:3,display:"block"}}>{sub}</Span>}
+      {tip&&<Span s={10} c="#cbd5e1" style={{marginTop:5,display:"block",fontWeight:600}}>Click for breakdown →</Span>}
       {detail&&<div style={{marginTop:6,display:"flex",flexWrap:"wrap",gap:"3px 8px"}}>{detail}</div>}
     </Card>
   );
-  const SCTooltip = () => hovSC ? (
-    <div style={{position:"fixed",left:hovPos.x,top:hovPos.y,zIndex:9999,
-      background:"#1e293b",color:"#fff",borderRadius:8,padding:"10px 14px",
-      boxShadow:"0 4px 20px rgba(0,0,0,0.25)",minWidth:240,maxHeight:300,overflow:"hidden",
-      pointerEvents:"none",animation:"fadeInUp .16s ease"}}>
-      <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>
-        {hovSC.title}
+  // Click-opened breakdown — full, scrollable company list (replaces the old cramped hover tooltip)
+  const SCDetailModal = () => detailSC ? (
+    <Modal title={detailSC.title} width={520} onClose={()=>setDetailSC(null)}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+        <CountPill n={(detailSC.items||[]).length} label="companies"/>
+        <Span s={13} w={800} c="#0f172a" style={{marginLeft:"auto"}}>Total ฿{fmt(detailSC.total)}</Span>
       </div>
-      {(hovSC.items||[]).map(([name,amt])=>(
-        <div key={name} style={{display:"flex",justifyContent:"space-between",gap:16,marginBottom:3}}>
-          <span style={{fontSize:12,color:"#e2e8f0"}}>{name}</span>
-          <span style={{fontSize:12,fontWeight:700,color:"#fbbf24"}}>฿{fmt(amt)}</span>
-        </div>
-      ))}
-      {(!hovSC.items||hovSC.items.length===0)&&<div style={{fontSize:12,color:"#64748b"}}>No records</div>}
-      <div style={{borderTop:"1px solid #334155",marginTop:6,paddingTop:6,display:"flex",justifyContent:"space-between"}}>
-        <span style={{fontSize:12,fontWeight:700,color:"#fff"}}>Total</span>
-        <span style={{fontSize:12,fontWeight:800,color:"#fbbf24"}}>฿{fmt(hovSC.total)}</span>
+      <div style={{maxHeight:420,overflowY:"auto",border:"1px solid #e2e8f0",borderRadius:8}}>
+        {(!detailSC.items||detailSC.items.length===0)&&<div style={{padding:24,textAlign:"center",color:"#94a3b8",fontSize:13}}>No records</div>}
+        {(detailSC.items||[]).map(([name,amt],i)=>(
+          <div key={name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:16,padding:"9px 14px",borderBottom:"1px solid #f1f5f9",background:i%2?"#fafafa":"#fff"}}>
+            <span style={{fontSize:13,color:"#374151"}}>{name}</span>
+            <span style={{fontSize:13,fontWeight:800,color:"#0f172a",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>฿{fmt(amt)}</span>
+          </div>
+        ))}
       </div>
-    </div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:14,paddingTop:12,borderTop:"2px solid #0f172a"}}>
+        <Span s={14} w={800} c="#0f172a">Total</Span>
+        <Span s={16} w={900} c="#d97706">฿{fmt(detailSC.total)}</Span>
+      </div>
+    </Modal>
   ) : null;
 
   // Req 13: Pipeline analysis with monthly breakdown + sort + service count
@@ -1344,7 +1344,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:12,marginBottom:14}}>
             <SC label="Customers"        val={customers.length}/>
             <SC label="Last Year POs Paid this year" val={`฿${fmtM(205000)}`}/>
-            <SC label="This Year Expected Revenue" val={`฿${fmtM(revenue)}`} c="#0ea5e9"
+            <SC label="This Year Expected Revenue" val={`฿${fmtM(revenue)}`} c="#d97706"
               tip={{title:`Expected Revenue ${new Date().getFullYear()}`, items:revenueBreakdown, total:revenue}}/>
             <SC label="Won YTD"          val={`฿${fmtM(totalWon)}`}      sub={`${wonOpps.length} deals closed`} c="#1e40af"
               tip={{title:"Won YTD", items:wonBreakdown, total:totalWon}}/>
@@ -1353,7 +1353,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
             <SC label="Opportunities" val={`฿${fmtM(oppsPipeline)}`} grad="linear-gradient(90deg,#a78bfa,#f59e0b)"/>
             <SC label="Pipeline (Proposal+Nego+Won)" val={`฿${fmtM(pipeline)}`}/>
           </div>
-          {SCTooltip()}
+          {SCDetailModal()}
 
           {/* Req 12: Monthly bar chart with value labels on top */}
           <Card style={{padding:20,marginBottom:14}}>
