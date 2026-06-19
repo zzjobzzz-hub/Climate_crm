@@ -1,3 +1,4 @@
+
 // React, useState, useMemo, useRef, useEffect, useCallback — globals from CDN
 
 // 
@@ -3426,7 +3427,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
       return sortDir==="asc" ? -base : base;
     });
 
-  const totContract = list.reduce((s,d)=>s+(d.totalContractValue||0),0);
+  const totContract = list.reduce((s,d)=>s+(Number(d.totalContractValue)||0),0);
   const totReceived = list.reduce((s,d)=>s+safeArr(d.installments).filter(i=>i.status==="Received").reduce((x,i)=>x+(i.amount||0),0),0);
 
   return (
@@ -3654,7 +3655,7 @@ const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
 // 
 // COST SHEET (COGS + OPEX + Cashflow)
 // 
-const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,setQDlv,setQNote,addQTK,addQInst,addQDlv,addQNote,delQIC,delQTK,delQInst,delQO,delQDlv,delQNote,updQO,handleSave,highlight,cardRef}) => {
+const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,setQDlv,setQNote,addQIC,addQTK,addQInst,addQDlv,addQNote,delQIC,delQTK,delQInst,delQO,delQDlv,delQNote,updQO,handleSave,highlight,cardRef}) => {
   const qIC=calcIC(q.costs||[]),qOPEX=calcTask(q.tasks||[]);
   const qTC=qIC+qOPEX;
   // Discount: gross price stays in q.salesPrice; margin & opp price use the net (post-discount) figure.
@@ -4278,7 +4279,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
             <QuoteCard key={q.id} q={q} editCS={editCS} customers={customers} opps={opps} user={user}
               highlight={highlightCs===q.csCode} cardRef={el=>{if(el)csRefs.current[q.csCode]=el;}}
               setQF={setQF} setQIC={setQIC} setQTK={setQTK} setQInst={setQInst} setQDlv={setQDlv} setQNote={setQNote}
-              addQTK={addQTK} addQInst={addQInst} addQDlv={addQDlv} addQNote={addQNote}
+              addQIC={addQIC} addQTK={addQTK} addQInst={addQInst} addQDlv={addQDlv} addQNote={addQNote}
               delQIC={delQIC} delQTK={delQTK} delQInst={delQInst} delQO={delQO} delQDlv={delQDlv} delQNote={delQNote}
               updQO={updQO} handleSave={handleSave}
             />
@@ -5220,7 +5221,7 @@ const stripJsonSuffix = obj => {
     ]).then(([c,o,d,cs,k,u,cq,ts])=>{
       if(c.length) sCusts(c.map(x=>stripJsonSuffix({...x,id:String(x.id||"")})));
       if(o.length) sOpps(o.map(x=>stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")})));
-      if(d.length) sDlv(d.map(x=>{const s=stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")});return {...s, installments: safeArr(s.installments)};}));
+      if(d.length) sDlv(d.map(x=>{const s=stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")});return {...s, totalContractValue: Number(s.totalContractValue)||0, installments: safeArr(s.installments)};}));
       // S2: Populate module-level USERS arrays for all dropdowns/lookups throughout app
       if(u.length){
         const safe = u.map(x=>({id:String(x.id||""),email:String(x.email||""),name:String(x.name||""),role:String(x.role||"")}));
