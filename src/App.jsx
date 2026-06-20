@@ -2693,7 +2693,11 @@ const OPP_HDR = ["OPP Code","Quote No.","CS Code","Job Code","Company","Service 
 const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSaveDelivery,onDeleteDelivery,toast,costSheets,onGoToCS,initOppCode,onOppReady,userList=[],onMentionNotify}) => {
   const [search,sS]=useState(""); const [fSt,setFSt]=useState([]); const [fAg,setFAg]=useState([]); const [fSvc,setFSvc]=useState([]);
   const [view,sView]=useState("kanban"); const [form,sF]=useState(false); const [edit,sE]=useState(null);
-  const [kanbanSort,setKanbanSort]=useState("recent"); // recent | oldest | ranking
+  const [kanbanSorts,setKanbanSorts]=useState([{col:"date",dir:"desc"}]); // SortChips: date (Latest) + ranking
+  const toggleKanbanSort=col=>setKanbanSorts(p=>cycleSort(p,col));
+  const resetKanbanSort=()=>setKanbanSorts(p=>p.slice(0,1));
+  // date desc = newest first; ranking asc = High first
+  const kanbanV=(o,col)=>col==="ranking"?["High","Medium","Low"].indexOf(o.ranking||"Medium"):(o.createdDate||"");
   const [logOpp,sLog]=useState(null); const [gs,sGS]=useState(false); const [quotationOpp,sQT]=useState(null);
   const [dragId,setDragId]=useState(null); const [dragOver,setDragOver]=useState(null);
   const [sorts,setSorts]=useState([{col:"oppCode",dir:"asc"}]);
@@ -2746,7 +2750,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
   const kanbanView = (
     <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
       {OPP_STATUSES.map(status => {
-        const col=list.filter(o=>o.status===status).sort((a,b)=>{if(kanbanSort==="ranking"){const r=o=>["High","Medium","Low"].indexOf(o.ranking||"Medium");return r(a)-r(b);}const ta=a.createdDate||"";const tb=b.createdDate||"";return kanbanSort==="recent"?tb.localeCompare(ta):ta.localeCompare(tb);});
+        const col=list.filter(o=>o.status===status).sort((a,b)=>multiCmp(a,b,kanbanSorts,kanbanV));
         const cv=col.reduce((s,o)=>s+o.salesPrice,0);
         const isDragTarget = dragOver===status;
         return (
@@ -2860,15 +2864,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
         <MultiSelect label="Agents"  options={SALES_USERS.map(u=>({value:u.id,label:u.name.split(" ")[0]}))} selected={fAg} onChange={setFAg} width={155}/>
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
           {view==="table"&&<SortReset sorts={sorts} onReset={resetSort}/>}
-          {view==="kanban"&&(
-            <div style={{display:"flex",alignItems:"center",gap:7}}>
-              <Span s={11} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em"}}>Sort</Span>
-              <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-                <button onClick={()=>setKanbanSort(p=>p==="recent"?"oldest":"recent")} style={{padding:"7px 12px",border:"none",borderRight:"1px solid #e2e8f0",background:kanbanSort==="ranking"?"#fff":"#334155",color:kanbanSort==="ranking"?"#64748b":"#fff",cursor:"pointer",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{kanbanSort==="oldest"?"↑":"↓"} Latest</button>
-                <button onClick={()=>setKanbanSort("ranking")} style={{padding:"7px 12px",border:"none",background:kanbanSort==="ranking"?"#334155":"#fff",color:kanbanSort==="ranking"?"#fff":"#64748b",cursor:"pointer",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>↑ Ranking</button>
-              </div>
-            </div>
-          )}
+          {view==="kanban"&&<SortChips fields={[{col:"date",label:"Latest"},{col:"ranking",label:"Ranking"}]} sorts={kanbanSorts} onToggle={toggleKanbanSort} onReset={resetKanbanSort}/>}
           <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
             {[["table"," Table"],["kanban","⊞ Kanban"]].map(([k,l])=>(
               <button key={k} onClick={()=>sView(k)} style={{padding:"7px 14px",border:"none",background:view===k?"#0f172a":"#fff",color:view===k?"#fff":"#64748b",cursor:"pointer",fontSize:12,fontWeight:view===k?700:400}}>{l}</button>
