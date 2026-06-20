@@ -2803,6 +2803,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
                       background:"#fff",
                       border:`1px solid ${isDragging?"#3b82f6":"#e2e8f0"}`,
                       borderRadius:7,padding:"10px 12px",marginBottom:8,
+                      display:"flex",flexDirection:"column",gap:6,
                       cursor:"grab",
                       opacity:isDragging?.45:1,
                       boxShadow:isDragging?"0 8px 24px rgba(59,130,246,.25)":"0 1px 3px rgba(0,0,0,.05)",
@@ -2811,27 +2812,54 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
                       userSelect:"none",
                     }}
                   >
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:3}}>
-                      <div style={{fontSize:11,fontWeight:700,color:"#1e40af",fontFamily:"monospace"}}>{o.oppCode}</div>
-                      <span style={{color:"#cbd5e1",fontSize:14,cursor:"grab",lineHeight:1}}></span>
+                    {/* Identity: OPP code + ranking dot */}
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+                      <span style={{fontSize:10.5,fontWeight:700,color:"#1e40af",fontFamily:"monospace"}}>{o.oppCode}</span>
+                      {(()=>{const r=o.ranking||"Medium";const rc=RANK_CLR[r]?.c||"#64748b";return(
+                        <span style={{display:"inline-flex",alignItems:"center",gap:4,flexShrink:0}} title={`Ranking: ${r}`}>
+                          <span style={{width:6,height:6,borderRadius:"50%",background:rc}}/>
+                          <span style={{fontSize:10,fontWeight:700,color:rc}}>{r}</span>
+                        </span>
+                      );})()}
                     </div>
-                    <div style={{fontSize:12,fontWeight:700,color:"#0f172a",marginBottom:o.nickname?1:4,lineHeight:1.3}}>{c?.companyEN||"-"}</div>
-                    {o.nickname&&<div style={{fontSize:10,color:"#94a3b8",marginBottom:4,fontStyle:"italic",lineHeight:1.3}}>{o.nickname}</div>}
-                    {o.csCode&&<div style={{marginBottom:5}}><span style={{fontFamily:"monospace",fontWeight:700,fontSize:10,background:"#fef3c7",color:"#92400e",padding:"2px 7px",borderRadius:4,border:"1px solid #fde68a"}}>{o.csCode}</span></div>}
-                    {o.memoNo&&<div style={{fontSize:10,color:"#64748b",marginBottom:5,fontFamily:"monospace"}}>Memo: {o.memoNo}</div>}
-                    <div style={{display:"flex",gap:5,marginBottom:6,flexWrap:"wrap"}}><SvcBadge code={o.serviceCode}/><span style={{background:+mg>=30?"#dcfce7":"#fee2e2",color:+mg>=30?"#16a34a":"#dc2626",fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4}}>{mg}%</span><span style={{background:RANK_CLR[o.ranking||"Medium"]?.bg,color:RANK_CLR[o.ranking||"Medium"]?.c,fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4}}>{o.ranking||"Medium"}</span></div>
-                    {(()=>{const sr=calcSuccessRate(o);const clr=successRateColor(sr);return(<div style={{marginBottom:6}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}><span style={{fontSize:9,color:"#94a3b8",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Success</span><span style={{fontSize:10,fontWeight:800,color:clr}}>{sr}%</span></div><div style={{height:4,background:"#e2e8f0",borderRadius:99,overflow:"hidden"}}><div style={{height:"100%",width:`${sr}%`,background:clr,borderRadius:99,transition:"width .3s"}}/></div></div>);})()}
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                      <span style={{fontWeight:900,fontSize:13}}>฿{fmt(o.salesPrice)}</span>
-                      <span style={{fontSize:10,color:"#94a3b8"}}>{USERS.find(u=>u.id===o.assignedTo)?.name.split(" ")[0]||"-"}</span>
+                    {/* Company (anchor) + nickname */}
+                    <div>
+                      <div style={{fontSize:13,fontWeight:800,color:"#0f172a",lineHeight:1.3}}>{c?.companyEN||"—"}</div>
+                      {o.nickname&&<div style={{fontSize:11,color:"#64748b",fontStyle:"italic",lineHeight:1.3,marginTop:1}}>{o.nickname}</div>}
                     </div>
-                    {o.status==="Lost"&&o.lostReason&&<div style={{marginTop:4,fontSize:10,color:"#dc2626",background:"#fee2e2",padding:"2px 6px",borderRadius:3}}>{o.lostReason}</div>}
-                    {o.status==="Won"&&o.jobCode&&<div style={{marginTop:4,fontSize:10,color:"#16a34a",fontFamily:"monospace"}}>{o.jobCode}</div>}
-                    <div style={{display:"flex",gap:4,marginTop:6,alignItems:"center",flexWrap:"wrap"}}>
-                      <button onClick={e=>{e.stopPropagation();sLog(o);}} style={{border:"1px solid #e2e8f0",borderRadius:4,background:"#f8fafc",cursor:"pointer",padding:"2px 6px",fontSize:10,color:"#64748b"}}> {o.activityLog?.length||0}</button>
-                      <Sel value={o.status} onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();const updated={...o,status:e.target.value,lostReason:e.target.value==="Lost"?o.lostReason:"",jobCode:e.target.value==="Won"?genJobCode(o.oppCode):o.jobCode,activityLog:[...(o.activityLog||[]),{id:uid(),ts:nowTS(),author:user.id,note:`Status → ${e.target.value}`}]};handleSave(updated);}} style={{fontSize:10,padding:"2px 5px",flex:1,minWidth:85,background:STATUS_CLR[o.status]+"22",color:STATUS_CLR[o.status],fontWeight:700,border:`1px solid ${STATUS_CLR[o.status]}66`}}>
-                        {OPP_STATUSES.map(s=><option key={s} value={s}>{s}</option>)}
-                      </Sel>
+                    {/* Codes meta — one quiet row */}
+                    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                      <SvcBadge code={o.serviceCode}/>
+                      {o.csCode&&<span style={{fontFamily:"monospace",fontSize:10,color:"#64748b"}}>{o.csCode}</span>}
+                      {o.memoNo&&<span style={{fontFamily:"monospace",fontSize:10,color:"#64748b"}}>Memo {o.memoNo}</span>}
+                    </div>
+                    {/* Money (loud) + margin */}
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8}}>
+                      <span style={{fontWeight:900,fontSize:16,color:"#0f172a",letterSpacing:"-0.01em"}}>฿{fmt(o.salesPrice)}</span>
+                      <span style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:11,fontWeight:800,color:+mg>=30?"#16a34a":"#dc2626",whiteSpace:"nowrap"}}>
+                        <SortArrow dir={+mg>=30?"asc":"desc"} s={8}/>{mg}%
+                      </span>
+                    </div>
+                    {/* Success */}
+                    {(()=>{const sr=calcSuccessRate(o);const clr=successRateColor(sr);return(
+                      <div style={{display:"flex",alignItems:"center",gap:8}} title="Success rate">
+                        <div style={{flex:1,height:4,background:"#e2e8f0",borderRadius:99,overflow:"hidden"}}>
+                          <div style={{height:"100%",width:`${sr}%`,background:clr,borderRadius:99,transition:"width .3s"}}/>
+                        </div>
+                        <span style={{fontSize:10,fontWeight:800,color:clr,minWidth:30,textAlign:"right"}}>{sr}%</span>
+                      </div>
+                    );})()}
+                    {/* Lost reason / Job code */}
+                    {o.status==="Lost"&&o.lostReason&&<div style={{fontSize:10,color:"#dc2626",background:"#fee2e2",padding:"2px 6px",borderRadius:3,alignSelf:"flex-start"}}>{o.lostReason}</div>}
+                    {o.status==="Won"&&o.jobCode&&<div style={{fontSize:10,color:"#16a34a",fontFamily:"monospace",fontWeight:700}}>{o.jobCode}</div>}
+                    {/* Footer: agent + activity log */}
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+                      <span style={{fontSize:11,color:"#64748b"}}>{USERS.find(u=>u.id===o.assignedTo)?.name.split(" ")[0]||"—"}</span>
+                      <button onClick={e=>{e.stopPropagation();sLog(o);}} title="Activity log"
+                        style={{display:"inline-flex",alignItems:"center",gap:4,border:"1px solid #e2e8f0",borderRadius:5,background:"#fff",cursor:"pointer",padding:"2px 7px",fontSize:10,fontWeight:600,color:"#64748b"}}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1 3.4-11.3 8.38 8.38 0 0 1 11.3 3.4 8.5 8.5 0 0 1 1.4 4.1z"/></svg>
+                        {o.activityLog?.length||0}
+                      </button>
                     </div>
                   </div>
                 );
