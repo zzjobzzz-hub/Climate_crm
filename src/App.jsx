@@ -952,6 +952,13 @@ const SendIcon = ({s=13}) => (
     <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
   </svg>
 );
+// Note/log icon — a lined page; used for the activity-log buttons.
+const LogIcon = ({s=12}) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="4" y="3" width="16" height="18" rx="2"/>
+    <line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/>
+  </svg>
+);
 const FilterIcon = ({size=14,color="#94a3b8"}) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
     <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
@@ -2558,24 +2565,47 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
   return (
     <Modal title={initial?"Edit Opportunity":"New Opportunity"} width={820} onClose={onClose}>
       <div style={{display:"flex",gap:0,borderBottom:"2px solid #e2e8f0",marginBottom:16}}>
-        {[["detail","Details"],["log",`Activity Log (${f.activityLog?.length||0})`],["quotation","Quotation"]].map(([k,l])=>(
+        {[["detail","Details"],["log","Activity Log"],["quotation","Quotation"]].map(([k,l])=>(
           <button key={k} onClick={()=>sTab(k)} style={{padding:"8px 18px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:tab===k?800:500,color:tab===k?"#0f172a":"#94a3b8",borderBottom:tab===k?"2.5px solid #0f172a":"2.5px solid transparent",marginBottom:-2}}>{l}</button>
         ))}
       </div>
       {tab==="detail"&&(
         <>
+          {/* A. Read-only summary — context, not editable */}
+          <div style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,padding:"14px 16px",marginBottom:14,display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"12px 16px"}}>
+            {[
+              {l:"Customer", span:true, v:<span style={{fontWeight:700,color:"#0f172a"}}>{customers.find(c=>c.id===f.custId)?.companyEN||f.custId}</span>},
+              {l:"Service", span:true, v:<span style={{color:"#0f172a"}}><span style={{fontFamily:"monospace",fontWeight:700,color:"#1e40af"}}>{f.serviceCode}</span> {f.serviceType}</span>},
+              {l:"OPP Code", v:<span style={{fontFamily:"monospace",fontWeight:700,color:"#1e40af"}}>{f.oppCode}</span>},
+              {l:"Quote No.", v:f.quoteNo
+                ? <button onClick={()=>sTab("quotation")} style={{fontFamily:"monospace",fontWeight:600,fontSize:13,background:"none",color:"#1e40af",border:"none",padding:0,cursor:"pointer",textDecoration:"underline",textUnderlineOffset:2}}>{f.quoteNo}</button>
+                : <span style={{color:"#94a3b8"}}>—</span>},
+              ...(f.csCode?[{l:"CS Code", v:<button onClick={()=>{onSave({...f,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""});if(onGoToCS)onGoToCS(f.serviceCode,f.csCode);}} title="Open Cost Sheet (saves first)" style={{fontFamily:"monospace",fontWeight:700,fontSize:13,background:"none",color:"#1e40af",border:"none",padding:0,cursor:"pointer",textDecoration:"underline",textUnderlineOffset:2}}>{f.csCode}</button>}]:[]),
+              {l:"Sales Agent", v:<span style={{color:"#0f172a"}}>{SALES_USERS.find(u=>u.id===f.assignedTo)?.name||f.assignedTo||"—"}</span>},
+              {l:"Created", v:<span style={{color:"#0f172a"}}>{fmtDate(f.createdDate)}</span>},
+            ].map(({l,v,span})=>(
+              <div key={l} style={{minWidth:0,...(span?{gridColumn:"1/-1"}:{})}}>
+                <div style={{fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>{l}</div>
+                <div style={{fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* B. Commercial — money is the loud anchor, shown once */}
+          <div style={{padding:"12px 16px",borderRadius:8,background:+mg>=30?"#f0fdf4":"#fef2f2",border:`1px solid ${+mg>=30?"#86efac":"#fca5a5"}`,marginBottom:16,display:"flex",gap:28,flexWrap:"wrap"}}>
+            {[{l:"Sales Price",v:f.salesPrice,big:true},{l:"Total Cost",v:f.totalCost||0},{l:"Margin %",v:`${mg}%`,c:+mg>=30?"#16a34a":"#dc2626"},{l:"Margin ฿",v:marginAmt(f.salesPrice,f.totalCost||0),c:+mg>=30?"#16a34a":"#dc2626"}].map(x=>(
+              <div key={x.l}>
+                <Span s={10} c="#64748b" style={{display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>{x.l}</Span>
+                <div style={{fontWeight:x.big?900:800,fontSize:x.big?20:15,color:x.c||"#0f172a",letterSpacing:"-0.01em"}}>{typeof x.v==="number"?`฿${fmt(x.v)}`:x.v}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* C. Editable fields */}
           <G2>
-<FRow label="OPP Code"><Inp value={f.oppCode} readOnly style={{border:"none",background:"transparent",fontFamily:"monospace",fontWeight:600,color:"#1e40af",cursor:"default"}}/></FRow>
-<FRow label="Quote No."><button onClick={()=>f.quoteNo&&sTab("quotation")} style={{fontFamily:"monospace",fontWeight:600,fontSize:14,background:"none",color:f.quoteNo?"#1e40af":"#94a3b8",border:"none",padding:"8px 0",cursor:f.quoteNo?"pointer":"default",textDecoration:f.quoteNo?"underline":"none"}}>{f.quoteNo||"—"}</button></FRow>
             <FRow label="Memo No." tip="Format: M + 2-digit year (BE) + 3-digit number, e.g. M69-001"><Inp value={f.memoNo||""} onChange={e=>set("memoNo",e.target.value)} placeholder="e.g. M69-001" style={{fontFamily:"monospace",fontWeight:600}}/></FRow>
-            {f.csCode&&<div style={{gridColumn:"1/-1",marginTop:4}}><FRow label="Cost Sheet & Pricing Code (CS Code)"><div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={()=>{onSave({...f,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""});if(onGoToCS)onGoToCS(f.serviceCode,f.csCode);}} style={{fontFamily:"monospace",fontWeight:700,fontSize:13,background:"none",color:"#1e40af",padding:"4px 0",border:"none",cursor:"pointer",textDecoration:"underline"}}>{f.csCode}</button><Span s={11} c="#64748b">Click to open Cost Sheet (saves first)</Span></div></FRow></div>}
-            <FRow label="Customer"><Inp value={customers.find(c=>c.id===f.custId)?.companyEN||f.custId} readOnly style={{border:"none",background:"transparent",fontWeight:400,cursor:"default"}}/></FRow>
             <FRow label="Nickname / Catchword" tip="Short label shown on kanban card"><Inp value={f.nickname||""} onChange={e=>set("nickname",e.target.value)} placeholder="e.g. BKK Hotel, Phase 2…"/></FRow>
-            <div style={{gridColumn:"1/-1"}}><FRow label="Service"><Inp value={`[${f.serviceCode}] ${f.serviceType}`} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow></div>
-            <FRow label="Sales Price (THB)"><Inp value={`฿${fmt(f.salesPrice)}`} readOnly style={{border:"none",background:"transparent",fontWeight:400,cursor:"default"}}/></FRow>
-            <FRow label="Total Cost (THB)"><Inp value={`฿${fmt(f.totalCost||0)}`} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow>
             <FRow label="Status"><Sel value={f.status} onChange={e=>set("status",e.target.value)}>{OPP_STATUSES.map(s=><option key={s}>{s}</option>)}</Sel></FRow>
-            <FRow label="Sales Agent"><Inp value={SALES_USERS.find(u=>u.id===f.assignedTo)?.name||f.assignedTo} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow>
             <FRow label="Success %" tip="Leave blank to use auto-calculated score">
               <div style={{display:"flex",alignItems:"center",gap:8}}>
                 <input type="text" inputMode="numeric" value={srLocal} placeholder="Auto"
@@ -2583,7 +2613,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                   onBlur={()=>{ const n=getSrValue(); setSrLocal(n===0?"":String(n)); set("successRate",n); }}
                   style={{...SI,width:72,textAlign:"right"}}/>
                 <span style={{fontSize:11,color:"#94a3b8"}}>%</span>
-                {(!getSrValue())&&<span style={{fontSize:11,color:"#94a3b8",fontStyle:"italic"}}>Auto: {calcSuccessRate({...f,successRate:0})}%</span>}
+                {(!getSrValue())&&<span style={{fontSize:11,color:"#64748b",fontStyle:"italic"}}>Auto: {calcSuccessRate({...f,successRate:0})}%</span>}
                 {getSrValue()>0&&<span style={{fontSize:11,fontWeight:700,color:successRateColor(getSrValue())}}>{getSrValue()}% (manual)</span>}
               </div>
             </FRow>
@@ -2595,50 +2625,43 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                 })}
               </div>
             </FRow>
-            <FRow label="Created Date"><Inp value={fmtDate(f.createdDate)} readOnly style={{border:"none",background:"transparent",cursor:"default"}}/></FRow>
-            <div/>
-            {isLost&&<div style={{gridColumn:"1/-1"}}><FRow label=" Lost Reason"><Sel value={f.lostReason} onChange={e=>set("lostReason",e.target.value)}><option value="">— Select Reason —</option>{LOST_REASONS.map(r=><option key={r}>{r}</option>)}</Sel></FRow></div>}
-            <div style={{gridColumn:"1/-1"}}>
-              <FRow label="Note Log">
-                <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-                  {f.remark&&(()=>{
-                    const lines=f.remark.split("\n").filter(Boolean);
-                    return [...lines].reverse().map((line,i)=>{
-                      const origIdx=lines.length-1-i;
-                      const m=line.match(/^\[([^\]]+)\]\s*(.*)/);
-                      const meta=m?m[1]:""; const body=m?m[2]:line;
-                      const datePart=meta.split("·")[0].trim(); const authorPart=meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
-                      return(
-                      <div key={origIdx} style={{padding:"5px 8px 5px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"flex-start",gap:6}}>
-                        <div style={{flex:1,lineHeight:1.5}}>
-                          <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
-                          {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
-                          <RenderMentionText text={body} users={userList}/>
-                        </div>
-                        <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
-                      </div>
-                    );});
-                  })()}
-                  <MentionTextarea
-                    value={noteInput} onChange={sNoteInput}
-                    onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&noteInput.trim()){
-                      set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);
-                      extractMentions(noteInput,userList).forEach(uid=>{if(uid!==user.id)onMentionNotify(uid,"OPP",f.oppCode,`${user.name} mentioned you in a note: ${noteInput.trim().slice(0,80)}`);});
-                      sNoteInput("");e.preventDefault();}}}
-                    placeholder="Add entry… (@mention, Enter to save)"
-                    style={{borderRadius:"0 0 5px 5px",background:"#fff",border:"none",borderTop:"1px solid #f1f5f9",fontSize:13}}
-                    users={userList} minHeight={36}
-                  />
-                </div>
-              </FRow>
-            </div>
+            {isLost&&<FRow label="Lost Reason"><Sel value={f.lostReason} onChange={e=>set("lostReason",e.target.value)}><option value="">— Select Reason —</option>{LOST_REASONS.map(r=><option key={r}>{r}</option>)}</Sel></FRow>}
           </G2>
-          <div style={{padding:12,borderRadius:6,background:+mg>=30?"#f0fdf4":"#fef2f2",border:`1px solid ${+mg>=30?"#86efac":"#fca5a5"}`,marginTop:4,display:"flex",gap:24,flexWrap:"wrap",justifyContent:"flex-end"}}>
-            {[{l:"Total Cost",v:f.totalCost||0},{l:"Sales Price",v:f.salesPrice},{l:"Margin %",v:`${mg}%`,c:+mg>=30?"#16a34a":"#dc2626"},{l:"Margin ฿",v:marginAmt(f.salesPrice,f.totalCost||0),c:+mg>=30?"#16a34a":"#dc2626"}].map(x=>(
-              <div key={x.l}><Span s={11} c="#64748b" style={{display:"block",marginBottom:1}}>{x.l}</Span><div style={{fontWeight:700,fontSize:14,color:x.c||"#0f172a"}}>{typeof x.v==="number"?`฿${fmt(x.v)}`:x.v}</div></div>
-            ))}
-          </div>
-          
+
+          {/* D. Note Log */}
+          <FRow label="Note Log">
+            <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
+              {f.remark&&(()=>{
+                const lines=f.remark.split("\n").filter(Boolean);
+                return [...lines].reverse().map((line,i)=>{
+                  const origIdx=lines.length-1-i;
+                  const m=line.match(/^\[([^\]]+)\]\s*(.*)/);
+                  const meta=m?m[1]:""; const body=m?m[2]:line;
+                  const datePart=meta.split("·")[0].trim(); const authorPart=meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
+                  return(
+                  <div key={origIdx} style={{padding:"5px 8px 5px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"flex-start",gap:6}}>
+                    <div style={{flex:1,lineHeight:1.5}}>
+                      <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
+                      {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
+                      <RenderMentionText text={body} users={userList}/>
+                    </div>
+                    <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
+                  </div>
+                );});
+              })()}
+              <MentionTextarea
+                value={noteInput} onChange={sNoteInput}
+                onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&noteInput.trim()){
+                  set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);
+                  extractMentions(noteInput,userList).forEach(uid=>{if(uid!==user.id)onMentionNotify(uid,"OPP",f.oppCode,`${user.name} mentioned you in a note: ${noteInput.trim().slice(0,80)}`);});
+                  sNoteInput("");e.preventDefault();}}}
+                placeholder="Add entry… (@mention, Enter to save)"
+                style={{borderRadius:"0 0 5px 5px",background:"#fff",border:"none",borderTop:"1px solid #f1f5f9",fontSize:13}}
+                users={userList} minHeight={36}
+              />
+            </div>
+          </FRow>
+
         </>
       )}
       {tab==="log"&&<ActivityLog logs={f.activityLog||[]} currentUser={user} users={userList} onEdit={(id,text,replies)=>sF(p=>({...p,activityLog:(p.activityLog||[]).map(x=>x.id===id?{...x,note:text,replies:replies||x.replies||[]}:x)}))} onDelete={id=>sF(p=>({...p,activityLog:(p.activityLog||[]).filter(x=>x.id!==id)}))}/>}
@@ -2857,7 +2880,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
                       <span style={{fontSize:11,color:"#64748b"}}>{USERS.find(u=>u.id===o.assignedTo)?.name.split(" ")[0]||"—"}</span>
                       <button onClick={e=>{e.stopPropagation();sLog(o);}} title="Activity log"
                         style={{display:"inline-flex",alignItems:"center",gap:4,border:"1px solid #e2e8f0",borderRadius:5,background:"#fff",cursor:"pointer",padding:"2px 7px",fontSize:10,fontWeight:600,color:"#64748b"}}>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1 3.4-11.3 8.38 8.38 0 0 1 11.3 3.4 8.5 8.5 0 0 1 1.4 4.1z"/></svg>
+                        <LogIcon s={11}/>
                         {o.activityLog?.length||0}
                       </button>
                     </div>
@@ -2952,7 +2975,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
               <TD>{USERS.find(u=>u.id===o.assignedTo)?.name.split(" ")[0]||"-"}</TD>
               <TD>{oRank?<span style={{background:RANK_CLR[oRank]?.bg||"#f1f5f9",color:RANK_CLR[oRank]?.c||"#64748b",padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{oRank}</span>:"—"}</TD>
               <TD>{(()=>{const sr=calcSuccessRate(o);const clr=successRateColor(sr);return(<div style={{minWidth:72}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}><span style={{fontSize:11,fontWeight:800,color:clr}}>{sr}%</span></div><div style={{height:4,background:"#e2e8f0",borderRadius:99,overflow:"hidden"}}><div style={{height:"100%",width:`${sr}%`,background:clr,borderRadius:99}}/></div></div>);})()}</TD>
-              <TD><button onClick={e=>{e.stopPropagation();sLog(o);}} style={{border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 9px",fontSize:11}}> {o.activityLog?.length||0}</button></TD>
+              <TD><button onClick={e=>{e.stopPropagation();sLog(o);}} title="Activity log" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"4px 8px",color:"#64748b"}}><LogIcon s={13}/></button></TD>
               <TD><Btn variant="ghost" style={{fontSize:11,padding:"3px 10px"}} onClick={e=>{e.stopPropagation();sE(o);sF(true);}}>Edit</Btn></TD>
             </TR>
           );})}
