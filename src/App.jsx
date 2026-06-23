@@ -462,6 +462,28 @@ if (typeof document !== "undefined" && !document.getElementById("wb-oppedit-css"
   const _s = document.createElement("style"); _s.id = "wb-oppedit-css"; _s.textContent = WB_OPPEDIT_CSS;
   document.head.appendChild(_s);
 }
+
+// Cost Sheet quote card — dashed "add row" buttons, editable-row hover, and the two
+// cost grids that stack on narrow widths. Inline styles can't express :hover/:focus-visible
+// or media queries, so they live here (matching the WB_BTN_CSS / WB_SORT_CSS convention).
+const WB_CS_CSS = `
+.wb-addrow{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:#1e40af;
+  background:#fff;border:1px dashed #bfdbfe;border-radius:5px;padding:3px 13px;cursor:pointer;
+  transition:background .14s ease,border-color .14s ease,color .14s ease,box-shadow .14s ease;}
+.wb-addrow:hover{background:#eff6ff;border-color:#93c5fd;}
+.wb-addrow:focus-visible{outline:none;border-color:#1e40af;box-shadow:0 0 0 3px rgba(30,64,175,.25);}
+.wb-addrow:disabled{color:#94a3b8;border-color:#e2e8f0;cursor:not-allowed;}
+.wb-addrow:disabled:hover{background:#fff;border-color:#e2e8f0;}
+.wb-csrow{transition:background .12s ease;}
+.wb-csrow:hover{background:#f8fafc;}
+.wb-cs-2col{display:grid;grid-template-columns:1fr 1fr;}
+@media (max-width:720px){.wb-cs-2col{grid-template-columns:1fr;}}
+@media (prefers-reduced-motion: reduce){.wb-addrow,.wb-csrow{transition:none;}}
+`;
+if (typeof document !== "undefined" && !document.getElementById("wb-cs-css")) {
+  const _s = document.createElement("style"); _s.id = "wb-cs-css"; _s.textContent = WB_CS_CSS;
+  document.head.appendChild(_s);
+}
 // Filled triangle — crisper than a stroked arrow at this size.
 const SortArrow = ({dir,s=9}) => (
   <svg width={s} height={s} viewBox="0 0 10 10" style={{display:"block",flexShrink:0}} aria-hidden="true">
@@ -3862,10 +3884,13 @@ const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
         ))}
       </tr></thead>
       <tbody>
+        {(tasks||[]).length===0&&(
+          <tr><td colSpan={8} style={{padding:"9px 6px",fontSize:11.5,color:"#94a3b8",fontStyle:"italic"}}>No tasks yet — add man-hour tasks and assign agents.</td></tr>
+        )}
         {(tasks||[]).map((t,idx)=><TaskRow key={t.id} t={t} rowNum={idx+1} onSet={onSet} onDel={onDel} months={months}/>)}
         <tr style={{borderTop:"1px solid #e2e8f0"}}>
           <td colSpan={5} style={{padding:"5px 4px"}}>
-            <button onClick={onAdd} style={{fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 14px",cursor:"pointer",fontWeight:600}}>+ Task</button>
+            <button onClick={onAdd} className="wb-addrow">+ Task</button>
           </td>
           <td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap",color:"#94a3b8",fontSize:11,fontWeight:600}}>Total OPEX</td>
           <td style={{padding:"5px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a"}}>฿{fmt(totalOPEX)}</td>
@@ -3979,7 +4004,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                     <div style={{fontWeight:900,fontSize:17,color:"#0f172a",letterSpacing:"-0.01em",lineHeight:1.15}}>฿{fmt(qNetPrice)}</div>
                     {qDiscPct>0
                       ? <Span s={9} c="#dc2626" style={{fontWeight:700}}>was ฿{fmt(q.salesPrice||0)} · −{qDiscPct}%</Span>
-                      : <Span s={9} c="#cbd5e1">no discount</Span>}
+                      : <Span s={9} c="#94a3b8">no discount</Span>}
                   </div>
                   <div style={{flex:"0 0 58px"}}>
                     <Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:3}}>Months</Span>
@@ -4005,7 +4030,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
 
                 {page==="costs"&&(<>
                 {/* Cost grids */}
-                <div style={{padding:16,display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+                <div className="wb-cs-2col" style={{padding:16,gap:14}}>
                   <div>
                     {/* Unified COGS table */}
                     <div style={{marginBottom:4,display:"flex",alignItems:"center",gap:8}}>
@@ -4015,15 +4040,18 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                       <colgroup><col style={{width:20}}/><col style={{width:"25%"}}/><col style={{width:"12%"}}/><col style={{width:"7%"}}/><col style={{width:"7%"}}/><col style={{width:"12%"}}/><col style={{width:"11%"}}/><col style={{width:"7%"}}/><col style={{width:"4%"}}/></colgroup>
                       <TH cols={["#","Label","Vendor","Unit","Qty","Rate","Total","Pay M.",""]}/>
                       <tbody>
+                        {(q.costs||[]).length===0&&(
+                          <tr><td colSpan={9} style={{padding:"9px 6px",fontSize:11.5,color:"#94a3b8",fontStyle:"italic"}}>No cost rows yet — add materials or external/vendor costs.</td></tr>
+                        )}
                         {(q.costs||[]).map((r,idx)=>(
-                          <tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
+                          <tr key={r.id} className="wb-csrow" style={{borderBottom:"1px solid #f8fafc"}}>
                             <td style={{padding:"3px 3px",textAlign:"center",fontSize:11,color:"#94a3b8",fontWeight:700}}>{idx+1}</td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.label} onChange={e=>setQIC(q.id,r.id,"label",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.vendorName||""} onChange={e=>setQIC(q.id,r.id,"vendorName",e.target.value)} placeholder="Vendor" style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><Inp value={r.unit} onChange={e=>setQIC(q.id,r.id,"unit",e.target.value)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><NumInp value={r.qty} onChange={v=>setQIC(q.id,r.id,"qty",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><NumInp value={r.rate} onChange={v=>setQIC(q.id,r.id,"rate",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
-                            <td style={{padding:"3px 3px",fontWeight:700,fontSize:13}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
+                            <td style={{padding:"3px 3px",fontWeight:700,fontSize:13,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
                             <td style={{padding:"3px 3px"}}>
                               <Sel value={r.payMonth||1} onChange={e=>setQIC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:11,width:"100%"}}>
                                 {Array.from({length:(months||3)+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
@@ -4034,7 +4062,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                         ))}
                         <tr style={{borderTop:"1px solid #e2e8f0"}}>
                           <td colSpan={5} style={{padding:"5px 4px"}}>
-                            <button onClick={()=>addQIC(q.id)} style={{fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 12px",cursor:"pointer",fontWeight:600}}>+ Add</button>
+                            <button onClick={()=>addQIC(q.id)} className="wb-addrow">+ Add</button>
                           </td>
                           <td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap",color:"#94a3b8",fontSize:11,fontWeight:600}}>Total COGS</td>
                           <td colSpan={2} style={{padding:"5px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a"}}>฿{fmt(qIC)}</td>
@@ -4050,12 +4078,12 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                 </div>
 
                 {/*  INSTALLMENTS (left) + CASHFLOW (right) — 2-col layout  */}
-                <div style={{padding:"0 16px 16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,borderTop:"1px solid #f1f5f9"}}>
+                <div className="wb-cs-2col" style={{padding:"0 16px 16px",gap:16,borderTop:"1px solid #f1f5f9"}}>
                   {/* Installments */}
                   <div style={{paddingTop:14}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                       <Span s={12} w={700}>Installments</Span>
-                      <span style={{fontSize:13,fontWeight:700,color:Math.abs(instSum-100)<0.1?"#16a34a":"#dc2626"}}>({instSum}% {Math.abs(instSum-100)<0.1?"":""})</span>
+                      <span style={{fontSize:13,fontWeight:700,color:Math.abs(instSum-100)<0.1?"#15803d":"#dc2626"}}>({instSum}%)</span>
                     </div>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
                       <thead><tr style={{background:"#f8fafc"}}>
@@ -4067,12 +4095,15 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                         <th style={{padding:"5px 4px",width:20,borderBottom:"1px solid #e2e8f0"}}/>
                       </tr></thead>
                       <tbody>
+                        {(q.installments||[]).length===0&&(
+                          <tr><td colSpan={6} style={{padding:"9px 6px",fontSize:11.5,color:"#94a3b8",fontStyle:"italic"}}>No installments yet — add payment milestones (should total 100%).</td></tr>
+                        )}
                         {(q.installments||[]).map((ins,idx)=>(
-                          <tr key={ins.id} style={{borderBottom:"1px solid #f8fafc"}}>
+                          <tr key={ins.id} className="wb-csrow" style={{borderBottom:"1px solid #f8fafc"}}>
                             <td style={{padding:"4px 4px",textAlign:"center",color:"#94a3b8",fontWeight:700,fontSize:11,width:22}}>{idx+1}</td>
                             <td style={{padding:"4px 4px"}}><Inp value={ins.label} onChange={e=>setQInst(q.id,ins.id,"label",e.target.value)} placeholder="" style={{padding:"2px 5px",fontSize:13,width:"100%",background:"#f8fafc"}}/></td>
                             <td style={{padding:"4px 4px",width:46}}><Inp type="number" value={ins.pct} onChange={e=>setQInst(q.id,ins.id,"pct",+e.target.value)} style={{padding:"2px 4px",fontSize:13,width:38,textAlign:"right"}}/></td>
-                            <td style={{padding:"4px 4px",fontWeight:700,fontSize:13,textAlign:"right",whiteSpace:"nowrap",width:76}}>฿{fmt(Math.round(qNetPrice*(ins.pct||0)/100))}</td>
+                            <td style={{padding:"4px 4px",fontWeight:700,fontSize:13,textAlign:"right",whiteSpace:"nowrap",width:76,fontVariantNumeric:"tabular-nums"}}>฿{fmt(Math.round(qNetPrice*(ins.pct||0)/100))}</td>
                             <td style={{padding:"4px 4px",width:66}}>
                               <Sel value={ins.recvMonth||1} onChange={e=>setQInst(q.id,ins.id,"recvMonth",+e.target.value)} style={{padding:"2px 3px",fontSize:11,width:60}}>
                                 {Array.from({length:months+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
@@ -4082,7 +4113,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                           </tr>
                         ))}
                         <tr><td colSpan={6} style={{padding:"6px 4px"}}>
-                          <button onClick={()=>addQInst(q.id)} style={{fontSize:13,color:"#1e40af",background:"#fff",border:"1px dashed #bfdbfe",borderRadius:4,padding:"2px 14px",cursor:"pointer",fontWeight:600}}>+ Installment</button>
+                          <button onClick={()=>addQInst(q.id)} className="wb-addrow">+ Installment</button>
                         </td></tr>
                       </tbody>
                     </table>
@@ -4106,8 +4137,8 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                           <Span s={12} w={700}>Cashflow</Span>
                           <span style={{fontSize:11,color:"#94a3b8"}}>{cfM} months</span>
-                          <span style={{marginLeft:"auto",fontSize:13,fontWeight:700,color:hasNeg?"#dc2626":"#16a34a",background:hasNeg?"#fee2e2":"#dcfce7",padding:"1px 8px",borderRadius:10,whiteSpace:"nowrap"}}>
-                            {hasNeg?" Negative":" Positive"}
+                          <span style={{marginLeft:"auto",fontSize:13,fontWeight:700,color:hasNeg?"#dc2626":"#15803d",background:hasNeg?"#fee2e2":"#dcfce7",padding:"1px 8px",borderRadius:10,whiteSpace:"nowrap"}}>
+                            {hasNeg?"Negative":"Positive"}
                           </span>
                         </div>
                         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
@@ -4119,13 +4150,13 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                           <tbody>{cfRows.map(r=>(
                             <tr key={r.m} style={{borderBottom:"1px solid #f8fafc",background:r.run<0?"#fff5f5":"transparent"}}>
                               <td style={{padding:"2px 5px",fontWeight:700,color:"#374151"}}>M{r.m}</td>
-                              <td style={{padding:"2px 5px",color:"#dc2626",textAlign:"right"}}>{r.out>0?`฿${fmt(r.out)}`:"—"}</td>
-                              <td style={{padding:"2px 5px",color:"#16a34a",textAlign:"right"}}>{r.inn>0?`฿${fmt(r.inn)}`:"—"}</td>
-                              <td style={{padding:"2px 5px",textAlign:"right",fontWeight:600,color:r.net>=0?"#16a34a":"#dc2626"}}>{r.net!==0?`${r.net>0?"+":""}฿${fmt(r.net)}`:"—"}</td>
-                              <td style={{padding:"2px 5px",textAlign:"right",fontWeight:800,color:r.run>=0?"#16a34a":"#dc2626"}}>{r.run>=0?"+":""}฿{fmt(r.run)}</td>
+                              <td style={{padding:"2px 5px",color:"#dc2626",textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{r.out>0?`฿${fmt(r.out)}`:"—"}</td>
+                              <td style={{padding:"2px 5px",color:"#15803d",textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{r.inn>0?`฿${fmt(r.inn)}`:"—"}</td>
+                              <td style={{padding:"2px 5px",textAlign:"right",fontWeight:600,fontVariantNumeric:"tabular-nums",color:r.net>=0?"#15803d":"#dc2626"}}>{r.net!==0?`${r.net>0?"+":""}฿${fmt(r.net)}`:"—"}</td>
+                              <td style={{padding:"2px 5px",textAlign:"right",fontWeight:800,fontVariantNumeric:"tabular-nums",color:r.run>=0?"#15803d":"#dc2626"}}>{r.run>=0?"+":""}฿{fmt(r.run)}</td>
                               <td style={{padding:"2px 6px",width:64}}>
                                 <div style={{height:5,background:"#e2e8f0",borderRadius:3,overflow:"hidden"}}>
-                                  <div style={{height:"100%",width:`${Math.abs(r.run)/maxAbs*100}%`,background:r.run>=0?"#16a34a":"#dc2626",borderRadius:3}}/>
+                                  <div style={{height:"100%",width:`${Math.abs(r.run)/maxAbs*100}%`,background:r.run>=0?"#15803d":"#dc2626",borderRadius:3}}/>
                                 </div>
                               </td>
                             </tr>
@@ -4173,7 +4204,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                       </div>
                     ))}
                     {(()=>{const full=(q.deliverables||[]).length>=DELIV_MAX;return(
-                    <button onClick={()=>{if(!full)addQDlv(q.id);}} disabled={full} title={full?`Max ${DELIV_MAX} items`:""} style={{alignSelf:"flex-start",marginTop:4,fontSize:13,color:full?"#94a3b8":"#1e40af",background:"#fff",border:`1px dashed ${full?"#e2e8f0":"#bfdbfe"}`,borderRadius:4,padding:"2px 10px",cursor:full?"not-allowed":"pointer",fontWeight:600}}>+ Deliverable</button>
+                    <button onClick={()=>{if(!full)addQDlv(q.id);}} disabled={full} title={full?`Max ${DELIV_MAX} items`:""} className="wb-addrow" style={{alignSelf:"flex-start",marginTop:4}}>+ Deliverable</button>
                     );})()}
                   </div>
                 </div>
@@ -4194,7 +4225,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                       </div>
                     ))}
                     {(()=>{const full=toItemList(q.notes).length>=NOTES_MAX;return(
-                    <button onClick={()=>{if(!full)addQNote(q.id);}} disabled={full} title={full?`Max ${NOTES_MAX} items`:""} style={{alignSelf:"flex-start",marginTop:4,fontSize:13,color:full?"#94a3b8":"#1e40af",background:"#fff",border:`1px dashed ${full?"#e2e8f0":"#bfdbfe"}`,borderRadius:4,padding:"2px 10px",cursor:full?"not-allowed":"pointer",fontWeight:600}}>+ Note</button>
+                    <button onClick={()=>{if(!full)addQNote(q.id);}} disabled={full} title={full?`Max ${NOTES_MAX} items`:""} className="wb-addrow" style={{alignSelf:"flex-start",marginTop:4}}>+ Note</button>
                     );})()}
                   </div>
                 </div>
@@ -4213,8 +4244,8 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                     <Span s={13} w={900} c="#0f172a">฿{fmt(qNetPrice)}{qDiscPct>0&&<span style={{fontSize:10,fontWeight:700,color:"#dc2626",marginLeft:4}}>−{qDiscPct}%</span>}</Span>
                   </div>
                   <div style={{padding:"5px 12px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center"}}>
-                    <Span s={9} c={+qMg>=30?"#16a34a":"#dc2626"} style={{display:"block"}}>Margin</Span>
-                    <Span s={15} w={900} c={+qMg>=30?"#16a34a":"#dc2626"}>{qMg}%</Span>
+                    <Span s={9} c={+qMg>=30?"#15803d":"#dc2626"} style={{display:"block"}}>Margin</Span>
+                    <Span s={15} w={900} c={+qMg>=30?"#15803d":"#dc2626"}>{qMg}%</Span>
                   </div>
                   <div style={{width:1,height:32,background:"#e2e8f0",flexShrink:0}}/>
                   <Btn variant="ghost" onClick={()=>delQO(q.id)}>Cancel</Btn>
