@@ -49,7 +49,7 @@ const DLV_STEPS = ["Contract Signed","Kick-off Meeting","Data Collection","Analy
                    "Client Review","Revision","Verification","Final Delivery","Invoice Sent","Completed"];
 const INS_STATUSES = ["Pending","Invoiced","Received","Overdue"];
 const LOST_REASONS = ["Price Too High","Budget Frozen","Selected Competitor","Scope Mismatch",
-                      "Project Postponed","No Response","Internal Policy","Other"];
+                      "Project Postponed","No Response","Internal Policy","Inactive","Other"];
 // In-House levels with standard day rates (THB/day)
 const IH_LEVELS = {Manager:1441, Senior:948, Junior:600};
 const IH_LEVEL_NAMES = Object.keys(IH_LEVELS);
@@ -260,7 +260,7 @@ const gsGet = async (collection) => {
 
 // Normalize a record before saving — moves plain JSON fields into _json twins
 // This ensures the sheet never has data split across both "contacts" and "contacts_json"
-const GS_JSON_FIELDS = ["contacts","saveLog","activityLog","costs","tasks","quoteOverrides","quotationData","installments","splits"];
+const GS_JSON_FIELDS = ["contacts","saveLog","activityLog","costs","tasks","quoteOverrides","quotationData","installments","splits","tags"];
 const normalizeForGS = record => {
   const out = {...record};
   GS_JSON_FIELDS.forEach(field => {
@@ -410,6 +410,26 @@ const Divider = () => <div style={{height:1,background:"#f1f5f9",margin:"16px 0"
 const Badge   = ({value,colorMap}) => { const cfg=colorMap[value]||{c:"#64748b"}; return <span style={{background:cfg.bg||cfg.c+"22",color:cfg.c,padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>{value}</span>; };
 const SvcBadge = ({code}) => <span style={{background:"#f1f5f9",color:"#1e40af",fontWeight:800,fontSize:11,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{code}</span>;
 const G2 = ({children,gap=16}) => <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap}}>{children}</div>;
+
+// ── Customer tags ──
+// User-defined labels (e.g. "hotel"). Chip colour is deterministic per tag name so the
+// same tag reads the same everywhere. allTags powers the filter + input suggestions.
+const TAG_PALETTE = [
+  {bg:"#dbeafe",c:"#1e40af"},{bg:"#dcfce7",c:"#15803d"},{bg:"#fef3c7",c:"#92400e"},
+  {bg:"#ede9fe",c:"#6d28d9"},{bg:"#fee2e2",c:"#b91c1c"},{bg:"#cffafe",c:"#0e7490"},
+  {bg:"#fce7f3",c:"#be185d"},{bg:"#ecfccb",c:"#4d7c0f"},{bg:"#ffedd5",c:"#c2410c"},
+];
+const tagColor = tag => {
+  let h=0; const s=String(tag||""); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0;
+  return TAG_PALETTE[h % TAG_PALETTE.length];
+};
+const allTags = customers => [...new Set((customers||[]).flatMap(c=>safeArr(c.tags)))].sort((a,b)=>a.localeCompare(b));
+const TagChip = ({tag,onRemove,size=11}) => { const cl=tagColor(tag); return (
+  <span style={{display:"inline-flex",alignItems:"center",gap:4,background:cl.bg,color:cl.c,fontWeight:700,fontSize:size,padding:size>11?"3px 9px":"1px 7px",borderRadius:999,whiteSpace:"nowrap",lineHeight:1.5,maxWidth:"100%"}}>
+    <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{tag}</span>
+    {onRemove&&<button onClick={e=>{e.stopPropagation();onRemove(tag);}} title={`Remove ${tag}`} style={{border:"none",background:"none",color:cl.c,cursor:"pointer",padding:0,lineHeight:1,fontSize:size+2,opacity:.7,flexShrink:0}}>×</button>}
+  </span>
+);};
 
 const TH = ({cols}) => <thead><tr style={{background:"#f8fafc"}}>{cols.map((c,i)=><th key={i} style={{padding:"9px 12px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:12,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{c}</th>)}</tr></thead>;
 const TR = ({children,onClick,hi}) => { const[h,sH]=useState(false); return <tr onClick={onClick} onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)} style={{borderBottom:"1px solid #f1f5f9",background:hi?"#fffbeb":h?"#f8fafc":"#fff",cursor:onClick?"pointer":"default"}}>{children}</tr>; };
@@ -1700,14 +1720,17 @@ const INDUSTRY_SECTORS = {
   "Technology":          ["Electronic Components","Information & Communication Technology"],
 };
 
-const CustForm = ({initial,user,onSave,onClose,onDelete}) => {
+const CustForm = ({initial,user,onSave,onClose,onDelete,tagSuggestions=[]}) => {
   const blankContact = () => ({id:uid(),name:"",title:"",email:"",phone:"",active:true});
-  const blank={id:"",companyEN:"",industry:"",sector:"",businessType:"",companySize:"",address:"",province:"",contacts:[blankContact()],assignedTo:"",remark:"",lastContact:today()};
-  const [f,sF] = useState(initial?{...initial,contacts:initial.contacts||[{id:uid(),name:initial.contactName||"",title:initial.titlePosition||"",email:initial.email||"",phone:initial.phone||"",active:true}]}:blank);
+  const blank={id:"",companyEN:"",industry:"",sector:"",businessType:"",companySize:"",address:"",province:"",contacts:[blankContact()],assignedTo:"",remark:"",lastContact:today(),tags:[]};
+  const [f,sF] = useState(initial?{...initial,contacts:initial.contacts||[{id:uid(),name:initial.contactName||"",title:initial.titlePosition||"",email:initial.email||"",phone:initial.phone||"",active:true}],tags:safeArr(initial.tags)}:blank);
+  const [tagInput,setTagInput] = useState("");
   const set = (k,v) => sF(p=>({...p,[k]:v}));
   const setCt=(id,k,v)=>sF(p=>({...p,contacts:p.contacts.map(c=>c.id===id?{...c,[k]:v}:c)}));
   const addCt=()=>sF(p=>({...p,contacts:[...p.contacts,blankContact()]}));
   const delCt=id=>sF(p=>({...p,contacts:p.contacts.filter(c=>c.id!==id)}));
+  const addTag=()=>{const t=tagInput.trim();if(!t)return;sF(p=>({...p,tags:[...new Set([...safeArr(p.tags),t])]}));setTagInput("");};
+  const removeTag=t=>sF(p=>({...p,tags:safeArr(p.tags).filter(x=>x!==t)}));
   return (
     <Modal title={initial?"Edit Customer":"Add Customer"} width={860} onClose={onClose}>
       <G2>
@@ -1734,6 +1757,18 @@ const CustForm = ({initial,user,onSave,onClose,onDelete}) => {
           {SALES_USERS.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
         </Sel></FRow>
         <div style={{gridColumn:"1/-1"}}><FRow label="Remark"><Inp value={f.remark} onChange={e=>set("remark",e.target.value)}/></FRow></div>
+        <div style={{gridColumn:"1/-1"}}>
+          <FRow label="Tags" tip="Custom labels e.g. hotel, VIP — type and press Enter">
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center",border:"1px solid #e2e8f0",borderRadius:6,padding:"7px 9px",background:"#fafafa"}}>
+              {safeArr(f.tags).map(t=><TagChip key={t} tag={t} size={12} onRemove={removeTag}/>)}
+              <input list="cust-tag-suggestions" value={tagInput} onChange={e=>setTagInput(e.target.value)}
+                onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addTag();}}}
+                placeholder={safeArr(f.tags).length?"Add tag…":"e.g. hotel, VIP — Enter to add"}
+                style={{flex:"1 1 120px",minWidth:100,border:"none",background:"none",outline:"none",fontSize:13,padding:"2px 0"}}/>
+              <datalist id="cust-tag-suggestions">{tagSuggestions.map(t=><option key={t} value={t}/>)}</datalist>
+            </div>
+          </FRow>
+        </div>
       </G2>
       <Divider/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -1766,7 +1801,7 @@ const CustForm = ({initial,user,onSave,onClose,onDelete}) => {
   );
 };
 
-const CUST_HDR = ["ID","Company EN","Industry","Province","Contacts","Agent","Ranking","Status","Last Contact","Remark"];
+const CUST_HDR = ["ID","Company EN","Industry","Province","Contacts","Agent","Ranking","Status","Last Contact","Remark","Tags"];
 const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,initCustId,onCustReady,userList=[]}) => {
   const [search,sS]=useState(""); const [fR,setFR]=useState([]); const [fSt,setFSt]=useState([]); const [fAg,setFAg]=useState([]);
   const [form,sF]=useState(false); const [edit,sE]=useState(null); const [gs,sGS]=useState(false);
@@ -1776,6 +1811,28 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
   const [colWidths,setColWidths] = React.useState([130,220,200,110,180,90,120,140,60,60]);
   const toggleSort=col=>setSorts(p=>cycleSort(p,col));
   const resetSort=()=>setSorts(p=>p.slice(0,1));
+  // Tags: row selection + bulk assign/delete + tag filter
+  const [fTag,setFTag]=useState([]);
+  const [selected,setSelected]=useState(()=>new Set());
+  const [bulkTag,setBulkTag]=useState("");
+  const [bulkDel,setBulkDel]=useState(false);
+  const tagOptions=useMemo(()=>allTags(customers),[customers]);
+  const toggleRow=(id)=>setSelected(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n;});
+  const clearSel=()=>setSelected(new Set());
+  // Drop selected ids that no longer exist (e.g. after a delete elsewhere)
+  useEffect(()=>{setSelected(p=>{const valid=new Set(customers.map(c=>c.id));let changed=false;const n=new Set();p.forEach(id=>{if(valid.has(id))n.add(id);else changed=true;});return changed?n:p;});},[customers]);
+  const applyBulkTag=()=>{
+    const t=bulkTag.trim(); if(!t||selected.size===0) return;
+    customers.filter(c=>selected.has(c.id)).forEach(c=>onSave({...c,tags:[...new Set([...safeArr(c.tags),t])]}));
+    toast("Tag assigned",`"${t}" → ${selected.size} customer${selected.size>1?"s":""}`);
+    setBulkTag("");
+  };
+  const applyBulkDelete=()=>{
+    const n=selected.size;
+    customers.filter(c=>selected.has(c.id)).forEach(c=>onDelete(c.id));
+    toast("Customers deleted",`${n} record${n>1?"s":""} removed`,"error");
+    clearSel(); setBulkDel(false);
+  };
   useEffect(()=>{if(initCustId){const c=customers.find(x=>x.id===initCustId);if(c){sE(c);sF(true);}if(onCustReady)onCustReady();}},[initCustId]);
   // Last contact: most recent of stored lastContact or delivery workLog timestamp
   // Auto-derive CRM status from latest OPP for this customer
@@ -1799,7 +1856,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
   };
   const list=useMemo(()=>{
     const RANK_ORDER=["High","Medium","Low"];
-    const filtered=customers.filter(c=>{const q=search.toLowerCase();return(!search||c.companyEN.toLowerCase().includes(q)||c.id.includes(q)||(c.contacts||[]).some(ct=>(ct.name||"").toLowerCase().includes(q)))&&(fR.length===0||fR.includes(c.ranking))&&(fSt.length===0||fSt.includes(c.status))&&(fAg.length===0||fAg.includes(c.assignedTo));});
+    const filtered=customers.filter(c=>{const q=search.toLowerCase();return(!search||c.companyEN.toLowerCase().includes(q)||c.id.includes(q)||(c.contacts||[]).some(ct=>(ct.name||"").toLowerCase().includes(q)))&&(fR.length===0||fR.includes(c.ranking))&&(fSt.length===0||fSt.includes(c.status))&&(fAg.length===0||fAg.includes(c.assignedTo))&&(fTag.length===0||fTag.some(t=>safeArr(c.tags).includes(t)));});
     const getV=(c,col)=>{
       if(col==="id") return c.id||"";
       if(col==="companyEN") return (c.companyEN||"").toLowerCase();
@@ -1811,7 +1868,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
       return "";
     };
     return [...filtered].sort((a,b)=>multiCmp(a,b,sorts,getV));
-  },[customers,opps,deliveries,search,fR,fSt,fAg,sorts]);
+  },[customers,opps,deliveries,search,fR,fSt,fAg,fTag,sorts]);
   const activeContacts = c => (c.contacts||[]).filter(ct=>ct.active);
   return (
     <div>
@@ -1820,13 +1877,31 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Customers</Span>
           <CountPill n={list.length} label="customers"/>
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}><Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("customers.csv",CUST_HDR,list.map(c=>[c.id,c.companyEN,c.industry,c.province,(c.contacts||[]).map(ct=>ct.name).join("; "),USERS.find(u=>u.id===c.assignedTo)?.name||c.assignedTo,c.ranking,c.status,getLastContact(c.id),c.remark||""]))}>CSV</Btn><Btn icon={<PlusIcon/>} onClick={()=>{sE(null);sF(true);}}>Add Customer</Btn></div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}><Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("customers.csv",CUST_HDR,list.map(c=>[c.id,c.companyEN,c.industry,c.province,(c.contacts||[]).map(ct=>ct.name).join("; "),USERS.find(u=>u.id===c.assignedTo)?.name||c.assignedTo,c.ranking,c.status,getLastContact(c.id),c.remark||"",safeArr(c.tags).join("; ")]))}>CSV</Btn><Btn icon={<PlusIcon/>} onClick={()=>{sE(null);sF(true);}}>Add Customer</Btn></div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         <FilterIcon/>
         <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:220}}/>
+        <MultiSelect label="Tags" options={tagOptions.map(t=>({value:t,label:t}))} selected={fTag} onChange={setFTag} width={150}/>
         <div style={{marginLeft:"auto"}}><SortReset sorts={sorts} onReset={resetSort}/></div>
       </div>
+      {selected.size>0&&(
+        <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginBottom:12,padding:"10px 14px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:9}}>
+          <Span s={13} w={800} c="#1e40af">{selected.size} selected</Span>
+          <div style={{width:1,height:20,background:"#bfdbfe"}}/>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            <input list="cust-bulk-tags" value={bulkTag} onChange={e=>setBulkTag(e.target.value)}
+              onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();applyBulkTag();}}}
+              placeholder="Tag name… e.g. hotel"
+              style={{...SI,width:170,fontSize:13,padding:"6px 10px"}}/>
+            <datalist id="cust-bulk-tags">{tagOptions.map(t=><option key={t} value={t}/>)}</datalist>
+            <Btn size="sm" disabled={!bulkTag.trim()} onClick={applyBulkTag}>Assign tag</Btn>
+          </div>
+          <div style={{width:1,height:20,background:"#bfdbfe"}}/>
+          <Btn variant="danger" size="sm" icon={<TrashIcon s={13}/>} onClick={()=>setBulkDel(true)}>Delete {selected.size}</Btn>
+          <button onClick={clearSel} style={{marginLeft:"auto",border:"none",background:"none",color:"#64748b",fontSize:12,fontWeight:600,cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted",textUnderlineOffset:2}}>Clear</button>
+        </div>
+      )}
       <Card><div style={{overflowX:"auto"}}>
       {(()=>{
         const COLS = [
@@ -1878,9 +1953,16 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
           setColWidths(p=>{const n=[...p];n[i]=Math.min(Math.max(50,Math.ceil(maxW)),500);return n;});
         };
         return (
-        <table style={{borderCollapse:"collapse",tableLayout:"fixed",width:colWidths.reduce((s,w)=>s+w,0)}}>
-          <colgroup>{colWidths.map((w,i)=><col key={i} style={{width:w}}/>)}</colgroup>
+        <table style={{borderCollapse:"collapse",tableLayout:"fixed",width:40+colWidths.reduce((s,w)=>s+w,0)}}>
+          <colgroup><col style={{width:40}}/>{colWidths.map((w,i)=><col key={i} style={{width:w}}/>)}</colgroup>
           <thead><tr style={{background:"#f8fafc"}}>
+            <th style={{padding:"9px 0",textAlign:"center",borderBottom:"1px solid #e2e8f0",background:"#f8fafc"}}>
+              <input type="checkbox" title="Select all"
+                ref={el=>{if(el)el.indeterminate=selected.size>0&&!list.every(c=>selected.has(c.id));}}
+                checked={list.length>0&&list.every(c=>selected.has(c.id))}
+                onChange={e=>{if(e.target.checked)setSelected(new Set(list.map(c=>c.id)));else clearSel();}}
+                style={{width:15,height:15,cursor:"pointer",accentColor:"#1e40af"}}/>
+            </th>
             {COLS.map(({l,c},i)=>{const active=c&&sorts.some(s=>s.col===c);return(
               <th key={i} className={c?"wb-sort":undefined} tabIndex={c?0:undefined}
                 onClick={c?()=>toggleSort(c):undefined}
@@ -1892,9 +1974,15 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
             );})}
           </tr></thead>
           <tbody>{list.map(c=>(
-            <TR key={c.id} onClick={()=>{sE(c);sF(true);}}>
+            <TR key={c.id} onClick={()=>{sE(c);sF(true);}} hi={selected.has(c.id)}>
+              <td onClick={e=>e.stopPropagation()} style={{textAlign:"center",borderBottom:"1px solid #f1f5f9"}}>
+                <input type="checkbox" checked={selected.has(c.id)} onChange={()=>toggleRow(c.id)} style={{width:15,height:15,cursor:"pointer",accentColor:"#1e40af"}}/>
+              </td>
               <TD style={{fontFamily:"monospace",fontSize:11,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.id}</TD>
-              <TD style={{fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.companyEN}</TD>
+              <TD style={{fontWeight:600,overflow:"hidden"}}>
+                <div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.companyEN}</div>
+                {safeArr(c.tags).length>0&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:3}}>{safeArr(c.tags).map(t=><TagChip key={t} tag={t}/>)}</div>}
+              </TD>
               <TD style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.sector||c.industry||"—"}</TD>
               <TD style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.province}</TD>
               <TD style={{overflow:"hidden"}}>
@@ -1916,7 +2004,29 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
         );
       })()}
       {list.length===0&&<div style={{padding:40,textAlign:"center",color:"#94a3b8"}}>No records.</div>}</div></Card>
-      {form&&<CustForm initial={edit} user={user} onSave={c=>{if(edit&&edit.id&&edit.id!==c.id)onDelete(edit.id);onSave(c);sF(false);toast("Customer saved",c.companyEN);}} onClose={()=>sF(false)} onDelete={edit?c=>{sF(false);sDelConfirm(c);}:null}/>}
+      {form&&<CustForm initial={edit} user={user} tagSuggestions={tagOptions} onSave={c=>{if(edit&&edit.id&&edit.id!==c.id)onDelete(edit.id);onSave(c);sF(false);toast("Customer saved",c.companyEN);}} onClose={()=>sF(false)} onDelete={edit?c=>{sF(false);sDelConfirm(c);}:null}/>}
+      {bulkDel&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,.5)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:420,boxShadow:"0 32px 80px rgba(0,0,0,.2)",overflow:"hidden"}}>
+            <div style={{background:"#fef2f2",borderBottom:"1px solid #fecaca",padding:"24px 28px 20px",textAlign:"center"}}>
+              <div style={{width:48,height:48,background:"#fee2e2",border:"1.5px solid #fecaca",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}>
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M8 4h4M3 6h14M5 6l1 10a1 1 0 001 1h6a1 1 0 001-1l1-10" stroke="#dc2626" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </div>
+              <div style={{fontSize:16,fontWeight:800,color:"#0f172a",letterSpacing:"-0.01em"}}>Delete {selected.size} Customer{selected.size>1?"s":""}</div>
+              <div style={{fontSize:12,color:"#ef4444",marginTop:4}}>This action cannot be undone</div>
+            </div>
+            <div style={{padding:"20px 28px 24px"}}>
+              <div style={{fontSize:12,color:"#64748b",lineHeight:1.6,marginBottom:20}}>
+                {selected.size} customer record{selected.size>1?"s":""} will be permanently removed from Google Sheets. Linked opportunities and deliveries will not be deleted.
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <Btn variant="ghost" style={{flex:1,justifyContent:"center"}} onClick={()=>setBulkDel(false)}>Cancel</Btn>
+                <Btn variant="danger-solid" icon={<TrashIcon s={15}/>} style={{flex:1,justifyContent:"center"}} onClick={applyBulkDelete}>Delete {selected.size}</Btn>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {delConfirm&&(
         <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,.5)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
           <div style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:420,boxShadow:"0 32px 80px rgba(0,0,0,.2)",overflow:"hidden"}}>
@@ -2668,38 +2778,45 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
 
       {view==="edit"&&(
         <>
-          {/* ── 2-COLUMN BODY: edit fields (left) · commercial + links (right) ── */}
-          <div className="wb-oppedit-grid">
-            {/* LEFT — editable fields */}
+          {/* ── TOP: Note Log (left) · Sales Price (right) ── */}
+          <div className="wb-oppedit-grid" style={{marginBottom:18}}>
+            {/* LEFT — Note Log */}
             <div>
-              <G2>
-                <FRow label="Memo No." tip="Format: M + 2-digit year (BE) + 3-digit number, e.g. M69-001"><Inp value={f.memoNo||""} onChange={e=>set("memoNo",e.target.value)} placeholder="e.g. M69-001" style={{fontFamily:"monospace",fontWeight:600}}/></FRow>
-                <FRow label="Nickname / Catchword" tip="Short label shown on kanban card"><Inp value={f.nickname||""} onChange={e=>set("nickname",e.target.value)} placeholder="e.g. BKK Hotel, Phase 2…"/></FRow>
-              </G2>
-              <FRow label="Success %" tip="Leave blank to use auto-calculated score">
-                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                  <input type="text" inputMode="numeric" value={srLocal} placeholder="Auto"
-                    onChange={e=>setSrLocal(e.target.value.replace(/[^0-9.]/g,""))}
-                    onBlur={()=>{ const n=getSrValue(); setSrLocal(n===0?"":String(n)); set("successRate",n); }}
-                    style={{...SI,width:72,textAlign:"right"}}/>
-                  <span style={{fontSize:11,color:"#94a3b8"}}>%</span>
-                  {(!getSrValue())&&<span style={{fontSize:11,color:"#64748b",fontStyle:"italic"}}>Auto: {calcSuccessRate({...f,successRate:0})}%</span>}
-                  {getSrValue()>0&&<span style={{fontSize:11,fontWeight:700,color:successRateColor(getSrValue())}}>{getSrValue()}% (manual)</span>}
+              <FRow label="Note Log">
+                <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
+                  {f.remark&&(()=>{
+                    const lines=f.remark.split("\n").filter(Boolean);
+                    return [...lines].reverse().map((line,i)=>{
+                      const origIdx=lines.length-1-i;
+                      const m=line.match(/^\[([^\]]+)\]\s*(.*)/);
+                      const meta=m?m[1]:""; const body=m?m[2]:line;
+                      const datePart=meta.split("·")[0].trim(); const authorPart=meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
+                      return(
+                      <div key={origIdx} style={{padding:"5px 8px 5px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"flex-start",gap:6}}>
+                        <div style={{flex:1,lineHeight:1.5}}>
+                          <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
+                          {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
+                          <RenderMentionText text={body} users={userList}/>
+                        </div>
+                        <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
+                      </div>
+                    );});
+                  })()}
+                  <MentionTextarea
+                    value={noteInput} onChange={sNoteInput}
+                    onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&noteInput.trim()){
+                      set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);
+                      extractMentions(noteInput,userList).forEach(uid=>{if(uid!==user.id)onMentionNotify(uid,"OPP",f.oppCode,`${user.name} mentioned you in a note: ${noteInput.trim().slice(0,80)}`);});
+                      sNoteInput("");e.preventDefault();}}}
+                    placeholder="Add entry… (@mention, Enter to save)"
+                    style={{borderRadius:"0 0 5px 5px",background:"#fff",border:"none",borderTop:"1px solid #f1f5f9",fontSize:13}}
+                    users={userList} minHeight={36}
+                  />
                 </div>
               </FRow>
-              <FRow label="Ranking" tip="ระดับความสำคัญของ Opportunity นี้">
-                <div style={{display:"flex",gap:6}}>
-                  {["High","Medium","Low"].map(r=>{
-                    const active=(f.ranking||"Medium")===r;
-                    return <button key={r} onClick={()=>set("ranking",r)} style={{flex:1,padding:"6px 0",borderRadius:5,border:`1.5px solid ${active?RANK_CLR[r]?.c||"#64748b":"#e2e8f0"}`,background:active?(RANK_CLR[r]?.bg||"#f1f5f9"):"#fff",color:active?(RANK_CLR[r]?.c||"#64748b"):"#94a3b8",fontWeight:active?800:500,fontSize:12,cursor:"pointer"}}>{r}</button>;
-                  })}
-                </div>
-              </FRow>
-              {isLost&&<FRow label="Lost Reason"><Sel value={f.lostReason} onChange={e=>set("lostReason",e.target.value)}><option value="">— Select Reason —</option>{LOST_REASONS.map(r=><option key={r}>{r}</option>)}</Sel></FRow>}
             </div>
-
-            {/* RIGHT — read-only commercial summary + entry links */}
-            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            {/* RIGHT — Sales Price */}
+            <div>
               <div style={{padding:"14px 16px",borderRadius:8,background:+mg>=30?"#f0fdf4":"#fef2f2",border:`1px solid ${+mg>=30?"#86efac":"#fca5a5"}`}}>
                 <Span s={10} c="#64748b" style={{display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Sales Price</Span>
                 <div style={{fontWeight:900,fontSize:24,color:"#0f172a",letterSpacing:"-0.02em",lineHeight:1}}>฿{fmt(f.salesPrice)}</div>
@@ -2725,7 +2842,41 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                   </div>
                 );})()}
               </div>
+            </div>
+          </div>
 
+          {/* ── BOTTOM: fields (left) · links (right) ── */}
+          <div className="wb-oppedit-grid">
+            {/* LEFT — editable fields */}
+            <div>
+              <G2>
+                <FRow label="Memo No." tip="Format: M + 2-digit year (BE) + 3-digit number, e.g. M69-001"><Inp value={f.memoNo||""} onChange={e=>set("memoNo",e.target.value)} placeholder="e.g. M69-001" style={{fontFamily:"monospace",fontWeight:600}}/></FRow>
+                <FRow label="Nickname / Catchword" tip="Short label shown on kanban card"><Inp value={f.nickname||""} onChange={e=>set("nickname",e.target.value)} placeholder="e.g. BKK Hotel, Phase 2…"/></FRow>
+              </G2>
+              <FRow label="Success %" tip="Leave blank to use auto-calculated score">
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <input type="text" inputMode="numeric" value={srLocal} placeholder="Auto"
+                    onChange={e=>setSrLocal(e.target.value.replace(/[^0-9.]/g,""))}
+                    onBlur={()=>{ const n=getSrValue(); setSrLocal(n===0?"":String(n)); set("successRate",n); }}
+                    style={{...SI,width:72,textAlign:"right"}}/>
+                  <span style={{fontSize:11,color:"#94a3b8"}}>%</span>
+                  {(!getSrValue())&&<span style={{fontSize:11,color:"#64748b",fontStyle:"italic"}}>Auto: {calcSuccessRate({...f,successRate:0})}%</span>}
+                  {getSrValue()>0&&<span style={{fontSize:11,fontWeight:700,color:successRateColor(getSrValue())}}>{getSrValue()}% (manual)</span>}
+                </div>
+              </FRow>
+              <FRow label="Ranking" tip="ระดับความสำคัญของ Opportunity นี้">
+                <div style={{display:"flex",gap:6}}>
+                  {["Low","Medium","High"].map(r=>{
+                    const active=(f.ranking||"Medium")===r;
+                    return <button key={r} onClick={()=>set("ranking",r)} style={{flex:1,padding:"6px 0",borderRadius:5,border:`1.5px solid ${active?RANK_CLR[r]?.c||"#64748b":"#e2e8f0"}`,background:active?(RANK_CLR[r]?.bg||"#f1f5f9"):"#fff",color:active?(RANK_CLR[r]?.c||"#64748b"):"#94a3b8",fontWeight:active?800:500,fontSize:12,cursor:"pointer"}}>{r}</button>;
+                  })}
+                </div>
+              </FRow>
+              {isLost&&<FRow label="Lost Reason"><Sel value={f.lostReason} onChange={e=>set("lostReason",e.target.value)}><option value="">— Select Reason —</option>{LOST_REASONS.map(r=><option key={r}>{r}</option>)}</Sel></FRow>}
+            </div>
+
+            {/* RIGHT — entry links */}
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
               <button className="wb-oplink" onClick={()=>setView("activity")}>
                 <span style={{display:"inline-flex",alignItems:"center",gap:8}}><LogIcon s={14}/> Activity Log</span>
                 <span style={{display:"inline-flex",alignItems:"center",gap:7}}><CountPill n={(f.activityLog||[]).length}/><span style={{color:"#cbd5e1",fontSize:15}}>›</span></span>
@@ -2743,42 +2894,6 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                 </button>
               )}
             </div>
-          </div>
-
-          {/* NOTE LOG — full width below the columns */}
-          <div style={{marginTop:18}}>
-            <FRow label="Note Log">
-              <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-                {f.remark&&(()=>{
-                  const lines=f.remark.split("\n").filter(Boolean);
-                  return [...lines].reverse().map((line,i)=>{
-                    const origIdx=lines.length-1-i;
-                    const m=line.match(/^\[([^\]]+)\]\s*(.*)/);
-                    const meta=m?m[1]:""; const body=m?m[2]:line;
-                    const datePart=meta.split("·")[0].trim(); const authorPart=meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
-                    return(
-                    <div key={origIdx} style={{padding:"5px 8px 5px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"flex-start",gap:6}}>
-                      <div style={{flex:1,lineHeight:1.5}}>
-                        <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
-                        {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
-                        <RenderMentionText text={body} users={userList}/>
-                      </div>
-                      <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
-                    </div>
-                  );});
-                })()}
-                <MentionTextarea
-                  value={noteInput} onChange={sNoteInput}
-                  onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&noteInput.trim()){
-                    set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);
-                    extractMentions(noteInput,userList).forEach(uid=>{if(uid!==user.id)onMentionNotify(uid,"OPP",f.oppCode,`${user.name} mentioned you in a note: ${noteInput.trim().slice(0,80)}`);});
-                    sNoteInput("");e.preventDefault();}}}
-                  placeholder="Add entry… (@mention, Enter to save)"
-                  style={{borderRadius:"0 0 5px 5px",background:"#fff",border:"none",borderTop:"1px solid #f1f5f9",fontSize:13}}
-                  users={userList} minHeight={36}
-                />
-              </div>
-            </FRow>
           </div>
         </>
       )}
@@ -3008,10 +3123,10 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
                     {/* Footer: agent + activity log */}
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
                       <span style={{fontSize:11,color:"#64748b"}}>{USERS.find(u=>u.id===o.assignedTo)?.name.split(" ")[0]||"—"}</span>
-                      <button onClick={e=>{e.stopPropagation();sLog(o);}} title="Activity log"
+                      <button onClick={e=>{e.stopPropagation();sE(o);sF(true);}} title="Note log"
                         style={{display:"inline-flex",alignItems:"center",gap:4,border:"1px solid #e2e8f0",borderRadius:5,background:"#fff",cursor:"pointer",padding:"2px 7px",fontSize:10,fontWeight:600,color:"#64748b"}}>
                         <LogIcon s={11}/>
-                        {o.activityLog?.length||0}
+                        {o.remark?o.remark.split("\n").filter(Boolean).length:0}
                       </button>
                     </div>
                   </div>
@@ -3405,7 +3520,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
         {validErr&&<span style={{fontSize:12,color:"#dc2626",fontWeight:600,marginRight:4}}>{validErr}</span>}
-        <Btn onClick={()=>{
+        <Btn icon={<CheckIcon/>} onClick={()=>{
           if(!f.oppCode){setValidErr("OPP Code is required");return;}
           if(!(f.totalContractValue>0)){setValidErr("Contract Value must be > 0");return;}
           setValidErr("");
@@ -3652,7 +3767,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
         <div style={{padding:"10px 16px",borderTop:"1px solid #e2e8f0",background:dirty?"#fffbeb":"#f8fafc",display:"flex",justifyContent:"flex-end",gap:8,alignItems:"center"}}>
           {dirty&&<span style={{fontSize:11,color:"#d97706",marginRight:"auto",fontWeight:600}}> You have unsaved changes</span>}
           <Btn variant="ghost" onClick={handleDiscard}>Cancel</Btn>
-          <Btn onClick={handleSave}>Save</Btn>
+          <Btn icon={<CheckIcon/>} onClick={handleSave}>Save</Btn>
         </div>
       </div>
     </Card>
@@ -3954,11 +4069,6 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                 </div>
                 {/* ── Header: identity + parties (row 1) ── */}
                 <div style={{padding:"12px 16px 0",display:"flex",gap:"10px 14px",alignItems:"flex-end",flexWrap:"wrap"}}>
-                  <div style={{flexShrink:0}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>CS Code</Span>
-                    <div style={{fontFamily:"monospace",fontWeight:800,fontSize:14,color:"#1e40af",letterSpacing:"-0.01em",padding:"5px 0"}}>{q.csCode}</div>
-                  </div>
-                  <div style={{width:1,alignSelf:"stretch",background:"#e2e8f0",margin:"0 2px"}}/>
                   <div style={{flex:"0 0 116px"}}>
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>OPP Code</Span>
                     <div style={{fontFamily:"monospace",fontWeight:800,fontSize:14,color:"#1e40af",letterSpacing:"-0.01em",padding:"5px 0"}}>{q.oppCode||"—"}</div>
@@ -4004,9 +4114,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                     {/* Sales Price (gross) */}
                     <div style={{flex:"0 0 132px",display:"flex",flexDirection:"column"}}>
                       <div style={{height:16,marginBottom:4,textAlign:"right"}}><Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Sales Price (gross)</Span></div>
-                      <div style={{height:30,display:"flex",alignItems:"center"}}><NumInp value={q.salesPrice} onChange={v=>updQO(q.id,q=>({...q,salesPrice:v,lineItems:(q.lineItems||[]).map((li,i)=>i===0?{...li,unitPrice:v}:li)}))} style={{fontSize:14,fontWeight:700,padding:"5px 9px"}}/></div>
-                      <div style={{height:13,marginTop:2}}/>
-                    </div>
+                      <div style={{height:30,display:"flex",alignItems:"center"}}><NumInp value={q.salesPrice} onChange={v=>updQO(q.id,q=>({...q,salesPrice:v,lineItems:(q.lineItems||[]).map((li,i)=>i===0?{...li,unitPrice:v}:li)}))} style={{fontSize:14,fontWeight:700,padding:"5px 9px"}}/></div>                    </div>
                     {/* Discount % */}
                     <div style={{flex:"0 0 104px",display:"flex",flexDirection:"column"}}>
                       <div style={{height:16,marginBottom:4}}>
@@ -4015,21 +4123,15 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                           <Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Discount %</Span>
                         </label>
                       </div>
-                      <div style={{height:30,display:"flex",alignItems:"center"}}><NumInp value={q.discountPct||0} onChange={v=>setQF(q.id,"discountPct",Math.min(100,Math.max(0,v)))} showZero disabled={!q.discountEnabled} style={{fontSize:14,padding:"5px 9px",opacity:q.discountEnabled?1:0.45}}/></div>
-                      <div style={{height:13,marginTop:2}}/>
-                    </div>
+                      <div style={{height:30,display:"flex",alignItems:"center"}}><NumInp value={q.discountPct||0} onChange={v=>setQF(q.id,"discountPct",Math.min(100,Math.max(0,v)))} showZero disabled={!q.discountEnabled} style={{fontSize:14,padding:"5px 9px",opacity:q.discountEnabled?1:0.45}}/></div>                    </div>
                     {/* Price after Discount — the headline figure the client pays (ex-VAT) */}
                     <div style={{flex:"0 0 150px",display:"flex",flexDirection:"column"}}>
                       <div style={{height:16,marginBottom:4,textAlign:"right"}}><Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Price after Discount</Span></div>
-                      <div style={{height:30,display:"flex",alignItems:"center",justifyContent:"flex-end"}}><span style={{fontWeight:900,fontSize:20,color:"#0f172a",letterSpacing:"-0.015em"}}>฿{fmt(qNetPrice)}</span></div>
-                      <div style={{height:13,marginTop:2,lineHeight:"13px",textAlign:"right"}}>{qDiscPct>0&&<Span s={9} c="#dc2626" style={{fontWeight:700}}>was ฿{fmt(q.salesPrice||0)} · −{qDiscPct}%</Span>}</div>
-                    </div>
+                      <div style={{height:30,display:"flex",alignItems:"center",justifyContent:"flex-end"}}><span style={{fontWeight:900,fontSize:20,color:"#0f172a",letterSpacing:"-0.015em"}}>฿{fmt(qNetPrice)}</span></div>                    </div>
                     {/* Margin — the health metric */}
                     <div style={{flex:"0 0 96px",display:"flex",flexDirection:"column"}}>
                       <div style={{height:16,marginBottom:4,textAlign:"right"}}><Span s={9} c={+qMg>=30?"#15803d":"#dc2626"} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Margin</Span></div>
-                      <div style={{height:30,display:"flex",alignItems:"center",justifyContent:"flex-end"}}><span style={{fontWeight:900,fontSize:20,color:+qMg>=30?"#15803d":"#dc2626"}}>{qMg}%</span></div>
-                      <div style={{height:13,marginTop:2,lineHeight:"13px",textAlign:"right"}}><Span s={9} c={+qMg>=30?"#15803d":"#dc2626"} style={{fontWeight:700}}>฿{fmt(marginAmt(qNetPrice,qTC))}</Span></div>
-                    </div>
+                      <div style={{height:30,display:"flex",alignItems:"center",justifyContent:"flex-end"}}><span style={{fontWeight:900,fontSize:20,color:+qMg>=30?"#15803d":"#dc2626"}}>{qMg}%</span></div>                    </div>
                   </div>
                 </div>
 
@@ -4265,7 +4367,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                   </div>
                   <div style={{width:1,height:32,background:"#e2e8f0",flexShrink:0}}/>
                   <Btn variant="ghost" onClick={()=>delQO(q.id)}>Cancel</Btn>
-                  <Btn onClick={handleSave} style={{padding:"8px 24px"}}>Save</Btn>
+                  <Btn icon={<CheckIcon/>} onClick={handleSave} style={{padding:"8px 24px"}}>Save</Btn>
                 </div>
               </Card>
               </div>
@@ -4966,7 +5068,7 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
 
       {canEdit && tasks.length > 0 && (
         <div style={{padding:"10px 16px", borderTop:"1px solid #f1f5f9", display:"flex", justifyContent:"flex-end"}}>
-          <Btn onClick={handleSave} style={{fontSize:12, padding:"6px 16px"}}>Save Time Sheet</Btn>
+          <Btn icon={<CheckIcon s={13}/>} onClick={handleSave} style={{fontSize:12, padding:"6px 16px"}}>Save Time Sheet</Btn>
         </div>
       )}
 
