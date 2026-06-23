@@ -2005,6 +2005,271 @@ const WAVE_CO_TH = {
   signerTitle:"ประธานเจ้าหน้าที่บริหาร",
 };
 
+// Wave BCG quotation logo — fetched once from Drive, cached at module scope so every
+// caller (QuotationPreview + the Cost Sheet card export) gets it without re-fetching.
+let _waveLogoB64 = "";
+const useWaveLogo = () => {
+  const [logoB64, setLogoB64] = useState(_waveLogoB64);
+  useEffect(()=>{
+    if(_waveLogoB64){ setLogoB64(_waveLogoB64); return; }
+    const URLS=[
+      "https://lh3.googleusercontent.com/d/191l9t4ftBD6PV42Lo293UzYI9VWx8leX",
+      "https://drive.google.com/uc?export=view&id=191l9t4ftBD6PV42Lo293UzYI9VWx8leX",
+      "https://drive.google.com/thumbnail?id=191l9t4ftBD6PV42Lo293UzYI9VWx8leX&sz=w400",
+    ];
+    let alive=true;
+    const tryNext=async(idx)=>{
+      if(idx>=URLS.length||!alive) return;
+      try{
+        const r=await fetch(URLS[idx],{mode:"cors",cache:"no-store"});
+        if(r.ok){const blob=await r.blob();const fr=new FileReader();fr.onload=()=>{ _waveLogoB64=fr.result; if(alive) setLogoB64(fr.result); };fr.readAsDataURL(blob);return;}
+      }catch(e){}
+      tryNext(idx+1);
+    };
+    tryNext(0);
+    return ()=>{ alive=false; };
+  },[]);
+  return logoB64;
+};
+
+// Pure quotation-PDF generator — opens a print-ready A4 window. Shared by QuotationPreview
+// and the Cost Sheet quote card so the layout has a single source of truth. `f` is the
+// quotation data object; call synchronously from a click so window.open keeps its gesture.
+const exportQuotationPDF = (f, customer, logoB64="", lang="en") => {
+    const isTH = lang==="th";
+    const co   = isTH ? WAVE_CO_TH : WAVE_CO;
+    const df   = isTH ? fmtDateTH : fmtDate;   // date formatter
+    const cur  = isTH ? "฿" : "THB";          // currency label
+    const L = isTH ? {
+      title:"ใบเสนอราคา", coLegal:"บริษัท เวฟ บีซีจี จำกัด", taxId:"เลขทะเบียนนิติบุคคล:", tel:"เบอร์:",
+      quoteFor:"เสนอราคาแก่:", contact:"ผู้ติดต่อ",
+      mQuote:"ใบเสนอราคา #", mIssued:"วันที่ออก:", mValid:"วันครบกำหนด:", mSales:"พนักงานขาย", mMobile:"เบอร์โทร:", mDiscount:"ส่วนลด:",
+      sProject:"โครงการ", sScope:"ขอบเขตงาน", cDesc:"คำอธิบาย", cQty:"จำนวน", cUnit:"หน่วย", cUnitPrice:"ราคาต่อหน่วย", cSubtotal:"ยอดรวม",
+      sDeliv:"สิ่งที่นำส่ง", sPay:"การชำระเงิน", pNo:"ลำดับ", pDesc:"รายละเอียด", pPct:"%", pAmount:"จำนวนเงิน",
+      tSub:"ยอดรวม (ไม่รวมภาษี)", tDiscount:"ส่วนลด", tNet:"ยอดหลังหักส่วนลด", tVat:"ภาษี (7%)", tTotal:"ยอดรวมสุทธิ", sNotes:"หมายเหตุและเงื่อนไข",
+      onBehalf:"ในนามของ", name:"ชื่อ:", role:"ตำแหน่ง:", date:"วันที่:",
+    } : {
+      title:"QUOTATION", coLegal:"Company Limited", taxId:"Tax ID:", tel:"Tel:",
+      quoteFor:"Quote For", contact:"Contact Person",
+      mQuote:"QUOTE #", mIssued:"ISSUED", mValid:"VALID UNTIL", mSales:"SALES", mMobile:"MOBILE", mDiscount:"DISCOUNT",
+      sProject:"Project", sScope:"Scope", cDesc:"Description", cQty:"Qty", cUnit:"Unit", cUnitPrice:"Unit Price", cSubtotal:"Subtotal",
+      sDeliv:"Deliverables", sPay:"Payment Schedule", pNo:"#", pDesc:"Description", pPct:"%", pAmount:"Amount",
+      tSub:"Subtotal (excl. VAT)", tDiscount:"Discount", tNet:"Price after Discount", tVat:"VAT 7%", tTotal:"TOTAL", sNotes:"Notes &amp; Conditions",
+      onBehalf:"On behalf of", name:"Name:", role:"Title:", date:"Date:",
+    };
+    // Discount reduces the list price before VAT; installments are computed on the net.
+    const listT=f.salesPrice||0;
+    const discPctT=f.discountEnabled?(f.discountPct||0):0;
+    const discAmtT=Math.round(listT*discPctT/100);
+    const netT=listT-discAmtT;
+    const subT=netT, vatT=Math.round(netT*0.07), totT=netT+vatT;
+    const agentName=USERS.find(u=>u.id===f.salesAgentId)?.name||"—";
+    const agentMobP=SALES_MOBILE[f.salesAgentId]||"—";
+    const instRowsHtml=(f.installments||[]).map((ins,i)=>`
+      <tr>
+        <td class="idx">${i+1}</td>
+        <td>${ins.label||""}</td>
+        <td class="num">${ins.pct||0}%</td>
+        <td class="num amt">${cur} ${fmt(Math.round(subT*(ins.pct||0)/100))}</td>
+      </tr>`).join("");
+    const dlvHtml=(f.deliverables||[]).map((d,i)=>`<div class="row"><span class="n">${i+1}</span><span>${d.item||""}</span></div>`).join("");
+    const custName=customer?.companyEN||"—";
+    const custTax=customer?.id||"—";
+    const custAddr=[customer?.address,customer?.province].filter(Boolean).join(", ");
+    const custContacts=(customer?.contacts||[]).filter(c=>c.active).slice(0,2)
+      .map(ct=>`<div style="margin-bottom:3px"><strong style="color:#0c1a2e">${ct.name}</strong>${ct.title?` <span style="color:#9aa4b1">· ${ct.title}</span>`:""}<br/>${[ct.email,ct.phone].filter(Boolean).join("<br/>")}</div>`).join("");
+    const acceptLbl = isTH ? `${custName} — เพื่อยืนยันการตอบรับใบเสนอราคาฉบับนี้ กรุณาลงนาม:` : `Accepted by ${custName}`;
+    const notesHtml=toItemList(f.notes).map((n,i)=>`<div class="row"><span class="n">${i+1}</span><span>${n.item||""}</span></div>`).join("");
+    const scopeHtml=f.projectScope?`<div class="scope"><b>${L.sScope}</b>${f.projectScope}</div>`:"";
+    const lineItemsHtml=(f.lineItems||[]).map((li,i)=>{
+      const sub=(li.qty||0)*(li.unitPrice||0);
+      return `<tr>
+        <td>${li.description||""}</td>
+        <td class="num">${li.qty||0}</td>
+        <td>${li.unit||""}</td>
+        <td class="num">${fmt(li.unitPrice||0)}</td>
+        <td class="num amt">${cur} ${fmt(sub)}</td>
+      </tr>`;
+    }).join("");
+    // PDF logo: use cached base64 from state, or empty
+    const pdfLogoHtml = logoB64 ? `<img src="${logoB64}" style="height:46px;width:auto;object-fit:contain;flex-shrink:0" alt="Wave BCG"/>` : "";
+    // Thai needs a Thai-capable font + no uppercasing/letter-spacing (it mangles Thai glyph clusters)
+    const thStyle = isTH ? `
+#page{font-family:'Noto Sans Thai','Inter','Helvetica Neue',Arial,sans-serif}
+.co-name,.quo-title,.party .name,.tot-final .v{font-family:'Noto Sans Thai','Inter Tight','Inter',sans-serif!important}
+th,.sec-hdr,.meta-key,.lbl,.scope b,.tot-final .k{text-transform:none;letter-spacing:normal}
+` : "";
+
+    const w = window.open("","_blank");
+    if(!w) return;
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${L.title} ${f.quoteNo}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Inter+Tight:wght@700;800;900&family=Noto+Sans+Thai:wght@400;500;600;700;800;900&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+@page{size:A4 portrait;margin:0}
+html{width:794px;height:1123px;overflow:hidden;background:#fff}
+body{width:794px;height:1123px;overflow:hidden;background:#fff}
+#page{
+  width:794px;height:1123px;
+  padding:46px 52px 40px;
+  font-family:'Inter','Helvetica Neue',Arial,'Noto Sans Thai',sans-serif;
+  font-size:8.5px;color:#243042;line-height:1.4;
+  display:flex;flex-direction:column;overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+table{width:100%;border-collapse:collapse}
+th,td{padding:5px 8px;text-align:left;font-size:8.5px;vertical-align:top}
+th:first-child,td:first-child{padding-left:0}
+th:last-child,td:last-child{padding-right:0}
+th{font-weight:700;font-size:7.5px;text-transform:uppercase;letter-spacing:.05em;color:#7c8794;border-bottom:1px solid #c9d2dc;padding-bottom:5px}
+td{border-bottom:1px solid #eef1f5}
+.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.amt{font-weight:700;color:#0c1a2e}
+.idx{color:#9aa4b1;font-weight:700}
+/* Header */
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;padding-bottom:13px;border-bottom:2px solid #0c1a2e}
+.co-name{font-size:13px;font-weight:900;color:#0c1a2e;letter-spacing:-0.02em;line-height:1.1;font-family:'Inter Tight','Inter',sans-serif;margin-bottom:5px}
+.co-addr{color:#7c8794;font-size:7.5px;line-height:1.7}
+.quo-title{font-size:23px;font-weight:900;color:#0c1a2e;letter-spacing:-0.04em;line-height:1;margin-bottom:8px;font-family:'Inter Tight','Inter',sans-serif}
+.meta{margin-left:auto;width:auto}
+.meta td{padding:2px 0 2px 14px;font-size:8.5px;border:none}
+.meta-key{color:#9aa4b1;font-weight:600;text-transform:uppercase;letter-spacing:.05em;text-align:right}
+.meta-val{font-weight:700;color:#0c1a2e;text-align:right}
+/* Party band — flush to content column, no fill */
+.party{display:grid;grid-template-columns:1.15fr 1fr;gap:32px;padding:2px 0 14px;margin-bottom:6px;border-bottom:1px solid #e2e8f0}
+.lbl{font-size:7px;font-weight:700;color:#9aa4b1;text-transform:uppercase;letter-spacing:.08em;display:block;margin-bottom:4px}
+.party .name{font-weight:800;font-size:11.5px;color:#0c1a2e;margin-bottom:3px;letter-spacing:-0.01em}
+.party .detail{color:#5b6675;font-size:8px;line-height:1.65}
+/* Sections */
+.body{display:flex;flex-direction:column;gap:13px;padding-top:4px}
+.sec-hdr{display:flex;align-items:center;gap:7px;font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#0c1a2e;border-bottom:1.5px solid #0c1a2e;padding-bottom:5px;margin-bottom:7px}
+.badge{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;background:#0c1a2e;color:#fff;border-radius:50%;font-weight:800;font-size:8px;flex-shrink:0;font-family:'Inter',sans-serif}
+.scope{margin-top:7px;font-size:8px;color:#5b6675;line-height:1.6;white-space:pre-wrap}
+.scope b{color:#7c8794;font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:7px;display:block;margin-bottom:2px}
+/* Numbered list (deliverables / notes) */
+.list .row{display:flex;gap:8px;margin-bottom:4px;font-size:8.5px;color:#374151;line-height:1.55}
+.list .n{color:#9aa4b1;font-weight:700;flex-shrink:0;min-width:13px;font-variant-numeric:tabular-nums}
+/* Totals — flush right to content column, no box */
+.totals-wrap{display:flex;justify-content:flex-end;margin-top:10px}
+.totals{width:264px}
+.tot-row{display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;font-size:8.5px;border-bottom:1px solid #eef1f5}
+.tot-row .k{color:#5b6675}
+.tot-row .v{font-variant-numeric:tabular-nums;font-weight:600;color:#243042}
+.tot-final{border-bottom:none;border-top:1.5px solid #0c1a2e;margin-top:2px;padding-top:5px}
+.tot-final .k{font-weight:800;color:#0c1a2e;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em}
+.tot-final .v{font-weight:900;color:#0c1a2e;font-size:12px;font-family:'Inter Tight','Inter',sans-serif}
+/* Signature */
+.sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;border-top:1px solid #e2e8f0;padding-top:16px;margin-top:auto}
+.sig-lbl{font-size:8px;color:#5b6675;margin-bottom:26px;font-style:italic}
+.sig-line{border-bottom:1px solid #9aa4b1;height:0;margin-bottom:7px}
+.sig-detail{font-size:8px;color:#374151;line-height:1.95}
+.foot{margin-top:14px;text-align:right;font-size:6.5px;color:#9aa4b1;letter-spacing:.03em}
+@media print{
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  html,body{width:794px;height:1123px;overflow:hidden}
+  #page{page-break-after:avoid;page-break-inside:avoid}
+}
+${thStyle}
+</style></head><body>
+<div id="page">
+<!-- HEADER -->
+<div class="hdr">
+  <div style="display:flex;gap:13px;align-items:flex-start">
+    ${pdfLogoHtml}
+    <div>
+      <div class="co-name"><span style="color:#0c1a2e">WAVE BCG</span><span style="color:#0c1a2e"> ${L.coLegal}</span></div>
+      <div class="co-addr">${L.taxId} ${co.taxId}<br/>${co.address}<br/>${L.tel} ${co.tel} &nbsp;·&nbsp; ${co.email}</div>
+    </div>
+  </div>
+  <div style="text-align:right">
+    <div class="quo-title">${L.title}</div>
+    <table class="meta">
+      <tr><td class="meta-key">${L.mQuote}</td><td class="meta-val" style="letter-spacing:0.02em">${f.quoteNo}</td></tr>
+      <tr><td class="meta-key">${L.mIssued}</td><td class="meta-val">${df(f.issueDate)}</td></tr>
+      <tr><td class="meta-key">${L.mValid}</td><td class="meta-val">${df(f.dueDate)}</td></tr>
+      <tr><td class="meta-key">${L.mSales}</td><td class="meta-val">${agentName}</td></tr>
+      <tr><td class="meta-key">${L.mMobile}</td><td class="meta-val">${agentMobP}</td></tr>
+      ${discPctT>0?`<tr><td class="meta-key">${L.mDiscount}</td><td class="meta-val" style="color:#b91c1c">${discPctT}%</td></tr>`:""}
+    </table>
+  </div>
+</div>
+<!-- PARTY BAND -->
+<div class="party">
+  <div>
+    <span class="lbl">${L.quoteFor}</span>
+    <div class="name">${custName}</div>
+    <div class="detail">${L.taxId} ${custTax}<br/>${custAddr}</div>
+  </div>
+  <div>
+    <span class="lbl">${L.contact}</span>
+    <div class="detail">${custContacts||"—"}</div>
+  </div>
+</div>
+<!-- BODY SECTIONS -->
+<div class="body">
+  <!-- SEC 1: PROJECT -->
+  <div>
+    <div class="sec-hdr"><span class="badge">1</span>${L.sProject}</div>
+    <table>
+      <thead><tr>
+        <th>${L.cDesc}</th>
+        <th style="width:42px;text-align:right">${L.cQty}</th>
+        <th style="width:48px">${L.cUnit}</th>
+        <th style="width:96px;text-align:right">${L.cUnitPrice}</th>
+        <th style="width:108px;text-align:right">${L.cSubtotal}</th>
+      </tr></thead>
+      <tbody>${lineItemsHtml}</tbody>
+    </table>
+    ${scopeHtml}
+  </div>
+  <!-- SEC 2: DELIVERABLES -->
+  <div>
+    <div class="sec-hdr"><span class="badge">2</span>${L.sDeliv}</div>
+    <div class="list">${dlvHtml}</div>
+  </div>
+  <!-- SEC 3: PAYMENT SCHEDULE -->
+  <div>
+    <div class="sec-hdr"><span class="badge">3</span>${L.sPay}</div>
+    <table>
+      <thead><tr><th style="width:24px">${L.pNo}</th><th>${L.pDesc}</th><th style="width:48px;text-align:right">${L.pPct}</th><th style="width:108px;text-align:right">${L.pAmount}</th></tr></thead>
+      <tbody>${instRowsHtml}</tbody>
+    </table>
+    <div class="totals-wrap">
+      <div class="totals">
+        <div class="tot-row"><span class="k">${L.tSub}</span><span class="v">${cur} ${fmt(listT)}</span></div>
+        ${discPctT>0?`<div class="tot-row"><span class="k" style="color:#dc2626">${L.tDiscount} (${discPctT}%)</span><span class="v" style="color:#dc2626">− ${cur} ${fmt(discAmtT)}</span></div>
+        <div class="tot-row"><span class="k">${L.tNet}</span><span class="v">${cur} ${fmt(netT)}</span></div>`:""}
+        <div class="tot-row"><span class="k">${L.tVat}</span><span class="v">${cur} ${fmt(vatT)}</span></div>
+        <div class="tot-row tot-final"><span class="k">${L.tTotal}</span><span class="v">${cur} ${fmt(totT)}</span></div>
+      </div>
+    </div>
+  </div>
+  <!-- SEC 4: NOTES -->
+  <div>
+    <div class="sec-hdr"><span class="badge">4</span>${L.sNotes}</div>
+    <div class="list">${notesHtml}</div>
+  </div>
+</div>
+<!-- SIGNATURES -->
+<div class="sig-grid">
+  <div>
+    <div class="sig-lbl">${L.onBehalf} ${co.name}</div>
+    <div class="sig-line"></div>
+    <div class="sig-detail">${L.name} <strong>${co.signer}</strong><br/>${L.role} ${co.signerTitle}<br/>${L.date} ${df(f.issueDate)}</div>
+  </div>
+  <div>
+    <div class="sig-lbl">${acceptLbl}</div>
+    <div class="sig-line"></div>
+    <div class="sig-detail">${L.name}<br/>${L.role}<br/>${L.date}</div>
+  </div>
+</div>
+<div class="foot">FR-BD-01-02 Rev.00 · Issue date 01/04/2569</div>
+</div>
+</body></html>`);
+    w.document.close();
+    setTimeout(()=>w.print(),600);
+};
+
 const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation}) => {
   const cs = (costSheets||[]).find(c=>c.serviceCode===opp?.serviceCode);
   // Try live quoteOverride first, then quoteSnapshot from saveLog
@@ -2099,23 +2364,7 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
 
   // Logo: fetch from Google Drive as base64 on mount
   const LOGO_GDRIVE = "https://lh3.googleusercontent.com/d/191l9t4ftBD6PV42Lo293UzYI9VWx8leX";
-  const [logoB64, setLogoB64] = useState("");
-  useEffect(()=>{
-    const URLS=[
-      "https://lh3.googleusercontent.com/d/191l9t4ftBD6PV42Lo293UzYI9VWx8leX",
-      "https://drive.google.com/uc?export=view&id=191l9t4ftBD6PV42Lo293UzYI9VWx8leX",
-      "https://drive.google.com/thumbnail?id=191l9t4ftBD6PV42Lo293UzYI9VWx8leX&sz=w400",
-    ];
-    const tryNext=async(idx)=>{
-      if(idx>=URLS.length) return;
-      try{
-        const r=await fetch(URLS[idx],{mode:"cors",cache:"no-store"});
-        if(r.ok){const blob=await r.blob();const fr=new FileReader();fr.onload=()=>setLogoB64(fr.result);fr.readAsDataURL(blob);return;}
-      }catch(e){}
-      tryNext(idx+1);
-    };
-    tryNext(0);
-  },[]);
+  const logoB64 = useWaveLogo();
 
   const agent    = USERS.find(u=>u.id===f.salesAgentId);
   const agentMob = SALES_MOBILE[f.salesAgentId]||"";
@@ -2148,239 +2397,8 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
     </div>
   );
 
-  // lang: "en" (default) | "th" — same layout, label dictionary + Thai company block swapped
-  const exportPDF = (lang="en") => {
-    const isTH = lang==="th";
-    const co   = isTH ? WAVE_CO_TH : WAVE_CO;
-    const df   = isTH ? fmtDateTH : fmtDate;   // date formatter
-    const cur  = isTH ? "฿" : "THB";          // currency label
-    const L = isTH ? {
-      title:"ใบเสนอราคา", coLegal:"บริษัท เวฟ บีซีจี จำกัด", taxId:"เลขทะเบียนนิติบุคคล:", tel:"เบอร์:",
-      quoteFor:"เสนอราคาแก่:", contact:"ผู้ติดต่อ",
-      mQuote:"ใบเสนอราคา #", mIssued:"วันที่ออก:", mValid:"วันครบกำหนด:", mSales:"พนักงานขาย", mMobile:"เบอร์โทร:",
-      sProject:"โครงการ", sScope:"ขอบเขตงาน", cDesc:"คำอธิบาย", cQty:"จำนวน", cUnit:"หน่วย", cUnitPrice:"ราคาต่อหน่วย", cSubtotal:"ยอดรวม",
-      sDeliv:"สิ่งที่นำส่ง", sPay:"การชำระเงิน", pNo:"ลำดับ", pDesc:"รายละเอียด", pPct:"%", pAmount:"จำนวนเงิน",
-      tSub:"ยอดรวม (ไม่รวมภาษี)", tDiscount:"ส่วนลด", tNet:"ยอดหลังหักส่วนลด", tVat:"ภาษี (7%)", tTotal:"ยอดรวมสุทธิ", sNotes:"หมายเหตุและเงื่อนไข",
-      onBehalf:"ในนามของ", name:"ชื่อ:", role:"ตำแหน่ง:", date:"วันที่:",
-    } : {
-      title:"QUOTATION", coLegal:"Company Limited", taxId:"Tax ID:", tel:"Tel:",
-      quoteFor:"Quote For", contact:"Contact Person",
-      mQuote:"QUOTE #", mIssued:"ISSUED", mValid:"VALID UNTIL", mSales:"SALES", mMobile:"MOBILE",
-      sProject:"Project", sScope:"Scope", cDesc:"Description", cQty:"Qty", cUnit:"Unit", cUnitPrice:"Unit Price", cSubtotal:"Subtotal",
-      sDeliv:"Deliverables", sPay:"Payment Schedule", pNo:"#", pDesc:"Description", pPct:"%", pAmount:"Amount",
-      tSub:"Subtotal (excl. VAT)", tDiscount:"Discount", tNet:"Net (excl. VAT)", tVat:"VAT 7%", tTotal:"TOTAL", sNotes:"Notes &amp; Conditions",
-      onBehalf:"On behalf of", name:"Name:", role:"Title:", date:"Date:",
-    };
-    // Discount reduces the list price before VAT; installments are computed on the net.
-    const listT=f.salesPrice||0;
-    const discPctT=f.discountEnabled?(f.discountPct||0):0;
-    const discAmtT=Math.round(listT*discPctT/100);
-    const netT=listT-discAmtT;
-    const subT=netT, vatT=Math.round(netT*0.07), totT=netT+vatT;
-    const agentName=USERS.find(u=>u.id===f.salesAgentId)?.name||"—";
-    const agentMobP=SALES_MOBILE[f.salesAgentId]||"—";
-    const instRowsHtml=(f.installments||[]).map((ins,i)=>`
-      <tr>
-        <td class="idx">${i+1}</td>
-        <td>${ins.label||""}</td>
-        <td class="num">${ins.pct||0}%</td>
-        <td class="num amt">${cur} ${fmt(Math.round(subT*(ins.pct||0)/100))}</td>
-      </tr>`).join("");
-    const dlvHtml=(f.deliverables||[]).map((d,i)=>`<div class="row"><span class="n">${i+1}</span><span>${d.item||""}</span></div>`).join("");
-    const custName=customer?.companyEN||"—";
-    const custTax=customer?.id||"—";
-    const custAddr=[customer?.address,customer?.province].filter(Boolean).join(", ");
-    const custContacts=(customer?.contacts||[]).filter(c=>c.active).slice(0,2)
-      .map(ct=>`<div style="margin-bottom:3px"><strong style="color:#0c1a2e">${ct.name}</strong>${ct.title?` <span style="color:#9aa4b1">· ${ct.title}</span>`:""}<br/>${[ct.email,ct.phone].filter(Boolean).join("<br/>")}</div>`).join("");
-    const acceptLbl = isTH ? `${custName} — เพื่อยืนยันการตอบรับใบเสนอราคาฉบับนี้ กรุณาลงนาม:` : `Accepted by ${custName}`;
-    const notesHtml=toItemList(f.notes).map((n,i)=>`<div class="row"><span class="n">${i+1}</span><span>${n.item||""}</span></div>`).join("");
-    const scopeHtml=f.projectScope?`<div class="scope"><b>${L.sScope}</b>${f.projectScope}</div>`:"";
-    const lineItemsHtml=(f.lineItems||[]).map((li,i)=>{
-      const sub=(li.qty||0)*(li.unitPrice||0);
-      return `<tr>
-        <td>${li.description||""}</td>
-        <td class="num">${li.qty||0}</td>
-        <td>${li.unit||""}</td>
-        <td class="num">${fmt(li.unitPrice||0)}</td>
-        <td class="num amt">${cur} ${fmt(sub)}</td>
-      </tr>`;
-    }).join("");
-    // PDF logo: use cached base64 from state, or empty
-    const pdfLogoHtml = logoB64 ? `<img src="${logoB64}" style="height:46px;width:auto;object-fit:contain;flex-shrink:0" alt="Wave BCG"/>` : "";
-    // Thai needs a Thai-capable font + no uppercasing/letter-spacing (it mangles Thai glyph clusters)
-    const thStyle = isTH ? `
-#page{font-family:'Noto Sans Thai','Inter','Helvetica Neue',Arial,sans-serif}
-.co-name,.quo-title,.party .name,.tot-final .v{font-family:'Noto Sans Thai','Inter Tight','Inter',sans-serif!important}
-th,.sec-hdr,.meta-key,.lbl,.scope b,.tot-final .k{text-transform:none;letter-spacing:normal}
-` : "";
-
-    const w = window.open("","_blank");
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${L.title} ${f.quoteNo}</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Inter+Tight:wght@700;800;900&family=Noto+Sans+Thai:wght@400;500;600;700;800;900&display=swap');
-*{box-sizing:border-box;margin:0;padding:0}
-@page{size:A4 portrait;margin:0}
-html{width:794px;height:1123px;overflow:hidden;background:#fff}
-body{width:794px;height:1123px;overflow:hidden;background:#fff}
-#page{
-  width:794px;height:1123px;
-  padding:46px 52px 40px;
-  font-family:'Inter','Helvetica Neue',Arial,'Noto Sans Thai',sans-serif;
-  font-size:8.5px;color:#243042;line-height:1.4;
-  display:flex;flex-direction:column;overflow:hidden;
-  -webkit-font-smoothing:antialiased;
-}
-table{width:100%;border-collapse:collapse}
-th,td{padding:5px 8px;text-align:left;font-size:8.5px;vertical-align:top}
-th:first-child,td:first-child{padding-left:0}
-th:last-child,td:last-child{padding-right:0}
-th{font-weight:700;font-size:7.5px;text-transform:uppercase;letter-spacing:.05em;color:#7c8794;border-bottom:1px solid #c9d2dc;padding-bottom:5px}
-td{border-bottom:1px solid #eef1f5}
-.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
-.amt{font-weight:700;color:#0c1a2e}
-.idx{color:#9aa4b1;font-weight:700}
-/* Header */
-.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;padding-bottom:13px;border-bottom:2px solid #0c1a2e}
-.co-name{font-size:13px;font-weight:900;color:#0c1a2e;letter-spacing:-0.02em;line-height:1.1;font-family:'Inter Tight','Inter',sans-serif;margin-bottom:5px}
-.co-addr{color:#7c8794;font-size:7.5px;line-height:1.7}
-.quo-title{font-size:23px;font-weight:900;color:#0c1a2e;letter-spacing:-0.04em;line-height:1;margin-bottom:8px;font-family:'Inter Tight','Inter',sans-serif}
-.meta{margin-left:auto;width:auto}
-.meta td{padding:2px 0 2px 14px;font-size:8.5px;border:none}
-.meta-key{color:#9aa4b1;font-weight:600;text-transform:uppercase;letter-spacing:.05em;text-align:right}
-.meta-val{font-weight:700;color:#0c1a2e;text-align:right}
-/* Party band — flush to content column, no fill */
-.party{display:grid;grid-template-columns:1.15fr 1fr;gap:32px;padding:2px 0 14px;margin-bottom:6px;border-bottom:1px solid #e2e8f0}
-.lbl{font-size:7px;font-weight:700;color:#9aa4b1;text-transform:uppercase;letter-spacing:.08em;display:block;margin-bottom:4px}
-.party .name{font-weight:800;font-size:11.5px;color:#0c1a2e;margin-bottom:3px;letter-spacing:-0.01em}
-.party .detail{color:#5b6675;font-size:8px;line-height:1.65}
-/* Sections */
-.body{display:flex;flex-direction:column;gap:13px;padding-top:4px}
-.sec-hdr{display:flex;align-items:center;gap:7px;font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#0c1a2e;border-bottom:1.5px solid #0c1a2e;padding-bottom:5px;margin-bottom:7px}
-.badge{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;background:#0c1a2e;color:#fff;border-radius:50%;font-weight:800;font-size:8px;flex-shrink:0;font-family:'Inter',sans-serif}
-.scope{margin-top:7px;font-size:8px;color:#5b6675;line-height:1.6;white-space:pre-wrap}
-.scope b{color:#7c8794;font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:7px;display:block;margin-bottom:2px}
-/* Numbered list (deliverables / notes) */
-.list .row{display:flex;gap:8px;margin-bottom:4px;font-size:8.5px;color:#374151;line-height:1.55}
-.list .n{color:#9aa4b1;font-weight:700;flex-shrink:0;min-width:13px;font-variant-numeric:tabular-nums}
-/* Totals — flush right to content column, no box */
-.totals-wrap{display:flex;justify-content:flex-end;margin-top:10px}
-.totals{width:264px}
-.tot-row{display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;font-size:8.5px;border-bottom:1px solid #eef1f5}
-.tot-row .k{color:#5b6675}
-.tot-row .v{font-variant-numeric:tabular-nums;font-weight:600;color:#243042}
-.tot-final{border-bottom:none;border-top:1.5px solid #0c1a2e;margin-top:2px;padding-top:5px}
-.tot-final .k{font-weight:800;color:#0c1a2e;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em}
-.tot-final .v{font-weight:900;color:#0c1a2e;font-size:12px;font-family:'Inter Tight','Inter',sans-serif}
-/* Signature */
-.sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;border-top:1px solid #e2e8f0;padding-top:16px;margin-top:auto}
-.sig-lbl{font-size:8px;color:#5b6675;margin-bottom:26px;font-style:italic}
-.sig-line{border-bottom:1px solid #9aa4b1;height:0;margin-bottom:7px}
-.sig-detail{font-size:8px;color:#374151;line-height:1.95}
-.foot{margin-top:14px;text-align:right;font-size:6.5px;color:#9aa4b1;letter-spacing:.03em}
-@media print{
-  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-  html,body{width:794px;height:1123px;overflow:hidden}
-  #page{page-break-after:avoid;page-break-inside:avoid}
-}
-${thStyle}
-</style></head><body>
-<div id="page">
-<!-- HEADER -->
-<div class="hdr">
-  <div style="display:flex;gap:13px;align-items:flex-start">
-    ${pdfLogoHtml}
-    <div>
-      <div class="co-name"><span style="color:#0c1a2e">WAVE BCG</span><span style="color:#0c1a2e"> ${L.coLegal}</span></div>
-      <div class="co-addr">${L.taxId} ${co.taxId}<br/>${co.address}<br/>${L.tel} ${co.tel} &nbsp;·&nbsp; ${co.email}</div>
-    </div>
-  </div>
-  <div style="text-align:right">
-    <div class="quo-title">${L.title}</div>
-    <table class="meta">
-      <tr><td class="meta-key">${L.mQuote}</td><td class="meta-val" style="letter-spacing:0.02em">${f.quoteNo}</td></tr>
-      <tr><td class="meta-key">${L.mIssued}</td><td class="meta-val">${df(f.issueDate)}</td></tr>
-      <tr><td class="meta-key">${L.mValid}</td><td class="meta-val">${df(f.dueDate)}</td></tr>
-      <tr><td class="meta-key">${L.mSales}</td><td class="meta-val">${agentName}</td></tr>
-      <tr><td class="meta-key">${L.mMobile}</td><td class="meta-val">${agentMobP}</td></tr>
-    </table>
-  </div>
-</div>
-<!-- PARTY BAND -->
-<div class="party">
-  <div>
-    <span class="lbl">${L.quoteFor}</span>
-    <div class="name">${custName}</div>
-    <div class="detail">${L.taxId} ${custTax}<br/>${custAddr}</div>
-  </div>
-  <div>
-    <span class="lbl">${L.contact}</span>
-    <div class="detail">${custContacts||"—"}</div>
-  </div>
-</div>
-<!-- BODY SECTIONS -->
-<div class="body">
-  <!-- SEC 1: PROJECT -->
-  <div>
-    <div class="sec-hdr"><span class="badge">1</span>${L.sProject}</div>
-    <table>
-      <thead><tr>
-        <th>${L.cDesc}</th>
-        <th style="width:42px;text-align:right">${L.cQty}</th>
-        <th style="width:48px">${L.cUnit}</th>
-        <th style="width:96px;text-align:right">${L.cUnitPrice}</th>
-        <th style="width:108px;text-align:right">${L.cSubtotal}</th>
-      </tr></thead>
-      <tbody>${lineItemsHtml}</tbody>
-    </table>
-    ${scopeHtml}
-  </div>
-  <!-- SEC 2: DELIVERABLES -->
-  <div>
-    <div class="sec-hdr"><span class="badge">2</span>${L.sDeliv}</div>
-    <div class="list">${dlvHtml}</div>
-  </div>
-  <!-- SEC 3: PAYMENT SCHEDULE -->
-  <div>
-    <div class="sec-hdr"><span class="badge">3</span>${L.sPay}</div>
-    <table>
-      <thead><tr><th style="width:24px">${L.pNo}</th><th>${L.pDesc}</th><th style="width:48px;text-align:right">${L.pPct}</th><th style="width:108px;text-align:right">${L.pAmount}</th></tr></thead>
-      <tbody>${instRowsHtml}</tbody>
-    </table>
-    <div class="totals-wrap">
-      <div class="totals">
-        <div class="tot-row"><span class="k">${L.tSub}</span><span class="v">${cur} ${fmt(listT)}</span></div>
-        ${discPctT>0?`<div class="tot-row"><span class="k" style="color:#dc2626">${L.tDiscount} (${discPctT}%)</span><span class="v" style="color:#dc2626">− ${cur} ${fmt(discAmtT)}</span></div>
-        <div class="tot-row"><span class="k">${L.tNet}</span><span class="v">${cur} ${fmt(netT)}</span></div>`:""}
-        <div class="tot-row"><span class="k">${L.tVat}</span><span class="v">${cur} ${fmt(vatT)}</span></div>
-        <div class="tot-row tot-final"><span class="k">${L.tTotal}</span><span class="v">${cur} ${fmt(totT)}</span></div>
-      </div>
-    </div>
-  </div>
-  <!-- SEC 4: NOTES -->
-  <div>
-    <div class="sec-hdr"><span class="badge">4</span>${L.sNotes}</div>
-    <div class="list">${notesHtml}</div>
-  </div>
-</div>
-<!-- SIGNATURES -->
-<div class="sig-grid">
-  <div>
-    <div class="sig-lbl">${L.onBehalf} ${co.name}</div>
-    <div class="sig-line"></div>
-    <div class="sig-detail">${L.name} <strong>${co.signer}</strong><br/>${L.role} ${co.signerTitle}<br/>${L.date} ${df(f.issueDate)}</div>
-  </div>
-  <div>
-    <div class="sig-lbl">${acceptLbl}</div>
-    <div class="sig-line"></div>
-    <div class="sig-detail">${L.name}<br/>${L.role}<br/>${L.date}</div>
-  </div>
-</div>
-<div class="foot">FR-BD-01-02 Rev.00 · Issue date 01/04/2569</div>
-</div>
-</body></html>`);
-    w.document.close();
-    setTimeout(()=>w.print(),600);
-  };
+  // EN/TH quotation PDF — delegates to the shared module-level generator (single source of truth).
+  const exportPDF = (lang="en") => exportQuotationPDF(f, customer, logoB64, lang);
 
   return (
     <Modal title={`Quotation — ${f.quoteNo||"Draft"}`} width={1020} onClose={onClose}>
@@ -3874,89 +3892,118 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
   const qMg=margin(qNetPrice,qTC);
   const months=q.projectMonths||editCS.projectMonths||3;
   const instSum=(q.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
+  const [page,setPage]=useState("costs");      // "costs" (COGS/OPEX/Installments/Cashflow) | "content" (Service/Deliverables/Notes)
+  const logoB64=useWaveLogo();
+  const cust=customers.find(c=>c.id===q.custId);
+  // Direct quotation-PDF export from the card — builds the quote data from the live edits
+  // and calls the shared generator synchronously so window.open keeps its click gesture.
+  const doExportPDF=(lang)=>{
+    if(!q.custId) return;
+    const data={
+      quoteNo: q.quoteNo,
+      issueDate: today(),
+      dueDate: addDays(today(),30),
+      salesAgentId: q.salesAgent,
+      projectScope: q.projectScope||"",
+      salesPrice: q.salesPrice||0,
+      discountEnabled: q.discountEnabled||false,
+      discountPct: q.discountPct||0,
+      lineItems: (q.lineItems&&q.lineItems.length)
+        ? q.lineItems.map(li=>({...li, description: li.description||q.projectTitle||editCS.serviceType, unitPrice: q.salesPrice||0}))
+        : [{id:uid(), description:q.projectTitle||editCS.serviceType, qty:1, unit:"Job", unitPrice:q.salesPrice||0}],
+      installments: q.installments||[],
+      deliverables: q.deliverables||[],
+      notes: toItemList(q.notes),
+    };
+    exportQuotationPDF(data, cust, logoB64, lang);
+  };
 
   return (
               <div ref={cardRef} style={{marginBottom:14}}>
               <Card style={{position:"relative",transition:"box-shadow .3s",boxShadow:highlight?"0 0 0 2.5px #3b82f6, 0 4px 24px rgba(59,130,246,.18)":"none"}}>
-                {/* Header row — single line, no wrap */}
-                <div style={{padding:"10px 16px",background:+qMg>=30?"#f0fdf4":"#fffbeb",borderBottom:"1px solid #e2e8f0",display:"flex",gap:8,alignItems:"center",flexWrap:"nowrap",overflow:"hidden"}}>
-                  {/* CS Code */}
+                {/* ── Header: identity + parties (row 1) ── */}
+                <div style={{padding:"12px 16px 0",display:"flex",gap:"10px 14px",alignItems:"flex-end",flexWrap:"wrap"}}>
                   <div style={{flexShrink:0}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>CS Code</Span>
-                    <div style={{fontFamily:"monospace",fontWeight:900,fontSize:12,color:"#1e40af",padding:"3px 0"}}>{q.csCode}</div>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>CS Code</Span>
+                    <div style={{fontFamily:"monospace",fontWeight:900,fontSize:15,color:"#1e40af",letterSpacing:"-0.01em"}}>{q.csCode}</div>
                   </div>
-                  <div style={{width:1,background:"#e2e8f0",alignSelf:"stretch",marginX:4,flexShrink:0}}/>
-                  {/* OPP Code */}
-                  <div style={{flex:"0 0 120px"}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>OPP Code</Span>
-                    <Inp value={q.oppCode||""} onChange={e=>setQF(q.id,"oppCode",e.target.value)} style={{fontSize:11,fontFamily:"monospace",fontWeight:700,padding:"3px 6px",color:"#1e40af"}}/>
+                  <div style={{width:1,alignSelf:"stretch",background:"#e2e8f0",margin:"0 2px"}}/>
+                  <div style={{flex:"0 0 116px"}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>OPP Code</Span>
+                    <Inp value={q.oppCode||""} onChange={e=>setQF(q.id,"oppCode",e.target.value)} style={{fontSize:11,fontFamily:"monospace",fontWeight:700,padding:"4px 7px",color:"#1e40af"}}/>
                   </div>
-                  {/* Quote No. */}
-                  <div style={{flex:"0 0 110px"}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Quote No.</Span>
-                    <Inp value={q.quoteNo||""} onChange={e=>setQF(q.id,"quoteNo",e.target.value)} style={{fontSize:11,fontFamily:"monospace",padding:"3px 6px"}}/>
+                  <div style={{flex:"0 0 108px"}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>Quote No.</Span>
+                    <Inp value={q.quoteNo||""} onChange={e=>setQF(q.id,"quoteNo",e.target.value)} style={{fontSize:11,fontFamily:"monospace",padding:"4px 7px"}}/>
                   </div>
-                  {/* Memo No. */}
                   <div style={{flex:"0 0 100px"}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Memo No.</Span>
-                    <Inp value={q.memoNo||""} onChange={e=>setQF(q.id,"memoNo",e.target.value)} placeholder="e.g. M69-001" style={{fontSize:11,fontFamily:"monospace",padding:"3px 6px"}}/>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>Memo No.</Span>
+                    <Inp value={q.memoNo||""} onChange={e=>setQF(q.id,"memoNo",e.target.value)} placeholder="M69-001" style={{fontSize:11,fontFamily:"monospace",padding:"4px 7px"}}/>
                   </div>
-                  {/* Customer */}
-                  <div style={{flex:"1 1 160px",minWidth:0}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Customer <span style={{color:"#dc2626",fontWeight:800}}>*</span></Span>
-                    <Sel value={q.custId||""} onChange={e=>setQF(q.id,"custId",e.target.value)} style={{fontSize:11,padding:"3px 6px",width:"100%"}}>
+                  <div style={{flex:"1 1 180px",minWidth:0}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>Customer <span style={{color:"#dc2626",fontWeight:800}}>*</span></Span>
+                    <Sel value={q.custId||""} onChange={e=>setQF(q.id,"custId",e.target.value)} style={{fontSize:11,padding:"4px 7px",width:"100%"}}>
                       <option value="">— Select —</option>{[...customers].sort((a,b)=>(a.companyEN||"").localeCompare(b.companyEN||"")).map(c=><option key={c.id} value={c.id}>{c.companyEN}</option>)}
                     </Sel>
                   </div>
-                  {/* Sales Agent */}
                   <div style={{flex:"0 0 140px"}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Agent</Span>
-                    <Sel value={q.salesAgent||""} onChange={e=>setQF(q.id,"salesAgent",e.target.value)} style={{fontSize:11,padding:"3px 6px"}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>Agent</Span>
+                    <Sel value={q.salesAgent||""} onChange={e=>setQF(q.id,"salesAgent",e.target.value)} style={{fontSize:11,padding:"4px 7px",width:"100%"}}>
                       <option value="">— Select —</option>{SALES_USERS.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
                     </Sel>
                   </div>
-                  {/* Contact Person */}
                   <div style={{flex:"0 0 150px"}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Contact</Span>
-                    <Sel value={q.contactPersonId||""} onChange={e=>setQF(q.id,"contactPersonId",e.target.value)} style={{fontSize:11,padding:"3px 6px"}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>Contact</Span>
+                    <Sel value={q.contactPersonId||""} onChange={e=>setQF(q.id,"contactPersonId",e.target.value)} style={{fontSize:11,padding:"4px 7px",width:"100%"}}>
                       <option value="">— Select —</option>
                       {(customers.find(c=>c.id===q.custId)?.contacts||[]).filter(ct=>ct.active).map(ct=><option key={ct.id} value={ct.id}>{ct.name}</option>)}
                     </Sel>
                   </div>
-                  {/* Sales Price */}
-                  <div style={{flex:"0 0 90px"}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Price</Span>
-                    <NumInp value={q.salesPrice} onChange={v=>updQO(q.id,q=>({...q,salesPrice:v,lineItems:(q.lineItems||[]).map((li,i)=>i===0?{...li,unitPrice:v}:li)}))} style={{fontSize:12,fontWeight:700,padding:"3px 6px"}}/>
-                  </div>
-                  {/* Discount */}
-                  <div style={{flex:"0 0 92px"}}>
-                    <label style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",marginBottom:2,userSelect:"none"}}>
-                      <input type="checkbox" checked={!!q.discountEnabled}
-                        onChange={e=>setQF(q.id,"discountEnabled",e.target.checked)}
-                        style={{width:12,height:12,cursor:"pointer",accentColor:"#0f172a",flexShrink:0}}/>
-                      <Span s={9} c="#94a3b8" style={{textTransform:"uppercase"}}>Disc %</Span>
-                    </label>
-                    <NumInp value={q.discountPct||0}
-                      onChange={v=>setQF(q.id,"discountPct",Math.min(100,Math.max(0,v)))}
-                      showZero disabled={!q.discountEnabled}
-                      style={{fontSize:12,padding:"3px 6px",opacity:q.discountEnabled?1:0.45}}/>
-                    {q.discountEnabled && (q.salesPrice||0)-qNetPrice>0 &&
-                      <Span s={9} c="#dc2626" style={{display:"block",marginTop:2,fontWeight:700}}>−฿{fmt((q.salesPrice||0)-qNetPrice)}</Span>}
-                  </div>
-                  {/* Months */}
-                  <div style={{flex:"0 0 52px"}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",display:"block",marginBottom:2}}>Mo.</Span>
-                    <NumInp value={months} onChange={v=>setQF(q.id,"projectMonths",Math.max(1,Math.round(v)))} style={{fontSize:11,padding:"3px 5px"}}/>
-                  </div>
-                  {/* Margin badge */}
-                  <div style={{flex:"0 0 72px",padding:"5px 8px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center",flexShrink:0}}>
-                    <div style={{fontWeight:900,fontSize:15,color:+qMg>=30?"#16a34a":"#dc2626",lineHeight:1.2}}>{qMg}%</div>
-                    <div style={{fontWeight:700,fontSize:13,color:+qMg>=30?"#16a34a":"#dc2626"}}>฿{fmt(marginAmt(qNetPrice,qTC))}</div>
-                  </div>
-                  {/* Close button */}
-
                 </div>
 
+                {/* ── Pricing strip (row 2): price · discount · price-after-discount · margin · PDF ── */}
+                <div style={{margin:"12px 16px 0",padding:"10px 14px",borderRadius:9,background:+qMg>=30?"#f0fdf4":"#fffbeb",border:`1px solid ${+qMg>=30?"#bbf7d0":"#fde68a"}`,display:"flex",gap:16,alignItems:"flex-end",flexWrap:"wrap"}}>
+                  <div style={{flex:"0 0 120px"}}>
+                    <Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:3}}>Sales Price (gross)</Span>
+                    <NumInp value={q.salesPrice} onChange={v=>updQO(q.id,q=>({...q,salesPrice:v,lineItems:(q.lineItems||[]).map((li,i)=>i===0?{...li,unitPrice:v}:li)}))} style={{fontSize:13,fontWeight:700,padding:"5px 8px"}}/>
+                  </div>
+                  <div style={{flex:"0 0 100px"}}>
+                    <label style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer",marginBottom:3,userSelect:"none"}}>
+                      <input type="checkbox" checked={!!q.discountEnabled} onChange={e=>setQF(q.id,"discountEnabled",e.target.checked)} style={{width:13,height:13,cursor:"pointer",accentColor:"#0f172a",flexShrink:0}}/>
+                      <Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Discount %</Span>
+                    </label>
+                    <NumInp value={q.discountPct||0} onChange={v=>setQF(q.id,"discountPct",Math.min(100,Math.max(0,v)))} showZero disabled={!q.discountEnabled} style={{fontSize:13,padding:"5px 8px",opacity:q.discountEnabled?1:0.45}}/>
+                  </div>
+                  <div style={{padding:"5px 14px",borderRadius:7,background:"#fff",border:"1px solid #e2e8f0",textAlign:"center",minWidth:130}}>
+                    <Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:1}}>Price after Discount</Span>
+                    <div style={{fontWeight:900,fontSize:17,color:"#0f172a",letterSpacing:"-0.01em",lineHeight:1.15}}>฿{fmt(qNetPrice)}</div>
+                    {qDiscPct>0
+                      ? <Span s={9} c="#dc2626" style={{fontWeight:700}}>was ฿{fmt(q.salesPrice||0)} · −{qDiscPct}%</Span>
+                      : <Span s={9} c="#cbd5e1">no discount</Span>}
+                  </div>
+                  <div style={{flex:"0 0 58px"}}>
+                    <Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:3}}>Months</Span>
+                    <NumInp value={months} onChange={v=>setQF(q.id,"projectMonths",Math.max(1,Math.round(v)))} style={{fontSize:12,padding:"5px 6px"}}/>
+                  </div>
+                  <div style={{padding:"5px 12px",borderRadius:7,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center",minWidth:80}}>
+                    <Span s={9} c={+qMg>=30?"#15803d":"#dc2626"} style={{textTransform:"uppercase",letterSpacing:"0.05em",display:"block"}}>Margin</Span>
+                    <div style={{fontWeight:900,fontSize:16,color:+qMg>=30?"#15803d":"#dc2626",lineHeight:1.15}}>{qMg}%</div>
+                    <div style={{fontWeight:700,fontSize:12,color:+qMg>=30?"#15803d":"#dc2626"}}>฿{fmt(marginAmt(qNetPrice,qTC))}</div>
+                  </div>
+                  <div style={{marginLeft:"auto",display:"flex",gap:6,alignItems:"center"}}>
+                    <Btn variant="export" size="sm" icon={<DlIcon/>} disabled={!q.custId} title={q.custId?`Export quotation ${q.quoteNo} (EN)`:"Select a customer first"} onClick={()=>doExportPDF("en")}>PDF · EN</Btn>
+                    <Btn variant="export" size="sm" icon={<DlIcon/>} disabled={!q.custId} title={q.custId?`Export quotation ${q.quoteNo} (TH)`:"Select a customer first"} onClick={()=>doExportPDF("th")}>PDF · TH</Btn>
+                  </div>
+                </div>
+
+                {/* ── Segmented page tabs ── */}
+                <div style={{padding:"14px 16px 0",display:"flex",gap:6}}>
+                  {[["costs","Costs & Cashflow"],["content","Quotation Content"]].map(([k,l])=>(
+                    <button key={k} onClick={()=>setPage(k)} style={{padding:"7px 16px",border:"1px solid",borderColor:page===k?"#0f172a":"#e2e8f0",background:page===k?"#0f172a":"#fff",color:page===k?"#fff":"#64748b",borderRadius:7,fontSize:12.5,fontWeight:page===k?700:500,cursor:"pointer",transition:"background .14s,border-color .14s,color .14s"}}>{l}</button>
+                  ))}
+                </div>
+
+                {page==="costs"&&(<>
                 {/* Cost grids */}
                 <div style={{padding:16,display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
                   <div>
@@ -4025,7 +4072,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                             <td style={{padding:"4px 4px",textAlign:"center",color:"#94a3b8",fontWeight:700,fontSize:11,width:22}}>{idx+1}</td>
                             <td style={{padding:"4px 4px"}}><Inp value={ins.label} onChange={e=>setQInst(q.id,ins.id,"label",e.target.value)} placeholder="" style={{padding:"2px 5px",fontSize:13,width:"100%",background:"#f8fafc"}}/></td>
                             <td style={{padding:"4px 4px",width:46}}><Inp type="number" value={ins.pct} onChange={e=>setQInst(q.id,ins.id,"pct",+e.target.value)} style={{padding:"2px 4px",fontSize:13,width:38,textAlign:"right"}}/></td>
-                            <td style={{padding:"4px 4px",fontWeight:700,fontSize:13,textAlign:"right",whiteSpace:"nowrap",width:76}}>฿{fmt(Math.round(q.salesPrice*(ins.pct||0)/100))}</td>
+                            <td style={{padding:"4px 4px",fontWeight:700,fontSize:13,textAlign:"right",whiteSpace:"nowrap",width:76}}>฿{fmt(Math.round(qNetPrice*(ins.pct||0)/100))}</td>
                             <td style={{padding:"4px 4px",width:66}}>
                               <Sel value={ins.recvMonth||1} onChange={e=>setQInst(q.id,ins.id,"recvMonth",+e.target.value)} style={{padding:"2px 3px",fontSize:11,width:60}}>
                                 {Array.from({length:months+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
@@ -4049,7 +4096,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                     (q.tasks||[]).forEach(t=>{const m=t.payMonth||1;const ag=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];const mgr=ag.length>0?ag.reduce((s,a)=>s+(a.manager||0),0):(t.manager||0);const sr=ag.length>0?ag.reduce((s,a)=>s+(a.senior||0),0):(t.senior||0);const jr=ag.length>0?ag.reduce((s,a)=>s+(a.junior||0),0):(t.junior||0);const tc=mgr*IH_LEVELS.Manager+sr*IH_LEVELS.Senior+jr*IH_LEVELS.Junior;cByM[m]=(cByM[m]||0)+tc;});
                     (q.costs||[]).forEach(r=>{const m=r.payMonth||1;const amt=(r.qty||0)*(r.rate||0);cByM[m]=(cByM[m]||0)+amt;});
                     const rByM={};
-                    (q.installments||[]).forEach(ins=>{const m=ins.recvMonth||1;rByM[m]=(rByM[m]||0)+Math.round(q.salesPrice*(ins.pct||0)/100);});
+                    (q.installments||[]).forEach(ins=>{const m=ins.recvMonth||1;rByM[m]=(rByM[m]||0)+Math.round(qNetPrice*(ins.pct||0)/100);});
                     let run=0;
                     const cfRows=allM.map(m=>{const out=cByM[m]||0,inn=rByM[m]||0;run+=inn-out;return{m,out,inn,net:inn-out,run};});
                     const hasNeg=cfRows.some(r=>r.run<0);
@@ -4088,10 +4135,12 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                     );
                   })()}
                 </div>
+                </>)}
 
-                {/*  PROJECT SCOPE (full width)  */}
-                <div style={{padding:"0 20px 16px",borderTop:"1px solid #f1f5f9"}}>
-                  <div style={{marginTop:14,marginBottom:12}}>
+                {page==="content"&&(<>
+                {/*  SERVICE DESCRIPTION + PROJECT SCOPE (full width)  */}
+                <div style={{padding:"18px 20px 16px"}}>
+                  <div style={{marginBottom:12}}>
                     <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Service Description</Span><Span s={11} c="#94a3b8">— Project title as it will appear in the Quotation</Span></div>
                     <Inp value={q.projectTitle||""} onChange={e=>setQF(q.id,"projectTitle",e.target.value)} placeholder="" style={{fontSize:12}}/>
                   </div>
@@ -4149,8 +4198,9 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                     );})()}
                   </div>
                 </div>
+                </>)}
 
-                {/* Cost + margin + Save/Cancel footer */}
+                {/* Cost + margin + Save/Cancel footer (pinned on both pages) */}
                 <div style={{borderTop:"1px solid #e2e8f0",padding:"12px 20px",background:"#f8fafc",display:"flex",justifyContent:"flex-end",alignItems:"center",gap:16,flexWrap:"wrap"}}>
                   {[{l:"COGS",v:qIC},{l:"OPEX",v:qOPEX},{l:"Total Cost",v:qTC,bold:true}].map(x=>(
                     <div key={x.l} style={{textAlign:"center"}}>
@@ -4158,12 +4208,10 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                       <Span s={13} w={x.bold?900:700}>฿{fmt(x.v)}</Span>
                     </div>
                   ))}
-                  {qDiscPct>0&&(
-                    <div style={{textAlign:"center"}}>
-                      <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>Net Price</Span>
-                      <Span s={13} w={900} c="#0f172a">฿{fmt(qNetPrice)}</Span>
-                    </div>
-                  )}
+                  <div style={{textAlign:"center"}}>
+                    <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>Price after Discount</Span>
+                    <Span s={13} w={900} c="#0f172a">฿{fmt(qNetPrice)}{qDiscPct>0&&<span style={{fontSize:10,fontWeight:700,color:"#dc2626",marginLeft:4}}>−{qDiscPct}%</span>}</Span>
+                  </div>
                   <div style={{padding:"5px 12px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center"}}>
                     <Span s={9} c={+qMg>=30?"#16a34a":"#dc2626"} style={{display:"block"}}>Margin</Span>
                     <Span s={15} w={900} c={+qMg>=30?"#16a34a":"#dc2626"}>{qMg}%</Span>
