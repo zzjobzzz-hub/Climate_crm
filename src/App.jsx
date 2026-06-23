@@ -504,6 +504,14 @@ if (typeof document !== "undefined" && !document.getElementById("wb-cs-css")) {
   const _s = document.createElement("style"); _s.id = "wb-cs-css"; _s.textContent = WB_CS_CSS;
   document.head.appendChild(_s);
 }
+const WB_OPPTBL_CSS = `
+.wb-opptbl td{padding:5px 10px!important;font-size:13px!important;}
+.wb-opptbl th{padding:5px 10px!important;}
+`;
+if (typeof document !== "undefined" && !document.getElementById("wb-opptbl-css")) {
+  const _s = document.createElement("style"); _s.id = "wb-opptbl-css"; _s.textContent = WB_OPPTBL_CSS;
+  document.head.appendChild(_s);
+}
 // Filled triangle — crisper than a stroked arrow at this size.
 const SortArrow = ({dir,s=9}) => (
   <svg width={s} height={s} viewBox="0 0 10 10" style={{display:"block",flexShrink:0}} aria-hidden="true">
@@ -2779,11 +2787,12 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
       {view==="edit"&&(
         <>
           {/* ── TOP: Note Log (left) · Sales Price (right) ── */}
-          <div className="wb-oppedit-grid" style={{marginBottom:18}}>
+          <div className="wb-oppedit-grid" style={{marginBottom:18,alignItems:"stretch"}}>
             {/* LEFT — Note Log */}
-            <div>
-              <FRow label="Note Log">
-                <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
+            <div style={{display:"flex",flexDirection:"column"}}>
+              <div style={{display:"flex",flexDirection:"column",flex:1}}>
+                <div style={{fontSize:11,fontWeight:600,color:"#64748b",marginBottom:4}}>Note Log</div>
+                <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden",flex:1,display:"flex",flexDirection:"column"}}>
                   {f.remark&&(()=>{
                     const lines=f.remark.split("\n").filter(Boolean);
                     return [...lines].reverse().map((line,i)=>{
@@ -2813,7 +2822,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                     users={userList} minHeight={36}
                   />
                 </div>
-              </FRow>
+              </div>
             </div>
             {/* RIGHT — Sales Price */}
             <div>
@@ -2849,30 +2858,27 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
           <div className="wb-oppedit-grid">
             {/* LEFT — editable fields */}
             <div>
-              <G2>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px",alignItems:"end"}}>
                 <FRow label="Memo No." tip="Format: M + 2-digit year (BE) + 3-digit number, e.g. M69-001"><Inp value={f.memoNo||""} onChange={e=>set("memoNo",e.target.value)} placeholder="e.g. M69-001" style={{fontFamily:"monospace",fontWeight:600}}/></FRow>
-                <FRow label="Nickname / Catchword" tip="Short label shown on kanban card"><Inp value={f.nickname||""} onChange={e=>set("nickname",e.target.value)} placeholder="e.g. BKK Hotel, Phase 2…"/></FRow>
-              </G2>
-              <FRow label="Success %" tip="Leave blank to use auto-calculated score">
-                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                  <input type="text" inputMode="numeric" value={srLocal} placeholder="Auto"
-                    onChange={e=>setSrLocal(e.target.value.replace(/[^0-9.]/g,""))}
-                    onBlur={()=>{ const n=getSrValue(); setSrLocal(n===0?"":String(n)); set("successRate",n); }}
-                    style={{...SI,width:72,textAlign:"right"}}/>
-                  <span style={{fontSize:11,color:"#94a3b8"}}>%</span>
-                  {(!getSrValue())&&<span style={{fontSize:11,color:"#64748b",fontStyle:"italic"}}>Auto: {calcSuccessRate({...f,successRate:0})}%</span>}
-                  {getSrValue()>0&&<span style={{fontSize:11,fontWeight:700,color:successRateColor(getSrValue())}}>{getSrValue()}% (manual)</span>}
-                </div>
-              </FRow>
-              <FRow label="Ranking" tip="ระดับความสำคัญของ Opportunity นี้">
-                <div style={{display:"flex",gap:6}}>
-                  {["Low","Medium","High"].map(r=>{
-                    const active=(f.ranking||"Medium")===r;
-                    return <button key={r} onClick={()=>set("ranking",r)} style={{flex:1,padding:"6px 0",borderRadius:5,border:`1.5px solid ${active?RANK_CLR[r]?.c||"#64748b":"#e2e8f0"}`,background:active?(RANK_CLR[r]?.bg||"#f1f5f9"):"#fff",color:active?(RANK_CLR[r]?.c||"#64748b"):"#94a3b8",fontWeight:active?800:500,fontSize:12,cursor:"pointer"}}>{r}</button>;
-                  })}
-                </div>
-              </FRow>
-              {isLost&&<FRow label="Lost Reason"><Sel value={f.lostReason} onChange={e=>set("lostReason",e.target.value)}><option value="">— Select Reason —</option>{LOST_REASONS.map(r=><option key={r}>{r}</option>)}</Sel></FRow>}
+                <FRow label="Nickname" tip="Short label shown on kanban card"><Inp value={f.nickname||""} onChange={e=>set("nickname",e.target.value)} placeholder="e.g. BKK Hotel, Phase 2…"/></FRow>
+                <FRow label="Success %" tip="Leave blank to use auto-calculated score">
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <input type="text" inputMode="numeric" value={srLocal} placeholder="Auto"
+                      onChange={e=>setSrLocal(e.target.value.replace(/[^0-9.]/g,""))}
+                      onBlur={()=>{ const n=getSrValue(); setSrLocal(n===0?"":String(n)); set("successRate",n); }}
+                      style={{...SI,width:60,textAlign:"right"}}/>
+                    <span style={{fontSize:11,color:"#94a3b8"}}>%</span>
+                    {(!getSrValue())&&<span style={{fontSize:11,color:"#64748b",fontStyle:"italic"}}>Auto: {calcSuccessRate({...f,successRate:0})}%</span>}
+                    {getSrValue()>0&&<span style={{fontSize:11,fontWeight:700,color:successRateColor(getSrValue())}}>{getSrValue()}%</span>}
+                  </div>
+                </FRow>
+                <FRow label="Ranking" tip="ระดับความสำคัญของ Opportunity นี้">
+                  <Sel value={f.ranking||"Medium"} onChange={e=>set("ranking",e.target.value)}>
+                    <option>Low</option><option>Medium</option><option>High</option>
+                  </Sel>
+                </FRow>
+              </div>
+              {isLost&&<FRow label="Lost Reason" style={{marginTop:6}}><Sel value={f.lostReason} onChange={e=>set("lostReason",e.target.value)}><option value="">— Select Reason —</option>{LOST_REASONS.map(r=><option key={r}>{r}</option>)}</Sel></FRow>}
             </div>
 
             {/* RIGHT — entry links */}
@@ -3169,7 +3175,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
         </div>
       </div>
       {view==="table"&&(
-        <Card><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}>
+        <Card><div className="wb-opptbl" style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}>
           <thead><tr style={{background:"#f8fafc"}}>
             {[
               {label:"OPP Code",     col:"oppCode"},
@@ -3185,7 +3191,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
               {label:"Agent",        col:"agent"},
               {label:"Ranking",      col:"ranking"},
               {label:"Success",      col:"successRate"},
-              {label:"Log",          col:"log"},
+              {label:"Notes",        col:"log"},
             ].map(({label,col})=>(
               <SortableTh key={col} col={col} label={label} sorts={sorts} onToggle={toggleSort}/>
             ))}
@@ -3220,7 +3226,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
               <TD>{USERS.find(u=>u.id===o.assignedTo)?.name.split(" ")[0]||"-"}</TD>
               <TD>{oRank?<span style={{background:RANK_CLR[oRank]?.bg||"#f1f5f9",color:RANK_CLR[oRank]?.c||"#64748b",padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{oRank}</span>:"—"}</TD>
               <TD>{(()=>{const sr=calcSuccessRate(o);const clr=successRateColor(sr);return(<div style={{minWidth:72}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}><span style={{fontSize:11,fontWeight:800,color:clr}}>{sr}%</span></div><div style={{height:4,background:"#e2e8f0",borderRadius:99,overflow:"hidden"}}><div style={{height:"100%",width:`${sr}%`,background:clr,borderRadius:99}}/></div></div>);})()}</TD>
-              <TD><button onClick={e=>{e.stopPropagation();sLog(o);}} title="Activity log" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"4px 8px",color:"#64748b"}}><LogIcon s={13}/></button></TD>
+              <TD><button onClick={e=>{e.stopPropagation();sE(o);sF(true);}} title="Note log" style={{display:"inline-flex",alignItems:"center",gap:4,border:"1px solid #e2e8f0",borderRadius:5,background:"#f8fafc",cursor:"pointer",padding:"3px 7px",color:"#64748b",fontSize:10,fontWeight:600}}><LogIcon s={12}/>{o.remark?o.remark.split("\n").filter(Boolean).length:0}</button></TD>
               <TD><Btn variant="ghost" style={{fontSize:11,padding:"3px 10px"}} onClick={e=>{e.stopPropagation();sE(o);sF(true);}}>Edit</Btn></TD>
             </TR>
           );})}
