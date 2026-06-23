@@ -3946,6 +3946,12 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
   return (
               <div ref={cardRef} style={{marginBottom:14}}>
               <Card style={{position:"relative",transition:"box-shadow .3s",boxShadow:highlight?"0 0 0 2.5px #3b82f6, 0 4px 24px rgba(59,130,246,.18)":"none"}}>
+                {/* ── Page tabs (card top) — Costs & Cashflow / Quotation Content ── */}
+                <div style={{padding:"12px 16px",borderBottom:"1px solid #e2e8f0",display:"flex",gap:6}}>
+                  {[["costs","Costs & Cashflow"],["content","Quotation Content"]].map(([k,l])=>(
+                    <button key={k} onClick={()=>setPage(k)} style={{padding:"7px 16px",border:"1px solid",borderColor:page===k?"#0f172a":"#e2e8f0",background:page===k?"#0f172a":"#fff",color:page===k?"#fff":"#64748b",borderRadius:7,fontSize:12.5,fontWeight:page===k?700:500,cursor:"pointer",transition:"background .14s,border-color .14s,color .14s"}}>{l}</button>
+                  ))}
+                </div>
                 {/* ── Header: identity + parties (row 1) ── */}
                 <div style={{padding:"12px 16px 0",display:"flex",gap:"10px 14px",alignItems:"flex-end",flexWrap:"wrap"}}>
                   <div style={{flexShrink:0}}>
@@ -3955,11 +3961,11 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                   <div style={{width:1,alignSelf:"stretch",background:"#e2e8f0",margin:"0 2px"}}/>
                   <div style={{flex:"0 0 116px"}}>
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>OPP Code</Span>
-                    <Inp value={q.oppCode||""} onChange={e=>setQF(q.id,"oppCode",e.target.value)} style={{fontSize:11,fontFamily:"monospace",fontWeight:700,padding:"4px 7px",color:"#1e40af"}}/>
+                    <div style={{fontFamily:"monospace",fontWeight:700,fontSize:13,color:"#1e40af",letterSpacing:"-0.01em",padding:"5px 0"}}>{q.oppCode||"—"}</div>
                   </div>
                   <div style={{flex:"0 0 108px"}}>
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>Quote No.</Span>
-                    <Inp value={q.quoteNo||""} onChange={e=>setQF(q.id,"quoteNo",e.target.value)} style={{fontSize:11,fontFamily:"monospace",padding:"4px 7px"}}/>
+                    <div style={{fontFamily:"monospace",fontWeight:700,fontSize:13,color:"#334155",padding:"5px 0"}}>{q.quoteNo||"—"}</div>
                   </div>
                   <div style={{flex:"0 0 100px"}}>
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>Memo No.</Span>
@@ -3986,50 +3992,52 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                   </div>
                 </div>
 
-                {/* ── Pricing strip (row 2): gross − discount = price after discount → margin (months apart) ── */}
-                <div style={{margin:"12px 16px 0",padding:"12px 16px",borderRadius:10,background:+qMg>=30?"#f0fdf4":"#fffbeb",border:`1px solid ${+qMg>=30?"#bbf7d0":"#fde68a"}`,display:"flex",gap:13,alignItems:"center",flexWrap:"wrap"}}>
-                  {/* Gross — what you quote */}
-                  <div style={{flex:"0 0 134px"}}>
-                    <Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:3}}>Sales Price (gross)</Span>
-                    <NumInp value={q.salesPrice} onChange={v=>updQO(q.id,q=>({...q,salesPrice:v,lineItems:(q.lineItems||[]).map((li,i)=>i===0?{...li,unitPrice:v}:li)}))} style={{fontSize:14,fontWeight:700,padding:"6px 9px"}}/>
+                {/* ── Pricing strip: one aligned line — gross − discount = price after discount → margin · months ──
+                    Every cell shares a 3-row template (label 16 · value 30 · sub 13) so labels and value
+                    baselines line up; nowrap inside an overflow-x wrapper keeps it one line without overflowing. */}
+                <div style={{margin:"12px 16px 0",overflowX:"auto"}}>
+                  <div style={{padding:"12px 16px",borderRadius:10,background:+qMg>=30?"#f0fdf4":"#fffbeb",border:`1px solid ${+qMg>=30?"#bbf7d0":"#fde68a"}`,display:"flex",gap:12,alignItems:"stretch",flexWrap:"nowrap",minWidth:"min-content"}}>
+                    {/* Gross */}
+                    <div style={{flex:"0 0 132px",display:"flex",flexDirection:"column"}}>
+                      <div style={{height:16,marginBottom:4}}><Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Sales Price (gross)</Span></div>
+                      <div style={{height:30,display:"flex",alignItems:"center"}}><NumInp value={q.salesPrice} onChange={v=>updQO(q.id,q=>({...q,salesPrice:v,lineItems:(q.lineItems||[]).map((li,i)=>i===0?{...li,unitPrice:v}:li)}))} style={{fontSize:14,fontWeight:700,padding:"5px 9px"}}/></div>
+                      <div style={{height:13,marginTop:2}}/>
+                    </div>
+                    <span aria-hidden="true" style={{display:"flex",alignItems:"center",fontSize:18,color:"#94a3b8",userSelect:"none"}}>−</span>
+                    {/* Discount */}
+                    <div style={{flex:"0 0 104px",display:"flex",flexDirection:"column"}}>
+                      <div style={{height:16,marginBottom:4}}>
+                        <label style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer",userSelect:"none"}}>
+                          <input type="checkbox" checked={!!q.discountEnabled} onChange={e=>setQF(q.id,"discountEnabled",e.target.checked)} style={{width:13,height:13,cursor:"pointer",accentColor:"#0f172a",flexShrink:0}}/>
+                          <Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Discount %</Span>
+                        </label>
+                      </div>
+                      <div style={{height:30,display:"flex",alignItems:"center"}}><NumInp value={q.discountPct||0} onChange={v=>setQF(q.id,"discountPct",Math.min(100,Math.max(0,v)))} showZero disabled={!q.discountEnabled} style={{fontSize:14,padding:"5px 9px",opacity:q.discountEnabled?1:0.45}}/></div>
+                      <div style={{height:13,marginTop:2}}/>
+                    </div>
+                    <span aria-hidden="true" style={{display:"flex",alignItems:"center",fontSize:18,color:"#94a3b8",userSelect:"none"}}>=</span>
+                    {/* Price after Discount — the headline figure the client pays (ex-VAT) */}
+                    <div style={{flex:"0 0 150px",display:"flex",flexDirection:"column"}}>
+                      <div style={{height:16,marginBottom:4}}><Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Price after Discount</Span></div>
+                      <div style={{height:30,display:"flex",alignItems:"center"}}><span style={{fontWeight:900,fontSize:20,color:"#0f172a",letterSpacing:"-0.015em"}}>฿{fmt(qNetPrice)}</span></div>
+                      <div style={{height:13,marginTop:2,lineHeight:"13px"}}>{qDiscPct>0
+                        ? <Span s={9} c="#dc2626" style={{fontWeight:700}}>was ฿{fmt(q.salesPrice||0)} · −{qDiscPct}%</Span>
+                        : <Span s={9} c="#94a3b8">no discount</Span>}</div>
+                    </div>
+                    <span aria-hidden="true" style={{display:"flex",alignItems:"center",fontSize:16,color:"#94a3b8",userSelect:"none"}}>→</span>
+                    {/* Margin — the health metric the equation resolves to */}
+                    <div style={{flex:"0 0 96px",display:"flex",flexDirection:"column"}}>
+                      <div style={{height:16,marginBottom:4}}><Span s={9} c={+qMg>=30?"#15803d":"#dc2626"} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Margin</Span></div>
+                      <div style={{height:30,display:"flex",alignItems:"center"}}><span style={{fontWeight:900,fontSize:20,color:+qMg>=30?"#15803d":"#dc2626"}}>{qMg}%</span></div>
+                      <div style={{height:13,marginTop:2,lineHeight:"13px"}}><Span s={9} c={+qMg>=30?"#15803d":"#dc2626"} style={{fontWeight:700}}>฿{fmt(marginAmt(qNetPrice,qTC))}</Span></div>
+                    </div>
+                    {/* Months — a project input, kept apart from the pricing equation */}
+                    <div style={{marginLeft:"auto",flex:"0 0 64px",display:"flex",flexDirection:"column"}}>
+                      <div style={{height:16,marginBottom:4}}><Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Months</Span></div>
+                      <div style={{height:30,display:"flex",alignItems:"center"}}><NumInp value={months} onChange={v=>setQF(q.id,"projectMonths",Math.max(1,Math.round(v)))} style={{fontSize:13,padding:"5px 8px"}}/></div>
+                      <div style={{height:13,marginTop:2}}/>
+                    </div>
                   </div>
-                  <span aria-hidden="true" style={{fontSize:18,fontWeight:400,color:"#94a3b8",userSelect:"none",alignSelf:"center",marginTop:14}}>−</span>
-                  {/* Discount */}
-                  <div style={{flex:"0 0 104px"}}>
-                    <label style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer",marginBottom:3,userSelect:"none"}}>
-                      <input type="checkbox" checked={!!q.discountEnabled} onChange={e=>setQF(q.id,"discountEnabled",e.target.checked)} style={{width:13,height:13,cursor:"pointer",accentColor:"#0f172a",flexShrink:0}}/>
-                      <Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Discount %</Span>
-                    </label>
-                    <NumInp value={q.discountPct||0} onChange={v=>setQF(q.id,"discountPct",Math.min(100,Math.max(0,v)))} showZero disabled={!q.discountEnabled} style={{fontSize:14,padding:"6px 9px",opacity:q.discountEnabled?1:0.45}}/>
-                  </div>
-                  <span aria-hidden="true" style={{fontSize:18,fontWeight:400,color:"#94a3b8",userSelect:"none",alignSelf:"center",marginTop:14}}>=</span>
-                  {/* Price after Discount — the headline figure the client pays (ex-VAT) */}
-                  <div style={{padding:"6px 16px",borderRadius:8,background:"#fff",border:"1px solid #e2e8f0",minWidth:142}}>
-                    <Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:1}}>Price after Discount</Span>
-                    <div style={{fontWeight:900,fontSize:20,color:"#0f172a",letterSpacing:"-0.015em",lineHeight:1.1}}>฿{fmt(qNetPrice)}</div>
-                    {qDiscPct>0
-                      ? <Span s={9} c="#dc2626" style={{fontWeight:700}}>was ฿{fmt(q.salesPrice||0)} · −{qDiscPct}%</Span>
-                      : <Span s={9} c="#94a3b8">no discount</Span>}
-                  </div>
-                  <span aria-hidden="true" style={{fontSize:16,color:"#94a3b8",userSelect:"none",alignSelf:"center",marginTop:14}}>→</span>
-                  {/* Margin — the health metric the equation resolves to */}
-                  <div style={{padding:"6px 14px",borderRadius:8,background:+qMg>=30?"#dcfce7":"#fee2e2",minWidth:86}}>
-                    <Span s={9} c={+qMg>=30?"#15803d":"#dc2626"} style={{textTransform:"uppercase",letterSpacing:"0.05em",display:"block"}}>Margin</Span>
-                    <div style={{fontWeight:900,fontSize:19,color:+qMg>=30?"#15803d":"#dc2626",lineHeight:1.1}}>{qMg}%</div>
-                    <div style={{fontWeight:700,fontSize:12,color:+qMg>=30?"#15803d":"#dc2626"}}>฿{fmt(marginAmt(qNetPrice,qTC))}</div>
-                  </div>
-                  {/* Months — a project input, kept apart from the pricing equation */}
-                  <div style={{marginLeft:"auto",flex:"0 0 60px"}}>
-                    <Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:3}}>Months</Span>
-                    <NumInp value={months} onChange={v=>setQF(q.id,"projectMonths",Math.max(1,Math.round(v)))} style={{fontSize:13,padding:"6px 8px"}}/>
-                  </div>
-                </div>
-
-                {/* ── Segmented page tabs ── */}
-                <div style={{padding:"14px 16px 0",display:"flex",gap:6}}>
-                  {[["costs","Costs & Cashflow"],["content","Quotation Content"]].map(([k,l])=>(
-                    <button key={k} onClick={()=>setPage(k)} style={{padding:"7px 16px",border:"1px solid",borderColor:page===k?"#0f172a":"#e2e8f0",background:page===k?"#0f172a":"#fff",color:page===k?"#fff":"#64748b",borderRadius:7,fontSize:12.5,fontWeight:page===k?700:500,cursor:"pointer",transition:"background .14s,border-color .14s,color .14s"}}>{l}</button>
-                  ))}
                 </div>
 
                 {page==="costs"&&(<>
@@ -4173,19 +4181,8 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                 </>)}
 
                 {page==="content"&&(<>
-                {/* Export bar — everything on this tab is what prints to the quotation PDF */}
-                <div style={{padding:"16px 20px 14px",borderBottom:"1px solid #f1f5f9",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-                  <div style={{minWidth:0}}>
-                    <Span s={12} w={800} c="#0f172a" style={{display:"block"}}>Quotation Document</Span>
-                    <Span s={11} c="#94a3b8">The sections below print to the quotation PDF{q.quoteNo?` · ${q.quoteNo}`:""}.</Span>
-                  </div>
-                  <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
-                    <Btn variant="export" size="sm" icon={<DlIcon/>} disabled={!q.custId} title={q.custId?`Export quotation ${q.quoteNo} (EN)`:"Select a customer first"} onClick={()=>doExportPDF("en")}>PDF · EN</Btn>
-                    <Btn variant="export" size="sm" icon={<DlIcon/>} disabled={!q.custId} title={q.custId?`Export quotation ${q.quoteNo} (TH)`:"Select a customer first"} onClick={()=>doExportPDF("th")}>PDF · TH</Btn>
-                  </div>
-                </div>
                 {/*  SERVICE DESCRIPTION + PROJECT SCOPE (full width)  */}
-                <div style={{padding:"14px 20px 16px"}}>
+                <div style={{padding:"18px 20px 16px"}}>
                   <div style={{marginBottom:12}}>
                     <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}><Span s={11} w={800} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.07em"}}>Service Description</Span><Span s={11} c="#94a3b8">— Project title as it will appear in the Quotation</Span></div>
                     <Inp value={q.projectTitle||""} onChange={e=>setQF(q.id,"projectTitle",e.target.value)} placeholder="" style={{fontSize:12}}/>
@@ -4242,6 +4239,17 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                     {(()=>{const full=toItemList(q.notes).length>=NOTES_MAX;return(
                     <button onClick={()=>{if(!full)addQNote(q.id);}} disabled={full} title={full?`Max ${NOTES_MAX} items`:""} className="wb-addrow" style={{alignSelf:"flex-start",marginTop:4}}>+ Note</button>
                     );})()}
+                  </div>
+                </div>
+                {/* Export bar — pinned at the bottom of the quotation content */}
+                <div style={{padding:"14px 20px 18px",borderTop:"1px solid #f1f5f9",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                  <div style={{minWidth:0}}>
+                    <Span s={12} w={800} c="#0f172a" style={{display:"block"}}>Export Quotation</Span>
+                    <Span s={11} c="#94a3b8">Generates the A4 quotation PDF{q.quoteNo?` · ${q.quoteNo}`:""} from the content above.</Span>
+                  </div>
+                  <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
+                    <Btn variant="export" size="sm" icon={<DlIcon/>} disabled={!q.custId} title={q.custId?`Export quotation ${q.quoteNo} (EN)`:"Select a customer first"} onClick={()=>doExportPDF("en")}>PDF · EN</Btn>
+                    <Btn variant="export" size="sm" icon={<DlIcon/>} disabled={!q.custId} title={q.custId?`Export quotation ${q.quoteNo} (TH)`:"Select a customer first"} onClick={()=>doExportPDF("th")}>PDF · TH</Btn>
                   </div>
                 </div>
                 </>)}
