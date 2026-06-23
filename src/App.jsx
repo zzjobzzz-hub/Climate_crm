@@ -428,6 +428,40 @@ if (typeof document !== "undefined" && !document.getElementById("wb-sort-css")) 
   const _s = document.createElement("style"); _s.id = "wb-sort-css"; _s.textContent = WB_SORT_CSS;
   document.head.appendChild(_s);
 }
+
+// Opportunity kanban card — resting / hover / focus / grabbing states live here because
+// inline styles can't express :hover or :focus-visible. Dragging overrides stay inline
+// (dynamic) and win over this class via inline-style specificity.
+const WB_OPPCARD_CSS = `
+.wb-oppcard{background:#fff;border:1px solid #e2e8f0;border-radius:7px;cursor:grab;user-select:none;
+  box-shadow:0 1px 3px rgba(0,0,0,.05);
+  transition:border-color .15s ease,box-shadow .15s ease,transform .1s ease,opacity .15s ease;}
+.wb-oppcard:hover{border-color:#cbd5e1;box-shadow:0 4px 14px rgba(15,23,42,.10);}
+.wb-oppcard:focus-visible{outline:none;border-color:#1e40af;box-shadow:0 0 0 3px rgba(30,64,175,.25);}
+.wb-oppcard:active{cursor:grabbing;}
+@media (prefers-reduced-motion: reduce){.wb-oppcard{transition:none;}}
+`;
+if (typeof document !== "undefined" && !document.getElementById("wb-oppcard-css")) {
+  const _s = document.createElement("style"); _s.id = "wb-oppcard-css"; _s.textContent = WB_OPPCARD_CSS;
+  document.head.appendChild(_s);
+}
+
+// Edit-Opportunity modal — 2-col body that stacks on narrow widths, plus the
+// right-rail entry links (hover/focus states inline styles can't express).
+const WB_OPPEDIT_CSS = `
+.wb-oppedit-grid{display:grid;grid-template-columns:1fr 300px;gap:18px;align-items:start;}
+@media (max-width:720px){.wb-oppedit-grid{grid-template-columns:1fr;}}
+.wb-oplink{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;
+  padding:9px 12px;border:1px solid #e2e8f0;border-radius:7px;background:#fff;cursor:pointer;
+  font-size:12.5px;font-weight:600;color:#334155;text-align:left;
+  transition:background .14s ease,border-color .14s ease,box-shadow .14s ease;}
+.wb-oplink:hover{background:#f8fafc;border-color:#cbd5e1;}
+.wb-oplink:focus-visible{outline:none;border-color:#1e40af;box-shadow:0 0 0 3px rgba(30,64,175,.25);}
+`;
+if (typeof document !== "undefined" && !document.getElementById("wb-oppedit-css")) {
+  const _s = document.createElement("style"); _s.id = "wb-oppedit-css"; _s.textContent = WB_OPPEDIT_CSS;
+  document.head.appendChild(_s);
+}
 // Filled triangle — crisper than a stroked arrow at this size.
 const SortArrow = ({dir,s=9}) => (
   <svg width={s} height={s} viewBox="0 0 10 10" style={{display:"block",flexShrink:0}} aria-hidden="true">
@@ -2551,7 +2585,8 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
   const newOppCode=genOppCode(opps); const newQtNo=genQuoteNo(opps);
   const blank={id:newOppCode,custId:customers[0]?.id||"",oppCode:newOppCode,quoteNo:newQtNo,memoNo:"",jobCode:"",serviceCode:SERVICES[0].code,serviceType:SERVICES[0].name,salesPrice:SERVICES[0].stdPrice,totalCost:SERVICES[0].stdCost,status:"Proposal",assignedTo:SALES_USERS[0]?.id||"",createdDate:today(),lostReason:"",activityLog:[],remark:"",ranking:"Medium",successRate:""};
   const [f,sF] = useState(initial?{...initial,activityLog:initial.activityLog||[]}:blank);
-  const [tab,sTab] = useState(initTab);
+  // view: "edit" (primary) | "activity" | "quotation". initTab kept for caller compatibility.
+  const [view,setView] = useState(initTab==="log"?"activity":initTab==="quotation"?"quotation":"edit");
   const [noteInput,sNoteInput] = useState("");
   // srLocal: tracks successRate input locally so typing then clicking Save without blur still captures the value
   const [srLocal,setSrLocal] = useState(()=>{const v=initial?.successRate;return(v===0||v===undefined||v===""||v===null)?"":String(v);});
@@ -2563,113 +2598,162 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
   const [delConfirm,setDelConfirm] = useState(false);
   const [validErr,setValidErr] = useState("");
   return (
-    <Modal title={initial?"Edit Opportunity":"New Opportunity"} width={820} onClose={onClose}>
-      <div style={{display:"flex",gap:0,borderBottom:"2px solid #e2e8f0",marginBottom:16}}>
-        {[["detail","Details"],["log","Activity Log"],["quotation","Quotation"]].map(([k,l])=>(
-          <button key={k} onClick={()=>sTab(k)} style={{padding:"8px 18px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:tab===k?800:500,color:tab===k?"#0f172a":"#94a3b8",borderBottom:tab===k?"2.5px solid #0f172a":"2.5px solid transparent",marginBottom:-2}}>{l}</button>
-        ))}
+    <>
+    <Modal title={initial?"Edit Opportunity":"New Opportunity"} width={940} onClose={onClose}>
+      {/* ── IDENTITY HEADER — read-only context + the promoted Status control ── */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:16,flexWrap:"wrap",paddingBottom:14,marginBottom:18,borderBottom:"1px solid #e2e8f0"}}>
+        <div style={{minWidth:0,flex:"1 1 300px"}}>
+          <div style={{display:"flex",alignItems:"baseline",gap:9,flexWrap:"wrap",marginBottom:5}}>
+            <span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:"#1e40af"}}>{f.oppCode}</span>
+            <span style={{fontSize:19,fontWeight:900,color:"#0f172a",letterSpacing:"-0.02em",lineHeight:1.1}}>{customers.find(c=>c.id===f.custId)?.companyEN||f.custId||"—"}</span>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+            <SvcBadge code={f.serviceCode}/>
+            <span style={{fontSize:12,color:"#64748b",overflow:"hidden",textOverflow:"ellipsis"}}>{f.serviceType}</span>
+            {f.quoteNo&&<button onClick={()=>setView("quotation")} title="Open quotation" style={{fontFamily:"monospace",fontSize:11.5,fontWeight:600,background:"none",color:"#1e40af",border:"none",padding:0,cursor:"pointer",textDecoration:"underline",textUnderlineOffset:2}}>{f.quoteNo}</button>}
+            {f.csCode&&<button onClick={()=>{onSave({...f,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""});if(onGoToCS)onGoToCS(f.serviceCode,f.csCode);}} title="Open Cost Sheet (saves first)" style={{fontFamily:"monospace",fontSize:11.5,fontWeight:700,background:"none",color:"#1e40af",border:"none",padding:0,cursor:"pointer",textDecoration:"underline",textUnderlineOffset:2}}>{f.csCode}</button>}
+            {f.memoNo&&<span style={{fontFamily:"monospace",fontSize:11,color:"#64748b"}}>Memo {f.memoNo}</span>}
+            <span style={{fontSize:11,color:"#94a3b8"}}>· {SALES_USERS.find(u=>u.id===f.assignedTo)?.name||f.assignedTo||"No agent"} · {fmtDate(f.createdDate)}</span>
+          </div>
+        </div>
+        <div style={{flexShrink:0,textAlign:"right"}}>
+          <div style={{fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:5}}>Status</div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{width:9,height:9,borderRadius:"50%",background:STATUS_CLR[f.status]||"#94a3b8",flexShrink:0}}/>
+            <Sel value={f.status} onChange={e=>set("status",e.target.value)} style={{width:152,fontWeight:700}}>{OPP_STATUSES.map(s=><option key={s}>{s}</option>)}</Sel>
+          </div>
+          {isWon&&jobCode&&<div style={{fontSize:11,color:"#16a34a",fontFamily:"monospace",fontWeight:700,marginTop:6}}>{jobCode}</div>}
+        </div>
       </div>
-      {tab==="detail"&&(
+
+      {view==="edit"&&(
         <>
-          {/* A. Read-only summary — context, not editable */}
-          <div style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,padding:"14px 16px",marginBottom:14,display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"12px 16px"}}>
-            {[
-              {l:"Customer", span:true, v:<span style={{fontWeight:700,color:"#0f172a"}}>{customers.find(c=>c.id===f.custId)?.companyEN||f.custId}</span>},
-              {l:"Service", span:true, v:<span style={{color:"#0f172a"}}><span style={{fontFamily:"monospace",fontWeight:700,color:"#1e40af"}}>{f.serviceCode}</span> {f.serviceType}</span>},
-              {l:"OPP Code", v:<span style={{fontFamily:"monospace",fontWeight:700,color:"#1e40af"}}>{f.oppCode}</span>},
-              {l:"Quote No.", v:f.quoteNo
-                ? <button onClick={()=>sTab("quotation")} style={{fontFamily:"monospace",fontWeight:600,fontSize:13,background:"none",color:"#1e40af",border:"none",padding:0,cursor:"pointer",textDecoration:"underline",textUnderlineOffset:2}}>{f.quoteNo}</button>
-                : <span style={{color:"#94a3b8"}}>—</span>},
-              ...(f.csCode?[{l:"CS Code", v:<button onClick={()=>{onSave({...f,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""});if(onGoToCS)onGoToCS(f.serviceCode,f.csCode);}} title="Open Cost Sheet (saves first)" style={{fontFamily:"monospace",fontWeight:700,fontSize:13,background:"none",color:"#1e40af",border:"none",padding:0,cursor:"pointer",textDecoration:"underline",textUnderlineOffset:2}}>{f.csCode}</button>}]:[]),
-              {l:"Sales Agent", v:<span style={{color:"#0f172a"}}>{SALES_USERS.find(u=>u.id===f.assignedTo)?.name||f.assignedTo||"—"}</span>},
-              {l:"Created", v:<span style={{color:"#0f172a"}}>{fmtDate(f.createdDate)}</span>},
-            ].map(({l,v,span})=>(
-              <div key={l} style={{minWidth:0,...(span?{gridColumn:"1/-1"}:{})}}>
-                <div style={{fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>{l}</div>
-                <div style={{fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* B. Commercial — money is the loud anchor, shown once */}
-          <div style={{padding:"12px 16px",borderRadius:8,background:+mg>=30?"#f0fdf4":"#fef2f2",border:`1px solid ${+mg>=30?"#86efac":"#fca5a5"}`,marginBottom:16,display:"flex",gap:28,flexWrap:"wrap"}}>
-            {[{l:"Sales Price",v:f.salesPrice,big:true},{l:"Total Cost",v:f.totalCost||0},{l:"Margin %",v:`${mg}%`,c:+mg>=30?"#16a34a":"#dc2626"},{l:"Margin ฿",v:marginAmt(f.salesPrice,f.totalCost||0),c:+mg>=30?"#16a34a":"#dc2626"}].map(x=>(
-              <div key={x.l}>
-                <Span s={10} c="#64748b" style={{display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>{x.l}</Span>
-                <div style={{fontWeight:x.big?900:800,fontSize:x.big?20:15,color:x.c||"#0f172a",letterSpacing:"-0.01em"}}>{typeof x.v==="number"?`฿${fmt(x.v)}`:x.v}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* C. Editable fields */}
-          <G2>
-            <FRow label="Memo No." tip="Format: M + 2-digit year (BE) + 3-digit number, e.g. M69-001"><Inp value={f.memoNo||""} onChange={e=>set("memoNo",e.target.value)} placeholder="e.g. M69-001" style={{fontFamily:"monospace",fontWeight:600}}/></FRow>
-            <FRow label="Nickname / Catchword" tip="Short label shown on kanban card"><Inp value={f.nickname||""} onChange={e=>set("nickname",e.target.value)} placeholder="e.g. BKK Hotel, Phase 2…"/></FRow>
-            <FRow label="Status"><Sel value={f.status} onChange={e=>set("status",e.target.value)}>{OPP_STATUSES.map(s=><option key={s}>{s}</option>)}</Sel></FRow>
-            <FRow label="Success %" tip="Leave blank to use auto-calculated score">
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <input type="text" inputMode="numeric" value={srLocal} placeholder="Auto"
-                  onChange={e=>setSrLocal(e.target.value.replace(/[^0-9.]/g,""))}
-                  onBlur={()=>{ const n=getSrValue(); setSrLocal(n===0?"":String(n)); set("successRate",n); }}
-                  style={{...SI,width:72,textAlign:"right"}}/>
-                <span style={{fontSize:11,color:"#94a3b8"}}>%</span>
-                {(!getSrValue())&&<span style={{fontSize:11,color:"#64748b",fontStyle:"italic"}}>Auto: {calcSuccessRate({...f,successRate:0})}%</span>}
-                {getSrValue()>0&&<span style={{fontSize:11,fontWeight:700,color:successRateColor(getSrValue())}}>{getSrValue()}% (manual)</span>}
-              </div>
-            </FRow>
-            <FRow label="Ranking" tip="ระดับความสำคัญของ Opportunity นี้">
-              <div style={{display:"flex",gap:6}}>
-                {["High","Medium","Low"].map(r=>{
-                  const active=(f.ranking||"Medium")===r;
-                  return <button key={r} onClick={()=>set("ranking",r)} style={{flex:1,padding:"6px 0",borderRadius:5,border:`1.5px solid ${active?RANK_CLR[r]?.c||"#64748b":"#e2e8f0"}`,background:active?(RANK_CLR[r]?.bg||"#f1f5f9"):"#fff",color:active?(RANK_CLR[r]?.c||"#64748b"):"#94a3b8",fontWeight:active?800:500,fontSize:12,cursor:"pointer"}}>{r}</button>;
-                })}
-              </div>
-            </FRow>
-            {isLost&&<FRow label="Lost Reason"><Sel value={f.lostReason} onChange={e=>set("lostReason",e.target.value)}><option value="">— Select Reason —</option>{LOST_REASONS.map(r=><option key={r}>{r}</option>)}</Sel></FRow>}
-          </G2>
-
-          {/* D. Note Log */}
-          <FRow label="Note Log">
-            <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
-              {f.remark&&(()=>{
-                const lines=f.remark.split("\n").filter(Boolean);
-                return [...lines].reverse().map((line,i)=>{
-                  const origIdx=lines.length-1-i;
-                  const m=line.match(/^\[([^\]]+)\]\s*(.*)/);
-                  const meta=m?m[1]:""; const body=m?m[2]:line;
-                  const datePart=meta.split("·")[0].trim(); const authorPart=meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
-                  return(
-                  <div key={origIdx} style={{padding:"5px 8px 5px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"flex-start",gap:6}}>
-                    <div style={{flex:1,lineHeight:1.5}}>
-                      <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
-                      {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
-                      <RenderMentionText text={body} users={userList}/>
-                    </div>
-                    <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
-                  </div>
-                );});
-              })()}
-              <MentionTextarea
-                value={noteInput} onChange={sNoteInput}
-                onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&noteInput.trim()){
-                  set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);
-                  extractMentions(noteInput,userList).forEach(uid=>{if(uid!==user.id)onMentionNotify(uid,"OPP",f.oppCode,`${user.name} mentioned you in a note: ${noteInput.trim().slice(0,80)}`);});
-                  sNoteInput("");e.preventDefault();}}}
-                placeholder="Add entry… (@mention, Enter to save)"
-                style={{borderRadius:"0 0 5px 5px",background:"#fff",border:"none",borderTop:"1px solid #f1f5f9",fontSize:13}}
-                users={userList} minHeight={36}
-              />
+          {/* ── 2-COLUMN BODY: edit fields (left) · commercial + links (right) ── */}
+          <div className="wb-oppedit-grid">
+            {/* LEFT — editable fields */}
+            <div>
+              <G2>
+                <FRow label="Memo No." tip="Format: M + 2-digit year (BE) + 3-digit number, e.g. M69-001"><Inp value={f.memoNo||""} onChange={e=>set("memoNo",e.target.value)} placeholder="e.g. M69-001" style={{fontFamily:"monospace",fontWeight:600}}/></FRow>
+                <FRow label="Nickname / Catchword" tip="Short label shown on kanban card"><Inp value={f.nickname||""} onChange={e=>set("nickname",e.target.value)} placeholder="e.g. BKK Hotel, Phase 2…"/></FRow>
+              </G2>
+              <FRow label="Success %" tip="Leave blank to use auto-calculated score">
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <input type="text" inputMode="numeric" value={srLocal} placeholder="Auto"
+                    onChange={e=>setSrLocal(e.target.value.replace(/[^0-9.]/g,""))}
+                    onBlur={()=>{ const n=getSrValue(); setSrLocal(n===0?"":String(n)); set("successRate",n); }}
+                    style={{...SI,width:72,textAlign:"right"}}/>
+                  <span style={{fontSize:11,color:"#94a3b8"}}>%</span>
+                  {(!getSrValue())&&<span style={{fontSize:11,color:"#64748b",fontStyle:"italic"}}>Auto: {calcSuccessRate({...f,successRate:0})}%</span>}
+                  {getSrValue()>0&&<span style={{fontSize:11,fontWeight:700,color:successRateColor(getSrValue())}}>{getSrValue()}% (manual)</span>}
+                </div>
+              </FRow>
+              <FRow label="Ranking" tip="ระดับความสำคัญของ Opportunity นี้">
+                <div style={{display:"flex",gap:6}}>
+                  {["High","Medium","Low"].map(r=>{
+                    const active=(f.ranking||"Medium")===r;
+                    return <button key={r} onClick={()=>set("ranking",r)} style={{flex:1,padding:"6px 0",borderRadius:5,border:`1.5px solid ${active?RANK_CLR[r]?.c||"#64748b":"#e2e8f0"}`,background:active?(RANK_CLR[r]?.bg||"#f1f5f9"):"#fff",color:active?(RANK_CLR[r]?.c||"#64748b"):"#94a3b8",fontWeight:active?800:500,fontSize:12,cursor:"pointer"}}>{r}</button>;
+                  })}
+                </div>
+              </FRow>
+              {isLost&&<FRow label="Lost Reason"><Sel value={f.lostReason} onChange={e=>set("lostReason",e.target.value)}><option value="">— Select Reason —</option>{LOST_REASONS.map(r=><option key={r}>{r}</option>)}</Sel></FRow>}
             </div>
-          </FRow>
 
+            {/* RIGHT — read-only commercial summary + entry links */}
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              <div style={{padding:"14px 16px",borderRadius:8,background:+mg>=30?"#f0fdf4":"#fef2f2",border:`1px solid ${+mg>=30?"#86efac":"#fca5a5"}`}}>
+                <Span s={10} c="#64748b" style={{display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Sales Price</Span>
+                <div style={{fontWeight:900,fontSize:24,color:"#0f172a",letterSpacing:"-0.02em",lineHeight:1}}>฿{fmt(f.salesPrice)}</div>
+                <div style={{display:"flex",gap:20,marginTop:12,flexWrap:"wrap"}}>
+                  <div>
+                    <Span s={10} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:1}}>Cost</Span>
+                    <span style={{fontWeight:700,fontSize:14,color:"#334155"}}>฿{fmt(f.totalCost||0)}</span>
+                  </div>
+                  <div>
+                    <Span s={10} c="#64748b" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:1}}>Margin</Span>
+                    <span style={{fontWeight:800,fontSize:14,color:+mg>=30?"#16a34a":"#dc2626"}}>{mg}% · ฿{fmt(marginAmt(f.salesPrice,f.totalCost||0))}</span>
+                  </div>
+                </div>
+                {(()=>{const sr=calcSuccessRate({...f,successRate:getSrValue()});const clr=successRateColor(sr);return(
+                  <div style={{marginTop:12}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                      <Span s={10} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Success</Span>
+                      <span style={{fontSize:11,fontWeight:800,color:clr}}>{sr}%</span>
+                    </div>
+                    <div style={{height:5,background:"#fff",borderRadius:99,overflow:"hidden",border:"1px solid rgba(15,23,42,.08)"}}>
+                      <div style={{height:"100%",width:`${sr}%`,background:clr,borderRadius:99,transition:"width .3s"}}/>
+                    </div>
+                  </div>
+                );})()}
+              </div>
+
+              <button className="wb-oplink" onClick={()=>setView("activity")}>
+                <span style={{display:"inline-flex",alignItems:"center",gap:8}}><LogIcon s={14}/> Activity Log</span>
+                <span style={{display:"inline-flex",alignItems:"center",gap:7}}><CountPill n={(f.activityLog||[]).length}/><span style={{color:"#cbd5e1",fontSize:15}}>›</span></span>
+              </button>
+              {f.quoteNo&&(
+                <button className="wb-oplink" onClick={()=>setView("quotation")}>
+                  <span style={{display:"inline-flex",alignItems:"center",gap:8}}><SheetIcon/> Quotation</span>
+                  <span style={{display:"inline-flex",alignItems:"center",gap:7}}><span style={{fontFamily:"monospace",fontSize:11,color:"#64748b"}}>{f.quoteNo}</span><span style={{color:"#cbd5e1",fontSize:15}}>›</span></span>
+                </button>
+              )}
+              {f.csCode&&(
+                <button className="wb-oplink" title="Saves first, then opens the Cost Sheet" onClick={()=>{onSave({...f,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""});if(onGoToCS)onGoToCS(f.serviceCode,f.csCode);}}>
+                  <span style={{display:"inline-flex",alignItems:"center",gap:8}}><SheetIcon/> Open Cost Sheet</span>
+                  <span style={{display:"inline-flex",alignItems:"center",gap:7}}><span style={{fontFamily:"monospace",fontSize:11,color:"#64748b"}}>{f.csCode}</span><span style={{color:"#cbd5e1",fontSize:15}}>›</span></span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* NOTE LOG — full width below the columns */}
+          <div style={{marginTop:18}}>
+            <FRow label="Note Log">
+              <div style={{border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
+                {f.remark&&(()=>{
+                  const lines=f.remark.split("\n").filter(Boolean);
+                  return [...lines].reverse().map((line,i)=>{
+                    const origIdx=lines.length-1-i;
+                    const m=line.match(/^\[([^\]]+)\]\s*(.*)/);
+                    const meta=m?m[1]:""; const body=m?m[2]:line;
+                    const datePart=meta.split("·")[0].trim(); const authorPart=meta.includes("·")?meta.split("·").slice(1).join("·").trim():"";
+                    return(
+                    <div key={origIdx} style={{padding:"5px 8px 5px 10px",fontSize:12,color:"#374151",borderBottom:"1px solid #f1f5f9",background:"#fafafa",display:"flex",alignItems:"flex-start",gap:6}}>
+                      <div style={{flex:1,lineHeight:1.5}}>
+                        <span style={{fontSize:10,fontFamily:"monospace",color:"#94a3b8",marginRight:6}}>{datePart}</span>
+                        {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
+                        <RenderMentionText text={body} users={userList}/>
+                      </div>
+                      <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
+                    </div>
+                  );});
+                })()}
+                <MentionTextarea
+                  value={noteInput} onChange={sNoteInput}
+                  onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&noteInput.trim()){
+                    set("remark",(f.remark?f.remark+"\n":"")+`[${today()} · ${user.name}] ${noteInput.trim()}`);
+                    extractMentions(noteInput,userList).forEach(uid=>{if(uid!==user.id)onMentionNotify(uid,"OPP",f.oppCode,`${user.name} mentioned you in a note: ${noteInput.trim().slice(0,80)}`);});
+                    sNoteInput("");e.preventDefault();}}}
+                  placeholder="Add entry… (@mention, Enter to save)"
+                  style={{borderRadius:"0 0 5px 5px",background:"#fff",border:"none",borderTop:"1px solid #f1f5f9",fontSize:13}}
+                  users={userList} minHeight={36}
+                />
+              </div>
+            </FRow>
+          </div>
         </>
       )}
-      {tab==="log"&&<ActivityLog logs={f.activityLog||[]} currentUser={user} users={userList} onEdit={(id,text,replies)=>sF(p=>({...p,activityLog:(p.activityLog||[]).map(x=>x.id===id?{...x,note:text,replies:replies||x.replies||[]}:x)}))} onDelete={id=>sF(p=>({...p,activityLog:(p.activityLog||[]).filter(x=>x.id!==id)}))}/>}
-      {tab==="quotation"&&<QuotationPreview opp={f} customer={customers.find(c=>c.id===f.custId)} costSheets={costSheets||[]} onClose={onClose} onSaveQuotation={qd=>{const updated={...f,quotationData:qd,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""};onSave(updated);}}/>}
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
+
+      {view==="activity"&&(
+        <>
+          <button onClick={()=>setView("edit")} style={{display:"inline-flex",alignItems:"center",gap:6,border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:600,color:"#1e40af",padding:0,marginBottom:14}}>‹ Back to details</button>
+          <ActivityLog logs={f.activityLog||[]} currentUser={user} users={userList} onEdit={(id,text,replies)=>sF(p=>({...p,activityLog:(p.activityLog||[]).map(x=>x.id===id?{...x,note:text,replies:replies||x.replies||[]}:x)}))} onDelete={id=>sF(p=>({...p,activityLog:(p.activityLog||[]).filter(x=>x.id!==id)}))}/>
+        </>
+      )}
+
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:18}}>
         {initial&&onDelete&&<Btn variant="danger" icon={<TrashIcon/>} style={{marginRight:"auto"}} onClick={()=>setDelConfirm(true)}>Delete</Btn>}
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        {validErr&&<span style={{fontSize:12,color:"#dc2626",fontWeight:600,marginRight:4}}>{validErr}</span>}
+        {validErr&&<span style={{fontSize:12,color:"#dc2626",fontWeight:600,marginRight:4,alignSelf:"center"}}>{validErr}</span>}
         <Btn icon={<CheckIcon/>} onClick={()=>{
           if(!f.custId){setValidErr("Customer is required");return;}
           if(!(f.salesPrice>0)){setValidErr("Sales Price must be > 0");return;}
@@ -2709,6 +2793,10 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
         </div>
       )}
     </Modal>
+
+    {/* Quotation opens as its own overlay (it returns a full Modal); closing returns to the edit view */}
+    {view==="quotation"&&<QuotationPreview opp={f} customer={customers.find(c=>c.id===f.custId)} costSheets={costSheets||[]} onClose={()=>setView("edit")} onSaveQuotation={qd=>{const updated={...f,quotationData:qd,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""};onSave(updated);}}/>}
+    </>
   );
 };
 
@@ -2815,24 +2903,26 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
                 const isDragging=dragId===o.id||dragId===o.oppCode;
                 return(
                   <div key={o.id}
+                    className="wb-oppcard"
                     draggable
+                    tabIndex={0}
+                    aria-label={`Opportunity ${o.oppCode}, ${c?.companyEN||"unknown company"}, ${o.status}. Press Enter to edit.`}
                     onDragStart={e=>{
                       e.dataTransfer.effectAllowed="move";
                       setDragId(o.id);
                     }}
                     onDragEnd={()=>{setDragId(null);setDragOver(null);}}
                     onClick={()=>{sE(o);sF(true);}}
+                    onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();sE(o);sF(true);}}}
                     style={{
-                      background:"#fff",
-                      border:`1px solid ${isDragging?"#3b82f6":"#e2e8f0"}`,
-                      borderRadius:7,padding:"10px 12px",marginBottom:8,
+                      padding:"10px 12px",marginBottom:8,
                       display:"flex",flexDirection:"column",gap:6,
-                      cursor:"grab",
-                      opacity:isDragging?.45:1,
-                      boxShadow:isDragging?"0 8px 24px rgba(59,130,246,.25)":"0 1px 3px rgba(0,0,0,.05)",
-                      transform:isDragging?"scale(1.02)":"none",
-                      transition:"opacity .15s, box-shadow .15s, transform .1s",
-                      userSelect:"none",
+                      ...(isDragging?{
+                        opacity:.45,
+                        borderColor:"#3b82f6",
+                        boxShadow:"0 8px 24px rgba(59,130,246,.25)",
+                        transform:"scale(1.02)",
+                      }:{}),
                     }}
                   >
                     {/* Identity: OPP code + ranking dot */}
