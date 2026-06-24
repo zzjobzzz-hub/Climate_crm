@@ -4549,7 +4549,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           projectTitle:q.projectTitle||"",
           projectScope:q.projectScope||"",
           projectMonths:q.projectMonths||editCS.projectMonths||3,
-          notes_json:  toItemList(q.notes),
+          notes:       toItemList(q.notes),
           costs_json:  q.costs||[],
           tasks_json:  q.tasks||[],
           installments_json: q.installments||[],
