@@ -236,7 +236,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // S4: All requests include GS_AUTH_TOKEN verified server-side
 // 
-const GS_URL = "https://script.google.com/macros/s/AKfycbyGzoWRRX6r2VNxZ9pn_9mSGXC12pYERHPz2oKwFYGE8TKHac8tZO6DsIju8pMSsEHAIA/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbyhISnF9jugc_RE98PpwbE4_C_05vK_ClKVBY3PVljRnkLyGYY-XAyXKw_rNShouD0ZzQ/exec";
 
 // S1: Server-side login — credentials validated in GAS, never in browser
 const gsLogin = async (email, password) => {
