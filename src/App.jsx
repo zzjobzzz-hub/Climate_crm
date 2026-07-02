@@ -1270,12 +1270,19 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const custName = id => customers.find(c=>c.id===id)?.companyEN || id;
 
   // Per-card breakdowns (company → value) for hover tooltips
-  const revenueBreakdown = useMemo(()=>{
+  // Expected Revenue breaks down by month (Jan-Dec, calendar order, zeros included) rather than by company.
+  const revenueByMonth = useMemo(()=>{
     const prefix = String(new Date().getFullYear());
-    return groupByCompany(deliveries.flatMap(d=>safeArr(d.installments)
-      .filter(ins=>ins.expected_date && String(ins.expected_date).startsWith(prefix))
-      .map(ins=>({name:custName(d.custId),amount:ins.amount||0}))));
-  },[deliveries,customers]);
+    const map = {};
+    deliveries.forEach(d=>{
+      safeArr(d.installments).forEach(ins=>{
+        if(!ins.expected_date || !String(ins.expected_date).startsWith(prefix)) return;
+        const m = parseInt(String(ins.expected_date).slice(5,7),10)-1;
+        if(m>=0&&m<=11) map[m]=(map[m]||0)+(ins.amount||0);
+      });
+    });
+    return MONTHS.map((name,i)=>[name, map[i]||0]);
+  },[deliveries]);
   const wonBreakdown = useMemo(()=>
     groupByCompany(wonOpps.map(o=>({name:custName(o.custId),amount:o.salesPrice||0})))
   ,[filteredOpps,customers]);
@@ -1362,26 +1369,29 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
       {detail&&<div style={{marginTop:6,display:"flex",flexWrap:"wrap",gap:"3px 8px"}}>{detail}</div>}
     </Card>
   );
-  // Click-opened breakdown — full, scrollable company list (replaces the old cramped hover tooltip)
+  // Click-opened breakdown — full, scrollable list (replaces the old cramped hover tooltip).
+  // Defaults to a per-company ฿ list; a card's tip can override unitLabel/fmtAmt (e.g. a per-month ฿M list).
   const SCDetailModal = () => detailSC ? (
     <Modal title={detailSC.title} width={520} onClose={()=>setDetailSC(null)}>
+      {(()=>{ const fmtAmt = detailSC.fmtAmt || (amt=>`฿${fmt(amt)}`); return (<>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-        <CountPill n={(detailSC.items||[]).length} label="companies"/>
-        <Span s={13} w={800} c="#0f172a" style={{marginLeft:"auto"}}>Total ฿{fmt(detailSC.total)}</Span>
+        <CountPill n={(detailSC.items||[]).length} label={detailSC.unitLabel||"companies"}/>
+        <Span s={13} w={800} c="#0f172a" style={{marginLeft:"auto"}}>Total {fmtAmt(detailSC.total)}</Span>
       </div>
       <div style={{maxHeight:420,overflowY:"auto",border:"1px solid #e2e8f0",borderRadius:8}}>
         {(!detailSC.items||detailSC.items.length===0)&&<div style={{padding:24,textAlign:"center",color:"#94a3b8",fontSize:13}}>No records</div>}
         {(detailSC.items||[]).map(([name,amt],i)=>(
           <div key={name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:16,padding:"9px 14px",borderBottom:"1px solid #f1f5f9",background:i%2?"#fafafa":"#fff"}}>
             <span style={{fontSize:13,color:"#374151"}}>{name}</span>
-            <span style={{fontSize:13,fontWeight:800,color:"#0f172a",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>฿{fmt(amt)}</span>
+            <span style={{fontSize:13,fontWeight:800,color:"#0f172a",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>{fmtAmt(amt)}</span>
           </div>
         ))}
       </div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:14,paddingTop:12,borderTop:"2px solid #0f172a"}}>
         <Span s={14} w={800} c="#0f172a">Total</Span>
-        <Span s={16} w={900} c="#d97706">฿{fmt(detailSC.total)}</Span>
+        <Span s={16} w={900} c="#d97706">{fmtAmt(detailSC.total)}</Span>
       </div>
+      </>); })()}
     </Modal>
   ) : null;
 
@@ -1560,7 +1570,8 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
                   </div>}
             </Card>
             <SC label="This Year Expected Revenue" val={`฿${fmtM(revenue)}`} c="#d97706"
-              tip={{title:`Expected Revenue ${new Date().getFullYear()}`, items:revenueBreakdown, total:revenue}}/>
+              tip={{title:`Expected Revenue ${new Date().getFullYear()}`, items:revenueByMonth, total:revenue,
+                    unitLabel:"months", fmtAmt:amt=>`฿${fmtM(amt)}`}}/>
             <SC label="Won YTD"          val={`฿${fmtM(totalWon)}`}      sub={`${wonOpps.length} deals closed`} c="#1e40af"
               tip={{title:"Won YTD", items:wonBreakdown, total:totalWon}}/>
             <SC label="Received" val={`฿${fmtM(invoiceReceived)}`} c="#22c55e"
