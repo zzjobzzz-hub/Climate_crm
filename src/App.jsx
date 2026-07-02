@@ -1270,19 +1270,25 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const custName = id => customers.find(c=>c.id===id)?.companyEN || id;
 
   // Per-card breakdowns (company → value) for hover tooltips
-  // Expected Revenue breaks down by month (Jan-Dec, calendar order, zeros included) rather than by company.
+  // Expected Revenue breaks down by month (Jan-Dec, calendar order, zeros included) rather than by company,
+  // with a per-month company breakdown ([2]) for the modal's month→company drill-down.
   const revenueByMonth = useMemo(()=>{
     const prefix = String(new Date().getFullYear());
-    const map = {};
+    const perMonth = Array.from({length:12},()=>({})); // company name -> amount, per month
     deliveries.forEach(d=>{
+      const name = custName(d.custId);
       safeArr(d.installments).forEach(ins=>{
         if(!ins.expected_date || !String(ins.expected_date).startsWith(prefix)) return;
         const m = parseInt(String(ins.expected_date).slice(5,7),10)-1;
-        if(m>=0&&m<=11) map[m]=(map[m]||0)+(ins.amount||0);
+        if(m<0||m>11) return;
+        perMonth[m][name] = (perMonth[m][name]||0) + (ins.amount||0);
       });
     });
-    return MONTHS.map((name,i)=>[name, map[i]||0]);
-  },[deliveries]);
+    return MONTHS.map((name,i)=>{
+      const companies = Object.entries(perMonth[i]).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+      return [name, companies.reduce((s,[,v])=>s+v,0), companies];
+    });
+  },[deliveries,customers]);
   const wonBreakdown = useMemo(()=>
     groupByCompany(wonOpps.map(o=>({name:custName(o.custId),amount:o.salesPrice||0})))
   ,[filteredOpps,customers]);
@@ -1370,10 +1376,16 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     </Card>
   );
   // Click-opened breakdown — full, scrollable list (replaces the old cramped hover tooltip).
-  // Defaults to a per-company ฿ list; a card's tip can override unitLabel/fmtAmt (e.g. a per-month ฿M list).
+  // Defaults to a per-company ฿ list; a card's tip can override unitLabel/fmtAmt (e.g. a per-month ฿M list),
+  // and optionally set drillDown(name,i)=>newPayload to make rows clickable into a second-level breakdown.
   const SCDetailModal = () => detailSC ? (
     <Modal title={detailSC.title} width={520} onClose={()=>setDetailSC(null)}>
-      {(()=>{ const fmtAmt = detailSC.fmtAmt || (amt=>`฿${fmt(amt)}`); return (<>
+      {(()=>{ const fmtAmt = detailSC.fmtAmt || (amt=>`฿${fmt(amt)}`); const canDrill = !!detailSC.drillDown; return (<>
+      {detailSC.parent && (
+        <button onClick={()=>setDetailSC(detailSC.parent)} style={{border:"none",background:"none",color:"#1e40af",fontSize:12,fontWeight:700,cursor:"pointer",padding:0,marginBottom:10,display:"flex",alignItems:"center",gap:4}}>
+          ← Back to {detailSC.parent.unitLabel||"list"}
+        </button>
+      )}
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
         <CountPill n={(detailSC.items||[]).length} label={detailSC.unitLabel||"companies"}/>
         <Span s={13} w={800} c="#0f172a" style={{marginLeft:"auto"}}>Total {fmtAmt(detailSC.total)}</Span>
@@ -1381,9 +1393,14 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
       <div style={{maxHeight:420,overflowY:"auto",border:"1px solid #e2e8f0",borderRadius:8}}>
         {(!detailSC.items||detailSC.items.length===0)&&<div style={{padding:24,textAlign:"center",color:"#94a3b8",fontSize:13}}>No records</div>}
         {(detailSC.items||[]).map(([name,amt],i)=>(
-          <div key={name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:16,padding:"9px 14px",borderBottom:"1px solid #f1f5f9",background:i%2?"#fafafa":"#fff"}}>
+          <div key={name}
+            onClick={canDrill?()=>setDetailSC({...detailSC.drillDown(name,i), parent:detailSC}):undefined}
+            style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:16,padding:"9px 14px",borderBottom:"1px solid #f1f5f9",background:i%2?"#fafafa":"#fff",cursor:canDrill?"pointer":"default"}}>
             <span style={{fontSize:13,color:"#374151"}}>{name}</span>
-            <span style={{fontSize:13,fontWeight:800,color:"#0f172a",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>{fmtAmt(amt)}</span>
+            <span style={{display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontSize:13,fontWeight:800,color:"#0f172a",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>{fmtAmt(amt)}</span>
+              {canDrill && <span style={{color:"#cbd5e1",fontSize:13}}>›</span>}
+            </span>
           </div>
         ))}
       </div>
@@ -1570,8 +1587,13 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
                   </div>}
             </Card>
             <SC label="This Year Expected Revenue" val={`฿${fmtM(revenue)}`} c="#d97706"
-              tip={{title:`Expected Revenue ${new Date().getFullYear()}`, items:revenueByMonth, total:revenue,
-                    unitLabel:"months", fmtAmt:amt=>`฿${fmt(amt)}`}}/>
+              tip={{title:`Expected Revenue ${new Date().getFullYear()}`, items:revenueByMonth.map(([m,t])=>[m,t]), total:revenue,
+                    unitLabel:"months", fmtAmt:amt=>`฿${fmt(amt)}`,
+                    drillDown:(monthName,i)=>({
+                      title:`${monthName} ${new Date().getFullYear()} — Expected Revenue by Company`,
+                      items:revenueByMonth[i][2], total:revenueByMonth[i][1],
+                      unitLabel:"companies", fmtAmt:amt=>`฿${fmt(amt)}`,
+                    })}}/>
             <SC label="Won YTD"          val={`฿${fmtM(totalWon)}`}      sub={`${wonOpps.length} deals closed`} c="#1e40af"
               tip={{title:"Won YTD", items:wonBreakdown, total:totalWon}}/>
             <SC label="Received" val={`฿${fmtM(invoiceReceived)}`} c="#22c55e"
