@@ -1571,7 +1571,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
             </Card>
             <SC label="This Year Expected Revenue" val={`฿${fmtM(revenue)}`} c="#d97706"
               tip={{title:`Expected Revenue ${new Date().getFullYear()}`, items:revenueByMonth, total:revenue,
-                    unitLabel:"months", fmtAmt:amt=>`฿${fmtM(amt)}`}}/>
+                    unitLabel:"months", fmtAmt:amt=>`฿${fmt(amt)}`}}/>
             <SC label="Won YTD"          val={`฿${fmtM(totalWon)}`}      sub={`${wonOpps.length} deals closed`} c="#1e40af"
               tip={{title:"Won YTD", items:wonBreakdown, total:totalWon}}/>
             <SC label="Received" val={`฿${fmtM(invoiceReceived)}`} c="#22c55e"
