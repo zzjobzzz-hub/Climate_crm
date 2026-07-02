@@ -1626,11 +1626,14 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
                 const ac=opps.filter(o=>o.assignedTo===a.id&&!["Won","Lost"].includes(o.status)).length;
                 const closed=opps.filter(o=>o.assignedTo===a.id&&["Won","Lost"].includes(o.status)).length;
                 const wr=closed>0?((opps.filter(o=>o.assignedTo===a.id&&o.status==="Won").length/closed)*100).toFixed(0):0;
+                const aWonBreakdown = groupByCompany(opps.filter(o=>o.assignedTo===a.id&&o.status==="Won").map(o=>({name:custName(o.custId),amount:o.salesPrice||0})));
                 return (
-                  <div key={a.id} style={{flex:1,minWidth:160,padding:16,background:"#f8fafc",borderRadius:7,border:"1px solid #e2e8f0"}}>
+                  <div key={a.id} style={{flex:1,minWidth:160,padding:16,background:"#f8fafc",borderRadius:7,border:"1px solid #e2e8f0",cursor:"pointer"}}
+                    onClick={()=>setDetailSC({title:`${a.name} — Won Deals`, items:aWonBreakdown, total:aw})}>
                     <Span s={13} w={800} c="#0f172a" style={{display:"block"}}>{a.name.split(" ")[0]}</Span>
                     <div style={{fontSize:20,fontWeight:900,color:"#16a34a",margin:"6px 0 2px"}}>฿{fmtM(aw)}</div>
                     <Span s={11} c="#64748b">{ac} active · Win {wr}%</Span>
+                    <Span s={10} c="#cbd5e1" style={{marginTop:5,display:"block",fontWeight:600}}>Click for breakdown →</Span>
                   </div>
                 );
               })}
@@ -3500,7 +3503,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
           </div>
           <div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse"}}>
-              <TH cols={["#","Description","% Share","Amount (THB)","Expected Date","Invoice No.","Invoice Date","Receipt No.","Receipt Date","Status",""]}/>
+              <TH cols={["#","Description","% Share","Amount (THB)","Exp. Invoice Date","Invoice No.","Act. Invoice Date","Receipt No.","Receipt Date","Status",""]}/>
               <tbody>{(f.installments||[]).map((ins,idx)=>(
                 <tr key={ins.id} style={{borderBottom:"1px solid #f1f5f9"}}>
                   <TD><Span s={12} w={700} c="#94a3b8">{ins.seq}</Span></TD>
@@ -3710,7 +3713,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
         </div>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse"}}>
-            <TH cols={["#","Description","% Share","Amount (THB)","Expected Date","Invoice No.","Invoice Date","Receipt No.","Receipt Date","Status"]}/>
+            <TH cols={["#","Description","% Share","Amount (THB)","Exp. Invoice Date","Invoice No.","Act. Invoice Date","Receipt No.","Receipt Date","Status"]}/>
             <tbody>
               {localInst.map(ins=>(
                 <TR key={ins.id}>
