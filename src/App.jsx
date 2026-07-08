@@ -199,12 +199,13 @@ const multiCmp = (a, b, sorts, getV) => {
 };
 
 const YEAR   = new Date().getFullYear() + 543; // Thai Buddhist Era (พ.ศ.)
-const padNum = n => String(n).padStart(3,"0");
+const YEAR2  = String(YEAR).slice(-2);          // 2-digit BE year, e.g. 2569 -> "69"
+const padNum = n => String(n).padStart(4,"0");
 const nextNum = (items,field) => { const ns=items.map(x=>{const m=String(x[field]||"").match(/-(\d{3,})$/);return m?parseInt(m[1]):0;}); return Math.max(0,...ns)+1; };
-const genOppCode = opps => `OPP-${YEAR}-${padNum(nextNum(opps,"oppCode"))}`;
-const genQuoteNo = opps => `QT-${YEAR}-${padNum(nextNum(opps,"quoteNo"))}`;
-const genJobCode = opp  => (opp||"").replace(/^OPP-/,"JOB-");
-const genCSCode  = qtNo => (qtNo||"").replace(/^QT-/,"CS-");
+const genOppCode = opps => `O${YEAR2}-${padNum(nextNum(opps,"oppCode"))}`;
+const genQuoteNo = opps => `Q${YEAR2}-${padNum(nextNum(opps,"quoteNo"))}`;
+const genJobCode = opp  => "J"+(opp||"").slice(1);
+const genCSCode  = qtNo => "C"+(qtNo||"").slice(1);
 
 const toCSV = (h,rows) => { const e=v=>`"${String(v==null?"":v).replace(/"/g,'""')}"`;return[h.map(e).join(","),...rows.map(r=>r.map(e).join(","))].join("\n"); };
 const dlCSV = (fn,h,rows) => { const b=new Blob([toCSV(h,rows)],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=fn;a.click(); };
@@ -236,7 +237,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // S4: All requests include GS_AUTH_TOKEN verified server-side
 // 
-const GS_URL = "https://script.google.com/macros/s/AKfycbzd2fDKrf6vvu48rvZdUGnny3o6wd2wu9rs4J6fxtOdgxtF38nIh0TOhhPtuZoQYffC3g/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbxyUKY-DAe0cbPReLe-a450Qo2D8xSszIojpDxZn8_T-cUOaHgyWsCV7TLtFdSEAwdbmQ/exec";
 
 // S1: Server-side login — credentials validated in GAS, never in browser
 const gsLogin = async (email, password) => {
@@ -3044,7 +3045,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
       if(!exists){
         const buildInstFromSrc=(srcInst,cv)=>srcInst.map((ins,i)=>({id:uid(),seq:i+1,label:ins.label||`Installment ${i+1}`,pct:ins.pct||0,amount:Math.round((cv||0)*(ins.pct||0)/100),expected_date:ins.expected_date||"",invoiceNo:"",invoiceDate:"",receiptNo:"",receiptDate:"",status:"Pending",recvMonth:ins.recvMonth||i+1}));
         const autoInst=(()=>{const cs2=(costSheets||[]).find(c2=>(c2.quoteOverrides||[]).some(q=>q.quoteNo===o.quoteNo));const qo2=cs2?(cs2.quoteOverrides||[]).find(q=>q.quoteNo===o.quoteNo):null;if(qo2?.installments?.length>0)return buildInstFromSrc(qo2.installments,o.salesPrice);const qdInst=o?.quotationData?.installments||[];if(qdInst.length>0)return buildInstFromSrc(qdInst,o.salesPrice);return[];})();
-        const dlv={id:`DLV-${o.oppCode.replace("OPP-","")}`,custId:o.custId,oppCode:o.oppCode,quoteNo:o.quoteNo,jobCode:o.jobCode,contractNo:"",contractDate:"",serviceCode:o.serviceCode,serviceType:o.serviceType,totalContractValue:o.salesPrice,deliveryStatus:"In Progress",currentStep:DLV_STEPS[0],deliveryDate:"",assignedTo:o.assignedTo,installments:autoInst,paymentTerm:"30 days",remark:"",saveLog:[{id:uid(),ts:nowTS(),author:user.id,note:`Auto-created from ${o.oppCode} — Won.`}]};
+        const dlv={id:`DLV-${o.oppCode.slice(1)}`,custId:o.custId,oppCode:o.oppCode,quoteNo:o.quoteNo,jobCode:o.jobCode,contractNo:"",contractDate:"",serviceCode:o.serviceCode,serviceType:o.serviceType,totalContractValue:o.salesPrice,deliveryStatus:"In Progress",currentStep:DLV_STEPS[0],deliveryDate:"",assignedTo:o.assignedTo,installments:autoInst,paymentTerm:"30 days",remark:"",saveLog:[{id:uid(),ts:nowTS(),author:user.id,note:`Auto-created from ${o.oppCode} — Won.`}]};
         onSaveDelivery(dlv);
         toast("Delivery auto-created",`${o.jobCode} added to Delivery tab`);
       }
