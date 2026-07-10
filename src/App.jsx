@@ -1308,23 +1308,17 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     return d; // already BE
   };
 
+  // Won opps only enter the Backlog once their linked Delivery's Contract Date is filled in —
+  // deliberately no fallback (no auto-inferred date) so Backlog reflects an actually signed/dated contract.
   const getWonDate = opp => {
     const dlv = deliveries.find(d => d.oppCode === opp.oppCode);
-    if (dlv) {
-      const dlvLogs = safeArr(dlv.workLog_json || dlv.workLog);
-      const dlvWon = dlvLogs.find(l => /Auto-created.*Won/i.test(l.note || ""));
-      if (dlvWon?.ts) return toBEDate(dlvWon.ts);
-    }
-    const logs = safeArr(opp.activityLog_json || opp.activityLog);
-    const wonLogs = logs.filter(l => /Status.*→ Won|Status changed.*to Won/i.test(l.note || ""));
-    if (wonLogs.length) return toBEDate(wonLogs[wonLogs.length - 1].ts);
-    return toBEDate(opp.createdDate);
+    return dlv?.contractDate ? toBEDate(dlv.contractDate) : null;
   };
 
   const monthData = MONTHS.map((m,i) => {
     const ms=`${year}-${String(i+1).padStart(2,"0")}`;
     const fc=Math.round(annual*splits[i]/100);
-    // Backlog = Won opps by wonDate from workLog (falls back to createdDate for legacy records)
+    // Backlog = Won opps by Delivery's Contract Date (excluded until Contract Date is entered on the Delivery page)
     const blItems=filteredOpps.filter(o=>o.status==="Won"&&getWonDate(o)?.startsWith(ms)).map(o=>({company:customers.find(c=>c.id===o.custId)?.companyEN||o.custId,amount:o.salesPrice||0}));
     // Received = Delivery installments status=Received by receiptDate month (auto-synced from Delivery)
     const recItems=deliveries.flatMap(d=>(safeArr(d.installments)).filter(ins=>toBEDate(ins.receiptDate)?.startsWith(ms)&&ins.status==="Received").map(ins=>({company:customers.find(c=>c.id===d.custId)?.companyEN||d.custId,amount:ins.amount||0})));
