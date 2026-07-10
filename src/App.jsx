@@ -432,9 +432,53 @@ const TagChip = ({tag,onRemove,size=11}) => { const cl=tagColor(tag); return (
   </span>
 );};
 
+// Tag input with a styled, clickable suggestion dropdown (replaces native <datalist>).
+// Caller owns `value`/`onChange` (the pending typed text) and must render this inside a
+// position:relative ancestor so the dropdown anchors correctly. onCommit fires with the
+// chosen/typed tag text on click, Enter, or Tab — caller decides what "commit" means
+// (add a chip, stage a bulk-assign value, etc.) and is responsible for clearing `value`.
+const TagTypeahead = ({value,onChange,suggestions=[],onCommit,placeholder,inputStyle}) => {
+  const [open,setOpen] = React.useState(false);
+  const [hi,setHi] = React.useState(0);
+  const q = value.trim().toLowerCase();
+  const filtered = suggestions.filter(t=>t.toLowerCase().includes(q));
+
+  const commit = t => { const v=(t??"").trim(); if(!v) return; onCommit(v); setOpen(false); };
+
+  const handleKeyDown = e => {
+    if(open && filtered.length>0) {
+      if(e.key==="ArrowDown"){ e.preventDefault(); setHi(i=>Math.min(i+1,filtered.length-1)); return; }
+      if(e.key==="ArrowUp"){   e.preventDefault(); setHi(i=>Math.max(i-1,0)); return; }
+      if(e.key==="Enter"||e.key==="Tab"){ e.preventDefault(); commit(filtered[hi]); return; }
+      if(e.key==="Escape"){ setOpen(false); return; }
+    }
+    if(e.key==="Enter"){ e.preventDefault(); commit(value); }
+  };
+
+  return (<>
+    <input value={value} placeholder={placeholder} style={inputStyle}
+      onChange={e=>{ onChange(e.target.value); setOpen(true); setHi(0); }}
+      onFocus={()=>setOpen(true)}
+      onBlur={()=>setTimeout(()=>setOpen(false),150)}
+      onKeyDown={handleKeyDown}/>
+    {open && filtered.length>0 && (
+      <div style={{position:"absolute",left:0,right:0,top:"100%",marginTop:4,zIndex:800,background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,boxShadow:"0 8px 24px rgba(0,0,0,.18)",maxHeight:200,overflow:"auto"}}>
+        {filtered.map((t,i)=>{ const cl=tagColor(t); return (
+          <div key={t}
+            onMouseDown={e=>{ e.preventDefault(); commit(t); }}
+            style={{padding:"7px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:8,background:i===hi?"#eff6ff":"transparent",fontSize:12.5,color:"#374151"}}>
+            <span style={{width:8,height:8,borderRadius:"50%",background:cl.c,flexShrink:0}}/>
+            <span>{t}</span>
+          </div>
+        );})}
+      </div>
+    )}
+  </>);
+};
+
 const TH = ({cols}) => <thead><tr style={{background:"#f8fafc"}}>{cols.map((c,i)=><th key={i} style={{padding:"9px 12px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:12,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{c}</th>)}</tr></thead>;
 const TR = ({children,onClick,hi}) => { const[h,sH]=useState(false); return <tr onClick={onClick} onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)} style={{borderBottom:"1px solid #f1f5f9",background:hi?"#fffbeb":h?"#f8fafc":"#fff",cursor:onClick?"pointer":"default"}}>{children}</tr>; };
-const TD = ({children,right,w,style}) => <td style={{padding:"10px 12px",fontSize:14,color:"#374151",maxWidth:w,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textAlign:right?"right":"left",...style}}>{children}</td>;
+const TD = ({children,right,w,style,...rest}) => <td {...rest} style={{padding:"10px 12px",fontSize:14,color:"#374151",maxWidth:w,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textAlign:right?"right":"left",...style}}>{children}</td>;
 
 // ── Multi-sort indicators ──
 // Focus/hover states for sortable headers + chips (inline styles can't do :focus-visible).
@@ -1192,7 +1236,6 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const [fSt,setFSt]   = useState([]);
   const [fSvc,setFSvc] = useState([]);
   const [fAg,setFAg]   = useState([]);
-  const [tt,sTT]       = useState({vis:false,x:0,y:0,data:null});
   // Req 13: pipeline sort
   const [pSort,setPSort] = useState("desc");
   const [pMonth,setPMonth] = useState("All");
@@ -1352,9 +1395,6 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   };
   const BAR_H=160;
   const maxV=Math.max(...monthData.map(d=>Math.max(d.fc,d.bl,d.rec)),1);
-  const hBar=(e,data)=>sTT({vis:true,x:e.clientX,y:e.clientY,data});
-  const leaveBar=()=>sTT(p=>({...p,vis:false}));
-  const moveBar=e=>sTT(p=>({...p,x:e.clientX,y:e.clientY}));
 
   let ytdFc=0,ytdBl=0,ytdRec=0;
   const rows=monthData.map(d=>{ytdFc+=d.fc;ytdBl+=d.bl;ytdRec+=d.rec;return{...d,ytdFc,ytdBl,ytdRec,ytdRem:ytdFc-ytdBl};});
@@ -1366,7 +1406,6 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
       <Span s={10} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:4,lineHeight:1.3,minHeight:"2.6em"}}>{label}</Span>
       <div style={{fontSize:22,fontWeight:900,letterSpacing:"-0.02em",lineHeight:1.1,...(grad?{background:grad,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent"}:{color:c})}}>{val}</div>
       {sub&&<Span s={11} c="#94a3b8" style={{marginTop:3,display:"block"}}>{sub}</Span>}
-      {tip&&<Span s={10} c="#cbd5e1" style={{marginTop:5,display:"block",fontWeight:600}}>Click for breakdown →</Span>}
       {detail&&<div style={{marginTop:6,display:"flex",flexWrap:"wrap",gap:"3px 8px"}}>{detail}</div>}
     </Card>
   );
@@ -1628,12 +1667,12 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
                         <div style={{flex:1,position:"relative",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:"100%"}}>
                           {d.bl>0&&<span style={{position:"absolute",top:-20,fontSize:9,color:"#1e40af",fontWeight:700,whiteSpace:"nowrap",letterSpacing:"-0.03em"}}>{fmtK(d.bl)}</span>}
                           {d.bl>0&&<span style={{position:"absolute",top:-32,fontSize:9,color:+d.ach>=100?"#16a34a":+d.ach>=80?"#d97706":"#ef4444",fontWeight:700,whiteSpace:"nowrap"}}>{d.ach}%</span>}
-                          <div style={{width:"100%",background:"#1e40af",borderRadius:"3px 3px 0 0",height:`${blH}px`,minHeight:d.bl>0?2:0,cursor:"pointer"}} onMouseEnter={e=>hBar(e,{label:`${d.m} Backlog`,items:d.blItems,total:d.bl})} onMouseMove={moveBar} onMouseLeave={leaveBar}/>
+                          <div style={{width:"100%",background:"#1e40af",borderRadius:"3px 3px 0 0",height:`${blH}px`,minHeight:d.bl>0?2:0,cursor:"pointer"}} onClick={()=>setDetailSC({title:`${d.m} Backlog`, items:groupByCompany(d.blItems.map(it=>({name:it.company,amount:it.amount}))), total:d.bl})}/>
                         </div>
                         {/* Received */}
                         <div style={{flex:1,position:"relative",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:"100%"}}>
                           {d.rec>0&&<span style={{position:"absolute",top:-20,fontSize:9,color:"#16a34a",fontWeight:700,whiteSpace:"nowrap",letterSpacing:"-0.03em"}}>{fmtK(d.rec)}</span>}
-                          <div style={{width:"100%",background:"#22c55e",borderRadius:"3px 3px 0 0",height:`${recH}px`,minHeight:d.rec>0?2:0,cursor:"pointer"}} onMouseEnter={e=>hBar(e,{label:`${d.m} Received`,items:d.recItems,total:d.rec})} onMouseMove={moveBar} onMouseLeave={leaveBar}/>
+                          <div style={{width:"100%",background:"#22c55e",borderRadius:"3px 3px 0 0",height:`${recH}px`,minHeight:d.rec>0?2:0,cursor:"pointer"}} onClick={()=>setDetailSC({title:`${d.m} Received`, items:groupByCompany(d.recItems.map(it=>({name:it.company,amount:it.amount}))), total:d.rec})}/>
                         </div>
                       </div>
                       <span style={{fontSize:10,color:"#94a3b8",marginTop:5,fontWeight:500}}>{d.m}</span>
@@ -1661,7 +1700,6 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
                     <Span s={13} w={800} c="#0f172a" style={{display:"block"}}>{a.name.split(" ")[0]}</Span>
                     <div style={{fontSize:20,fontWeight:900,color:"#16a34a",margin:"6px 0 2px"}}>฿{fmtM(aw)}</div>
                     <Span s={11} c="#64748b">{ac} active · Win {wr}%</Span>
-                    <Span s={10} c="#cbd5e1" style={{marginTop:5,display:"block",fontWeight:600}}>Click for breakdown →</Span>
                   </div>
                 );
               })}
@@ -1678,6 +1716,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
             <SC label="YTD Received" val={`฿${fmtM(rows[rows.length-1]?.ytdRec||0)}`} c="#16a34a"/>
             <SC label="YTD Remaining" val={`฿${fmtM(Math.max(0,rows[rows.length-1]?.ytdRem||annual))}`} c="#dc2626"/>
           </div>
+          {SCDetailModal()}
           <Card style={{padding:20,marginBottom:14}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
               <Span s={13} w={700}>Monthly Split %</Span>
@@ -1703,7 +1742,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
                 <TD style={{fontWeight:700}}>{r.m}</TD>
                 <TD right>฿{fmt(r.fc)}</TD>
                 <TD right>{splits[i]}%</TD>
-                <TD right style={{color:"#1e40af",fontWeight:700,cursor:"pointer"}} onMouseEnter={e=>hBar(e,{label:`${r.m} Backlog`,items:r.blItems,total:r.bl})} onMouseMove={moveBar} onMouseLeave={leaveBar}>฿{fmt(r.bl)}</TD>
+                <TD right style={{color:"#1e40af",fontWeight:700,cursor:"pointer"}} onClick={()=>setDetailSC({title:`${r.m} Backlog`, items:groupByCompany(r.blItems.map(it=>({name:it.company,amount:it.amount}))), total:r.bl})}>฿{fmt(r.bl)}</TD>
                 <TD><span style={{background:+r.ach>=100?"#dcfce7":+r.ach>=80?"#fef3c7":r.bl>0?"#fee2e2":"#f8fafc",color:+r.ach>=100?"#16a34a":+r.ach>=80?"#d97706":r.bl>0?"#dc2626":"#94a3b8",padding:"2px 8px",borderRadius:10,fontSize:11,fontWeight:700}}>{r.bl>0?`${r.ach}%`:"–"}</span></TD>
                 <TD right style={{color:"#16a34a",fontWeight:700}}>{r.rec>0?`฿${fmt(r.rec)}`:"–"}</TD>
                 <TD right>฿{fmt(r.ytdBl)}</TD>
@@ -1729,18 +1768,6 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
         </>
       )}
 
-      {tt.vis&&tt.data&&(
-        <div style={{position:"fixed",left:tt.x+14,top:tt.y-8,background:"#0f172a",color:"#fff",borderRadius:7,padding:"10px 14px",fontSize:12,zIndex:9999,pointerEvents:"none",maxWidth:280,maxHeight:320,overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,.28)"}}>
-          <div style={{fontWeight:700,marginBottom:6}}>{tt.data.label}</div>
-          {(tt.data.items||[]).map((it,i)=>(
-            <div key={i} style={{marginBottom:4,paddingBottom:4,borderBottom:"1px solid #1e293b"}}>
-              <div style={{color:"#94a3b8",fontSize:10}}>{it.company}</div>
-              <div style={{color:"#22c55e",fontWeight:700}}>฿{fmt(it.amount)}</div>
-            </div>
-          ))}
-          <div style={{fontWeight:700,marginTop:4}}>Total: ฿{fmt(tt.data.total)}</div>
-        </div>
-      )}
     </div>
   );
 };
@@ -1768,7 +1795,7 @@ const CustForm = ({initial,user,onSave,onClose,onDelete,tagSuggestions=[]}) => {
   const setCt=(id,k,v)=>sF(p=>({...p,contacts:p.contacts.map(c=>c.id===id?{...c,[k]:v}:c)}));
   const addCt=()=>sF(p=>({...p,contacts:[...p.contacts,blankContact()]}));
   const delCt=id=>sF(p=>({...p,contacts:p.contacts.filter(c=>c.id!==id)}));
-  const addTag=()=>{const t=tagInput.trim();if(!t)return;sF(p=>({...p,tags:[...new Set([...safeArr(p.tags),t])]}));setTagInput("");};
+  const addTag=(override)=>{const t=(override??tagInput).trim();if(!t)return;sF(p=>({...p,tags:[...new Set([...safeArr(p.tags),t])]}));setTagInput("");};
   const removeTag=t=>sF(p=>({...p,tags:safeArr(p.tags).filter(x=>x!==t)}));
   return (
     <Modal title={initial?"Edit Customer":"Add Customer"} width={860} onClose={onClose}>
@@ -1798,13 +1825,13 @@ const CustForm = ({initial,user,onSave,onClose,onDelete,tagSuggestions=[]}) => {
         <div style={{gridColumn:"1/-1"}}><FRow label="Remark"><Inp value={f.remark} onChange={e=>set("remark",e.target.value)}/></FRow></div>
         <div style={{gridColumn:"1/-1"}}>
           <FRow label="Tags" tip="Custom labels e.g. hotel, VIP — type and press Enter">
-            <div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center",border:"1px solid #e2e8f0",borderRadius:6,padding:"7px 9px",background:"#fafafa"}}>
+            <div style={{position:"relative",display:"flex",flexWrap:"wrap",gap:6,alignItems:"center",border:"1px solid #e2e8f0",borderRadius:6,padding:"7px 9px",background:"#fafafa"}}>
               {safeArr(f.tags).map(t=><TagChip key={t} tag={t} size={12} onRemove={removeTag}/>)}
-              <input list="cust-tag-suggestions" value={tagInput} onChange={e=>setTagInput(e.target.value)}
-                onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addTag();}}}
+              <TagTypeahead value={tagInput} onChange={setTagInput}
+                suggestions={tagSuggestions.filter(t=>!safeArr(f.tags).includes(t))}
+                onCommit={addTag}
                 placeholder={safeArr(f.tags).length?"Add tag…":"e.g. hotel, VIP — Enter to add"}
-                style={{flex:"1 1 120px",minWidth:100,border:"none",background:"none",outline:"none",fontSize:13,padding:"2px 0"}}/>
-              <datalist id="cust-tag-suggestions">{tagSuggestions.map(t=><option key={t} value={t}/>)}</datalist>
+                inputStyle={{flex:"1 1 120px",minWidth:100,border:"none",background:"none",outline:"none",fontSize:13,padding:"2px 0"}}/>
             </div>
           </FRow>
         </div>
@@ -1860,8 +1887,8 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
   const clearSel=()=>setSelected(new Set());
   // Drop selected ids that no longer exist (e.g. after a delete elsewhere)
   useEffect(()=>{setSelected(p=>{const valid=new Set(customers.map(c=>c.id));let changed=false;const n=new Set();p.forEach(id=>{if(valid.has(id))n.add(id);else changed=true;});return changed?n:p;});},[customers]);
-  const applyBulkTag=()=>{
-    const t=bulkTag.trim(); if(!t||selected.size===0) return;
+  const applyBulkTag=(override)=>{
+    const t=(typeof override==="string"?override:bulkTag).trim(); if(!t||selected.size===0) return;
     customers.filter(c=>selected.has(c.id)).forEach(c=>onSave({...c,tags:[...new Set([...safeArr(c.tags),t])]}));
     toast("Tag assigned",`"${t}" → ${selected.size} customer${selected.size>1?"s":""}`);
     setBulkTag("");
@@ -1929,11 +1956,11 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
           <Span s={13} w={800} c="#1e40af">{selected.size} selected</Span>
           <div style={{width:1,height:20,background:"#bfdbfe"}}/>
           <div style={{display:"flex",gap:6,alignItems:"center"}}>
-            <input list="cust-bulk-tags" value={bulkTag} onChange={e=>setBulkTag(e.target.value)}
-              onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();applyBulkTag();}}}
-              placeholder="Tag name… e.g. hotel"
-              style={{...SI,width:170,fontSize:13,padding:"6px 10px"}}/>
-            <datalist id="cust-bulk-tags">{tagOptions.map(t=><option key={t} value={t}/>)}</datalist>
+            <div style={{position:"relative"}}>
+              <TagTypeahead value={bulkTag} onChange={setBulkTag} suggestions={tagOptions}
+                onCommit={applyBulkTag} placeholder="Tag name… e.g. hotel"
+                inputStyle={{...SI,width:170,fontSize:13,padding:"6px 10px"}}/>
+            </div>
             <Btn size="sm" disabled={!bulkTag.trim()} onClick={applyBulkTag}>Assign tag</Btn>
           </div>
           <div style={{width:1,height:20,background:"#bfdbfe"}}/>
