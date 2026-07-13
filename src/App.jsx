@@ -4871,6 +4871,14 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
     setWeekActualState(p => ({...p, [`${taskId}:${agentUid}_${year}_${month}_${week}`]: v}));
   const getActual = (taskId, agentUid) =>
     weekCols.reduce((s,col) => s + getWeekActual(taskId, agentUid, col.year, col.month, col.week), 0);
+  const clearAgentTask = (taskId, agentUid) => {
+    const prefix = `${taskId}:${agentUid}_`;
+    setWeekActualState(p => {
+      const next = {...p};
+      Object.keys(next).forEach(k => { if(k.startsWith(prefix)) delete next[k]; });
+      return next;
+    });
+  };
 
   const agentSummary = useMemo(() => {
     const map = {};
@@ -5044,7 +5052,15 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
                             );
                           })}
                           <td style={{padding:"3px 6px", borderLeft:"2px solid #e2e8f0", textAlign:"right", verticalAlign:"middle"}}>
-                            <span style={{fontSize:12, fontWeight:hasAg?800:400, color:hasAg?"#0f766e":"#94a3b8"}}>{hasAg?`${agentActual}h`:"—"}</span>
+                            <span style={{display:"inline-flex", alignItems:"center", gap:3}}>
+                              <span style={{fontSize:12, fontWeight:hasAg?800:400, color:hasAg?"#0f766e":"#94a3b8"}}>{hasAg?`${agentActual}h`:"—"}</span>
+                              {canEdit && hasAg && (
+                                <IconBtn size="sm" variant="danger" title="Clear all weeks"
+                                  onClick={() => clearAgentTask(task.id, agent.uid)}>
+                                  <TrashIcon s={12}/>
+                                </IconBtn>
+                              )}
+                            </span>
                           </td>
                         </tr>
                       );
