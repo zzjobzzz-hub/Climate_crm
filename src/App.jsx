@@ -4824,15 +4824,13 @@ const buildWeekColumns = (opexMonths) => {
 
 // ── TSTaskGrid ──────────────────────────────────────────────────────────────
 //  Layout per task group:
-//    Task row  = Plan  — dark bars across weeks + plan total (right)
-//    Agent rows = Actual — lighter bars across weeks + actual input (right)
-//    Gap row    = full-width footer showing Δ plan vs sum-of-actuals
+//    Plan band   = one bold total per task (never split by week)
+//    Actual band = per-agent rows, real editable hours per week
+//    Gap row     = full-width footer showing Δ plan vs sum-of-actuals
 const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit}) => {
-  const [open,      setOpen]     = useState(false);
-  // key = "taskId:agentUid"
-  const [actualMap, setActualMap]= useState({});
-  // key = "taskId:agentUid_year_month_week"
-  const [weekMap,   setWeekMap]  = useState({});
+  const [open,       setOpen]            = useState(false);
+  // key = "taskId:agentUid_year_month_week" → actual hours logged that week
+  const [weekActual, setWeekActualState] = useState({});
 
   const tasks      = useMemo(() => safeArr(snapshot?.tasks || []), [snapshot]);
   const opexMonths = useMemo(() => getOPEXMonths(tasks, null), [tasks]);
@@ -4840,16 +4838,12 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
   const totalCols  = 2 + weekCols.length + 1; // # + name + weeks + hrs
 
   useEffect(() => {
-    const aMap = {};
     const wMap = {};
     (tsRows || []).forEach(r => {
-      if(String(r.week) === "0" && r.taskId && r.agentUid)
-        aMap[`${r.taskId}:${r.agentUid}`] = +(r.actualHours || 0);
-      if(+(r.week) > 0 && r.taskId && r.agentUid && r.weekSelected)
-        wMap[`${r.taskId}:${r.agentUid}_${r.year}_${r.month}_${r.week}`] = true;
+      if(+(r.week) > 0 && r.taskId && r.agentUid)
+        wMap[`${r.taskId}:${r.agentUid}_${r.year}_${r.month}_${r.week}`] = +(r.actualHours || 0);
     });
-    setActualMap(aMap);
-    setWeekMap(wMap);
+    setWeekActualState(wMap);
   }, [tsRows, opp.oppCode]);
 
   const getAgents = task =>
@@ -4869,18 +4863,14 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
   const getTaskPlanTotal = task =>
     getAgents(task).reduce((s,a) => s + getAgentPlanTotal(task,a), 0);
 
-  const maxCellPlan = useMemo(() => {
-    let m = 0;
-    tasks.forEach(t => weekCols.forEach(c => {
-      const h = getAgents(t).reduce((s,a) => s + getAgentWeekPlan(t,a,c), 0);
-      if(h > m) m = h;
-    }));
-    return m || 1;
-  }, [tasks, weekCols]);
-
-  const getActual = (taskId, agentUid) => actualMap[`${taskId}:${agentUid}`] || 0;
-  const setActual = (taskId, agentUid, v) =>
-    setActualMap(p => ({...p, [`${taskId}:${agentUid}`]: v}));
+  // Actual hours are entered directly per week against the plan — no separate
+  // "select this week" toggle. getActual sums an agent's weekly entries for a task.
+  const getWeekActual = (taskId, agentUid, year, month, week) =>
+    weekActual[`${taskId}:${agentUid}_${year}_${month}_${week}`] || 0;
+  const setWeekActual = (taskId, agentUid, year, month, week, v) =>
+    setWeekActualState(p => ({...p, [`${taskId}:${agentUid}_${year}_${month}_${week}`]: v}));
+  const getActual = (taskId, agentUid) =>
+    weekCols.reduce((s,col) => s + getWeekActual(taskId, agentUid, col.year, col.month, col.week), 0);
 
   const agentSummary = useMemo(() => {
     const map = {};
@@ -4898,41 +4888,23 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
       map[uid].actualHrs = tasks.reduce((s,t) => s + getActual(t.id, uid), 0);
     });
     return Object.values(map);
-  }, [tasks, actualMap]);
-
-  const isWeekOn  = (taskId, agentUid, year, month, week) =>
-    !!weekMap[`${taskId}:${agentUid}_${year}_${month}_${week}`];
-  const toggleWeek = (taskId, agentUid, year, month, week) => {
-    const k = `${taskId}:${agentUid}_${year}_${month}_${week}`;
-    setWeekMap(p => ({...p, [k]: !p[k]}));
-  };
+  }, [tasks, weekActual, weekCols]);
 
   const handleSave = () => {
     const now = nowTS();
     tasks.forEach(task => {
       getAgents(task).forEach(agent => {
-        // Total row (week=0) — actual hours
-        onSave({
-          id:          `${opp.oppCode}_${task.id}_${agent.uid}_total`,
-          oppCode:     opp.oppCode,  jobCode: opp.jobCode,
-          taskId:      task.id,      taskName: task.taskName || "",
-          agentUid:    agent.uid,    year: new Date().getFullYear(),
-          month:       0,            week: 0,
-          planHours:   getAgentPlanTotal(task, agent),
-          actualHours: getActual(task.id, agent.uid),
-          savedTs:     now,          savedBy: user.id,
-        });
-        // Per-week rows — week selection boxes
         weekCols.forEach(col => {
-          if(!isWeekOn(task.id, agent.uid, col.year, col.month, col.week)) return;
+          const planH   = getAgentWeekPlan(task, agent, col);
+          const actualH = getWeekActual(task.id, agent.uid, col.year, col.month, col.week);
+          if(planH <= 0 && actualH <= 0) return; // nothing to record for this week
           onSave({
             id:          `${opp.oppCode}_${task.id}_${agent.uid}_${col.year}_${col.month}_${col.week}`,
             oppCode:     opp.oppCode,  jobCode: opp.jobCode,
             taskId:      task.id,      taskName: task.taskName || "",
             agentUid:    agent.uid,    year: col.year,
             month:       col.month,    week: col.week,
-            planHours:   0,            actualHours: 0,
-            weekSelected: true,
+            planHours:   planH,        actualHours: actualH,
             savedTs:     now,          savedBy: user.id,
           });
         });
@@ -4956,7 +4928,6 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
   );
 
   const CELL_W = 52;
-  const BAR_MAX = CELL_W - 10;
 
   return (
     <Card style={{marginBottom:10, overflow:"hidden"}}>
@@ -5015,32 +4986,23 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
                 const gapColor  = gap > 0 ? "#16a34a" : gap < 0 ? "#dc2626" : "#64748b";
                 const gapBg     = gap > 0 ? "#dcfce7" : gap < 0 ? "#fee2e2" : "#f1f5f9";
                 const gapBorder = gap > 0 ? "#86efac" : gap < 0 ? "#fecaca" : "#e2e8f0";
-                const getTaskWeekPlan = col => agents.reduce((s,a) => s + getAgentWeekPlan(task,a,col), 0);
 
                 return (
                   <React.Fragment key={task.id}>
-                    {/* ── Plan row (task header) ── */}
-                    <tr style={{borderTop: ti===0?"none":"2px solid #e2e8f0", background:"#fff"}}>
-                      <td style={{padding:"8px 4px 6px 8px", color:"#94a3b8", fontSize:11, fontWeight:700, textAlign:"right", verticalAlign:"middle"}}>{ti+1}</td>
-                      <td style={{padding:"8px 10px 6px", fontWeight:700, fontSize:12, color:"#0f172a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", verticalAlign:"middle"}} title={task.taskName}>
+                    {/* ── Plan band: one solid, bold total per task — never broken out by week ── */}
+                    <tr style={{borderTop: ti===0?"none":"2px solid #e2e8f0", background:"#eef1f6"}}>
+                      <td style={{padding:"9px 4px 9px 8px", color:"#94a3b8", fontSize:11, fontWeight:700, textAlign:"right", verticalAlign:"middle"}}>{ti+1}</td>
+                      <td style={{padding:"9px 10px", fontWeight:700, fontSize:12, color:"#0f172a", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", verticalAlign:"middle"}} title={task.taskName}>
                         {task.taskName||"(Unnamed)"}
-                        <span style={{marginLeft:6, fontSize:9, fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.05em"}}>Plan</span>
+                        <span style={{marginLeft:7, fontSize:9, fontWeight:800, color:"#475569", background:"#dde3ec", padding:"2px 6px", borderRadius:3, textTransform:"uppercase", letterSpacing:"0.05em"}}>Plan</span>
                       </td>
-                      {weekCols.map((col, ci) => {
-                        const planH = getTaskWeekPlan(col);
-                        const pBarW = planH > 0 ? Math.min(BAR_MAX, Math.max(4, Math.round((planH / maxCellPlan) * BAR_MAX))) : 0;
-                        return (
-                          <td key={ci} style={{padding:"8px 5px 6px", borderLeft:col.week===1?"2px solid #e2e8f0":"none", verticalAlign:"middle"}}>
-                            {planH > 0 && <div style={{width:pBarW, height:7, background:"#334155", borderRadius:2}} title={`Plan: ${planH}h`}/>}
-                          </td>
-                        );
-                      })}
-                      <td style={{textAlign:"right", padding:"0 8px", borderLeft:"2px solid #e2e8f0", fontWeight:700, fontSize:12, color:"#334155", verticalAlign:"middle", whiteSpace:"nowrap"}}>
-                        {planTotal > 0 ? `${planTotal}h` : "—"}
+                      <td colSpan={weekCols.length} style={{padding:"9px 5px", verticalAlign:"middle"}}/>
+                      <td style={{textAlign:"right", padding:"0 8px", borderLeft:"2px solid #dde3ec", verticalAlign:"middle", whiteSpace:"nowrap"}}>
+                        <span style={{fontWeight:800, fontSize:14, color:"#0f172a"}}>{planTotal > 0 ? `${planTotal}h` : "—"}</span>
                       </td>
                     </tr>
 
-                    {/* ── Actual rows (per agent) ── */}
+                    {/* ── Actual band: per agent, real editable hours per week ── */}
                     {agents.map((agent, ai) => {
                       const u           = USERS.find(x => x.id === agent.uid);
                       const agentName   = u?.name || agent.uid;
@@ -5051,52 +5013,38 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
                       const roleBg = role==="M"?"#dbeafe":role==="S"?"#ede9fe":"#dcfce7";
 
                       return (
-                        <tr key={agent.uid} style={{background:"#fafcff", borderBottom:"1px solid #f1f5f9"}}>
+                        <tr key={agent.uid} style={{background:"#fff", borderBottom: ai===agents.length-1?"2px solid #e2e8f0":"1px solid #f1f5f9"}}>
                           <td/>
-                          <td style={{padding:"4px 10px 4px 22px", verticalAlign:"middle"}}>
+                          <td style={{padding:"5px 10px 5px 22px", verticalAlign:"middle"}}>
                             <span style={{color:"#94a3b8", fontSize:10, marginRight:4}}>↳</span>
                             <span style={{fontSize:11, fontWeight:600, color:"#374151", marginRight:5}}>{agentName}</span>
                             <span style={{fontSize:9, fontWeight:700, padding:"1px 4px", borderRadius:3, background:roleBg, color:roleC, marginRight:5}}>
                               {role==="M"?"Mgr":role==="S"?"Sr":"Jr"}
                             </span>
-                            <span style={{fontSize:9, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.05em"}}>Actual</span>
+                            {ai===0 && <span style={{fontSize:9, fontWeight:800, color:"#0f766e", background:"#ccfbf1", padding:"2px 6px", borderRadius:3, textTransform:"uppercase", letterSpacing:"0.05em"}}>Actual</span>}
                           </td>
                           {weekCols.map((col, ci) => {
                             const planH = getAgentWeekPlan(task, agent, col);
-                            const on    = isWeekOn(task.id, agent.uid, col.year, col.month, col.week);
+                            if(planH <= 0) return (
+                              <td key={ci} style={{padding:"3px 4px", borderLeft:col.week===1?"2px solid #e2e8f0":"none", textAlign:"center"}}>
+                                <span style={{fontSize:11, color:"#e2e8f0"}}>·</span>
+                              </td>
+                            );
+                            const val = getWeekActual(task.id, agent.uid, col.year, col.month, col.week);
                             return (
                               <td key={ci} style={{padding:"3px 4px", borderLeft:col.week===1?"2px solid #e2e8f0":"none", verticalAlign:"middle", textAlign:"center"}}>
-                                {planH > 0
-                                  ? <button
-                                      onClick={() => canEdit && toggleWeek(task.id, agent.uid, col.year, col.month, col.week)}
-                                      title={on ? "Planned — click to unplan" : "Click to plan this week"}
-                                      style={{
-                                        width:20, height:20, borderRadius:4, padding:0,
-                                        border:`1.5px solid ${on?"#0f172a":"#d1d5db"}`,
-                                        background: on ? "#0f172a" : "#fff",
-                                        cursor: canEdit ? "pointer" : "default",
-                                        display:"inline-flex", alignItems:"center", justifyContent:"center",
-                                        flexShrink:0, transition:"all .1s",
-                                      }}>
-                                      {on && (
-                                        <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                          <polyline points="2,6 5,9 10,3"/>
-                                        </svg>
-                                      )}
-                                    </button>
-                                  : null
+                                {canEdit
+                                  ? <NumInp value={val} onChange={v => setWeekActual(task.id, agent.uid, col.year, col.month, col.week, v)} showZero={false}
+                                      style={{width:CELL_W-16, textAlign:"center", padding:"3px 2px", fontSize:11, fontWeight:val>0?700:400,
+                                        border:`1px solid ${val>0?"#5eead4":"#e2e8f0"}`,
+                                        background: val>0 ? "#f0fdfa" : "#fafafa", color: val>0?"#0f766e":"#1e293b"}}/>
+                                  : <span style={{fontSize:11, color:val>0?"#0f766e":"#cbd5e1", fontWeight:val>0?700:400}}>{val>0?`${val}h`:"—"}</span>
                                 }
                               </td>
                             );
                           })}
                           <td style={{padding:"3px 6px", borderLeft:"2px solid #e2e8f0", textAlign:"right", verticalAlign:"middle"}}>
-                            {canEdit
-                              ? <NumInp value={agentActual} onChange={v => setActual(task.id,agent.uid,v)} showZero={false}
-                                  style={{width:60, textAlign:"right", padding:"3px 5px", fontSize:11,
-                                    border:`1px solid ${hasAg?"#bfdbfe":"#e2e8f0"}`,
-                                    background:hasAg?"#eff6ff":"#fafafa"}}/>
-                              : <span style={{fontSize:11, color:hasAg?"#1e40af":"#94a3b8", fontWeight:hasAg?600:400}}>{hasAg?`${agentActual}h`:"—"}</span>
-                            }
+                            <span style={{fontSize:12, fontWeight:hasAg?800:400, color:hasAg?"#0f766e":"#94a3b8"}}>{hasAg?`${agentActual}h`:"—"}</span>
                           </td>
                         </tr>
                       );
@@ -5273,8 +5221,8 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
             const role = (agent.manager||0)>0?"Manager":(agent.senior||0)>0?"Senior":"Junior";
             agentMap[agent.uid] = {uid:agent.uid, name:u?.name||agent.uid, role, months:{}};
           }
-          const row      = tsRows.find(r=>r.taskId===task.id&&r.agentUid===agent.uid&&String(r.week)==="0");
-          const actual   = row ? +(row.actualHours||0) : 0;
+          const actual   = tsRows.filter(r=>r.taskId===task.id && r.agentUid===agent.uid && +r.week>0)
+                                  .reduce((s,r)=>s + +(r.actualHours||0), 0);
           agentMap[agent.uid].months[mKey] = (agentMap[agent.uid].months[mKey]||0) + actual;
         });
       });
