@@ -50,9 +50,26 @@ const DLV_STEPS = ["Contract Signed","Kick-off Meeting","Data Collection","Analy
 const INS_STATUSES = ["Pending","Invoiced","Received","Overdue"];
 const LOST_REASONS = ["Price Too High","Budget Frozen","Selected Competitor","Scope Mismatch",
                       "Project Postponed","No Response","Internal Policy","Inactive","Other"];
-// In-House levels with standard day rates (THB/day)
-const IH_LEVELS = {Manager:1441, Senior:948, Junior:600};
-const IH_LEVEL_NAMES = Object.keys(IH_LEVELS);
+// In-House levels — ordered Manager > Section Manager > Senior > Junior.
+// This order drives table column order and the "highest level wins" role-priority checks below.
+// Section Manager rate is a placeholder (0) — fill in the real standard cost later.
+const IH_LEVEL_DEFS = [
+  {name:"Manager",         field:"manager",        abbr:"Mgr",     rate:1441, c:"#1e40af", bg:"#dbeafe"},
+  {name:"Section Manager", field:"sectionManager",  abbr:"Sec Mgr", rate:0,    c:"#4f46e5", bg:"#e0e7ff"},
+  {name:"Senior",          field:"senior",          abbr:"Sr",      rate:948,  c:"#7c3aed", bg:"#ede9fe"},
+  {name:"Junior",          field:"junior",          abbr:"Jr",      rate:600,  c:"#16a34a", bg:"#dcfce7"},
+];
+const IH_LEVELS       = Object.fromEntries(IH_LEVEL_DEFS.map(l=>[l.name,l.rate]));  // {Manager:1441, "Section Manager":0, Senior:948, Junior:600}
+const IH_LEVEL_NAMES  = IH_LEVEL_DEFS.map(l=>l.name);
+const IH_LEVEL_FIELDS = IH_LEVEL_DEFS.map(l=>l.field);                              // ["manager","sectionManager","senior","junior"]
+const ROLE_META       = Object.fromEntries(IH_LEVEL_DEFS.map(l=>[l.name,l]));       // name -> {abbr,c,bg,rate,field}
+// Sum an object's per-level hour fields against IH_LEVEL_DEFS rates (a task, or a summed-agents totals object).
+const ihLevelCost = obj => IH_LEVEL_DEFS.reduce((s,l)=>s+(obj[l.field]||0)*l.rate, 0);
+// Highest-priority level (in IH_LEVEL_DEFS order) with hours > 0; defaults to the lowest level.
+const roleOfAgent = agent => (IH_LEVEL_DEFS.find(l=>(agent[l.field]||0)>0) || IH_LEVEL_DEFS[IH_LEVEL_DEFS.length-1]).name;
+const rateForRole = role => IH_LEVELS[role] ?? 948; // unknown/blank role still falls back to Senior's rate, as before
+// OPEX task table column count: #, Task/Activity, one column per level, Total Cost, Pay Month, Agent/Cancel
+const TASK_TABLE_COLS = 5 + IH_LEVEL_DEFS.length;
 // Sales agent mobile numbers
 const SALES_MOBILE = {"songyot.kr":"062-197-4449","theerayut.c":"080-441-2295"};
 
@@ -165,7 +182,7 @@ const successRateColor = pct => pct >= 70 ? "#16a34a" : pct >= 40 ? "#d97706" : 
 
 const calcIC   = rows => (rows||[]).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
 const calcEC   = (rows,coOnly) => (rows||[]).filter(r=>coOnly?!r.clientBorne:true).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
-const calcTask = tasks => (tasks||[]).reduce((s,t)=>{const ag=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];const mgr=ag.length>0?ag.reduce((a,x)=>a+(x.manager||0),0):(t.manager||0);const sr=ag.length>0?ag.reduce((a,x)=>a+(x.senior||0),0):(t.senior||0);const jr=ag.length>0?ag.reduce((a,x)=>a+(x.junior||0),0):(t.junior||0);return s+mgr*IH_LEVELS.Manager+sr*IH_LEVELS.Senior+jr*IH_LEVELS.Junior;},0);
+const calcTask = tasks => (tasks||[]).reduce((s,t)=>{const ag=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];const totals=Object.fromEntries(IH_LEVEL_FIELDS.map(f=>[f, ag.length>0?ag.reduce((a,x)=>a+(x[f]||0),0):(t[f]||0)]));return s+ihLevelCost(totals);},0);
 const calcTotalCS = cs => calcIC(cs.costs||[]) + calcTask(cs.tasks||[]);
 // Legacy helpers kept for per-quotation overrides
 const calcIH  = rows => (rows||[]).reduce((s,r)=>s+(r.days||0)*(r.rate||IH_LEVELS[r.level]||0),0);
@@ -3912,29 +3929,27 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
 };
 
 //  TaskRow: isolated component so taskName input retains focus on keystroke
-//  agents is now an array of {uid, manager, senior, junior} objects
+//  agents is an array of {uid, ...one hour field per IH_LEVEL_DEFS entry} objects
 const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
   const [name, setName] = useState(t.taskName);
   const [agentOpen, setAO] = useState(false);
   useEffect(() => { setName(t.taskName); }, [t.taskName]);
 
-  // agents: [{uid, manager, senior, junior}]
+  // agents: [{uid, manager, sectionManager, senior, junior}]
   const agents = Array.isArray(t.agents) && t.agents.length > 0 && typeof t.agents[0] === "object"
     ? t.agents
     : []; // legacy string[] treated as empty — agents will be re-added
 
-  // Totals summed across all agent rows (or from task-level if no agents)
-  const totalMgr  = agents.length > 0 ? agents.reduce((s,a)=>s+(a.manager||0),0) : (t.manager||0);
-  const totalSr   = agents.length > 0 ? agents.reduce((s,a)=>s+(a.senior||0),0)  : (t.senior||0);
-  const totalJr   = agents.length > 0 ? agents.reduce((s,a)=>s+(a.junior||0),0)  : (t.junior||0);
-  const tc = totalMgr*IH_LEVELS.Manager + totalSr*IH_LEVELS.Senior + totalJr*IH_LEVELS.Junior;
+  // Totals per level, summed across all agent rows (or from task-level if no agents)
+  const fieldTotals = Object.fromEntries(IH_LEVEL_FIELDS.map(f=>[f, agents.length>0?agents.reduce((s,a)=>s+(a[f]||0),0):(t[f]||0)]));
+  const tc = ihLevelCost(fieldTotals);
 
   const eligibleUsers = USERS.filter(u => ["sales","operation","manager"].includes(u.role));
   const assignedUids  = agents.map(a => a.uid);
 
   const addAgent = uid => {
     if(!uid || assignedUids.includes(uid)) return;
-    const next = [...agents, {uid, manager:0, senior:0, junior:0}];
+    const next = [...agents, {uid, ...Object.fromEntries(IH_LEVEL_FIELDS.map(f=>[f,0]))}];
     onSet(t.id, "agents", next);
   };
   const removeAgent = uid => onSet(t.id, "agents", agents.filter(a=>a.uid!==uid));
@@ -3954,11 +3969,9 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
             onBlur={e=>onSet(t.id,"taskName",e.target.value)}
             style={{padding:"2px 5px",fontSize:13,width:"100%",boxSizing:"border-box",border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",outline:"none"}}/>
         </td>
-        {/* Mgr / Sr / Jr — read-only totals when agents assigned, editable otherwise */}
-        {["manager","senior","junior"].map(lvl => {
-          const val = agents.length > 0
-            ? agents.reduce((s,a)=>s+(a[lvl]||0),0)
-            : (t[lvl]||0);
+        {/* One column per level — read-only totals when agents assigned, editable otherwise */}
+        {IH_LEVEL_FIELDS.map(lvl => {
+          const val = fieldTotals[lvl];
           return (
             <td key={lvl} style={{padding:"3px 4px"}}>
               {agents.length > 0
@@ -3992,7 +4005,7 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
         <>
           {agents.map(a => {
             const u = USERS.find(x=>x.id===a.uid);
-            const agentCost = (a.manager||0)*IH_LEVELS.Manager + (a.senior||0)*IH_LEVELS.Senior + (a.junior||0)*IH_LEVELS.Junior;
+            const agentCost = ihLevelCost(a);
             return (
               <tr key={a.uid} style={{background:"#f0fdf4",borderBottom:"1px solid #dcfce7"}}>
                 <td colSpan={2} style={{padding:"3px 8px 3px 28px"}}>
@@ -4011,7 +4024,7 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
                     ))}
                   </select>
                 </td>
-                {["manager","senior","junior"].map(lvl=>(
+                {IH_LEVEL_FIELDS.map(lvl=>(
                   <td key={lvl} style={{padding:"3px 4px"}}>
                     <input type="text" inputMode="numeric" value={a[lvl]||""}
                       onChange={e=>setAgentField(a.uid,lvl,e.target.value||0)}
@@ -4028,7 +4041,7 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
 
           {/* Add agent row */}
           <tr style={{background:"#f8fffe",borderBottom:"1px solid #e2e8f0"}}>
-            <td colSpan={8} style={{padding:"5px 8px 5px 28px"}}>
+            <td colSpan={TASK_TABLE_COLS} style={{padding:"5px 8px 5px 28px"}}>
               <select onChange={e=>{addAgent(e.target.value);e.target.value="";}}
                 style={{fontSize:12,padding:"2px 8px",border:"1px dashed #86efac",borderRadius:4,background:"#fff",color:"#16a34a",cursor:"pointer"}}>
                 <option value="">+ Add Agent</option>
@@ -4047,28 +4060,27 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
 
 //  TaskTableWidget: standalone table, uses TaskRow to prevent focus loss
 const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
-  const totalOPEX = (tasks||[]).reduce((s,t) => {
-    const agents = Array.isArray(t.agents) && t.agents.length > 0 && typeof t.agents[0] === "object" ? t.agents : [];
-    const mgr  = agents.length > 0 ? agents.reduce((x,a)=>x+(a.manager||0),0) : (t.manager||0);
-    const sr   = agents.length > 0 ? agents.reduce((x,a)=>x+(a.senior||0),0)  : (t.senior||0);
-    const jr   = agents.length > 0 ? agents.reduce((x,a)=>x+(a.junior||0),0)  : (t.junior||0);
-    return s + mgr*IH_LEVELS.Manager + sr*IH_LEVELS.Senior + jr*IH_LEVELS.Junior;
-  }, 0);
+  const totalOPEX = calcTask(tasks);
+  const headers = ["#","Task / Activity", ...IH_LEVEL_DEFS.map(l=>`${l.abbr} (hrs)`), "Total Cost","Pay Month","Agent / Cancel"];
   return (
     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
-      <colgroup><col style={{width:24}}/><col style={{width:"36%"}}/><col style={{width:"8%"}}/><col style={{width:"8%"}}/><col style={{width:"8%"}}/><col style={{width:"10%"}}/><col style={{width:"8%"}}/><col style={{width:"12%"}}/></colgroup>
+      <colgroup>
+        <col style={{width:24}}/><col style={{width:"30%"}}/>
+        {IH_LEVEL_DEFS.map(l=><col key={l.field} style={{width:"7%"}}/>)}
+        <col style={{width:"10%"}}/><col style={{width:"8%"}}/><col style={{width:"12%"}}/>
+      </colgroup>
       <thead><tr style={{background:"#f8fafc"}}>
-        {["#","Task / Activity","Mgr (hrs)","Sr (hrs)","Jr (hrs)","Total Cost","Pay Month","Agent / Cancel"].map(h=>(
+        {headers.map(h=>(
           <th key={h} style={{padding:"5px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:9,borderBottom:"1px solid #e2e8f0"}}>{h}</th>
         ))}
       </tr></thead>
       <tbody>
         {(tasks||[]).length===0&&(
-          <tr><td colSpan={8} style={{padding:"9px 6px",fontSize:11.5,color:"#94a3b8",fontStyle:"italic"}}>No tasks yet — add man-hour tasks and assign agents.</td></tr>
+          <tr><td colSpan={TASK_TABLE_COLS} style={{padding:"9px 6px",fontSize:11.5,color:"#94a3b8",fontStyle:"italic"}}>No tasks yet — add man-hour tasks and assign agents.</td></tr>
         )}
         {(tasks||[]).map((t,idx)=><TaskRow key={t.id} t={t} rowNum={idx+1} onSet={onSet} onDel={onDel} months={months}/>)}
         <tr style={{borderTop:"1px solid #e2e8f0"}}>
-          <td colSpan={5} style={{padding:"5px 4px"}}>
+          <td colSpan={2+IH_LEVEL_DEFS.length} style={{padding:"5px 4px"}}>
             <button onClick={onAdd} className="wb-addrow">+ Task</button>
           </td>
           <td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap",color:"#94a3b8",fontSize:11,fontWeight:600}}>Total OPEX</td>
@@ -4295,7 +4307,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                     const cfM=q.projectMonths||editCS.projectMonths||3;
                     const allM=Array.from({length:cfM+1},(_,i)=>i+1);
                     const cByM={};
-                    (q.tasks||[]).forEach(t=>{const m=t.payMonth||1;const ag=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];const mgr=ag.length>0?ag.reduce((s,a)=>s+(a.manager||0),0):(t.manager||0);const sr=ag.length>0?ag.reduce((s,a)=>s+(a.senior||0),0):(t.senior||0);const jr=ag.length>0?ag.reduce((s,a)=>s+(a.junior||0),0):(t.junior||0);const tc=mgr*IH_LEVELS.Manager+sr*IH_LEVELS.Senior+jr*IH_LEVELS.Junior;cByM[m]=(cByM[m]||0)+tc;});
+                    (q.tasks||[]).forEach(t=>{const m=t.payMonth||1;const ag=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];const totals=Object.fromEntries(IH_LEVEL_FIELDS.map(f=>[f, ag.length>0?ag.reduce((s,a)=>s+(a[f]||0),0):(t[f]||0)]));const tc=ihLevelCost(totals);cByM[m]=(cByM[m]||0)+tc;});
                     (q.costs||[]).forEach(r=>{const m=r.payMonth||1;const amt=(r.qty||0)*(r.rate||0);cByM[m]=(cByM[m]||0)+amt;});
                     const rByM={};
                     (q.installments||[]).forEach(ins=>{const m=ins.recvMonth||1;rByM[m]=(rByM[m]||0)+Math.round(qNetPrice*(ins.pct||0)/100);});
@@ -4498,14 +4510,14 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
   const addIC=()=>sECS(p=>({...p,costs:[...(p.costs||[]),{id:uid(),label:"",vendorName:"",unit:"Unit",qty:0,rate:0}]}));
   const delIC=id=>sECS(p=>({...p,costs:(p.costs||[]).filter(r=>r.id!==id)}));
   const setTK=(id,k,v)=>sECS(p=>({...p,tasks:(p.tasks||[]).map(t=>t.id===id?{...t,[k]:v}:t)}));
-  const addTK=()=>sECS(p=>({...p,tasks:[...(p.tasks||[]),{id:uid(),taskName:"",manager:0,senior:0,junior:0,payMonth:1,agents:[]}]}));
+  const addTK=()=>sECS(p=>({...p,tasks:[...(p.tasks||[]),{id:uid(),taskName:"",...Object.fromEntries(IH_LEVEL_FIELDS.map(f=>[f,0])),payMonth:1,agents:[]}]}));
   const delTK=id=>sECS(p=>({...p,tasks:(p.tasks||[]).filter(t=>t.id!==id)}));
 
   // Per-quotation — only 1 CS per quote
   const updQO=(qid,fn)=>sECS(p=>({...p,quoteOverrides:(p.quoteOverrides||[]).map(q=>q.id===qid?fn(q):q)}));
   const setQF=(qid,k,v)=>updQO(qid,q=>({...q,[k]:v}));
   const setQTK=(qid,tid,k,v)=>updQO(qid,q=>({...q,tasks:(q.tasks||[]).map(t=>t.id===tid?{...t,[k]:v}:t)}));
-  const addQTK=qid=>updQO(qid,q=>({...q,tasks:[...(q.tasks||[]),{id:uid(),taskName:"",manager:0,senior:0,junior:0,payMonth:1,agents:[]}]}));
+  const addQTK=qid=>updQO(qid,q=>({...q,tasks:[...(q.tasks||[]),{id:uid(),taskName:"",...Object.fromEntries(IH_LEVEL_FIELDS.map(f=>[f,0])),payMonth:1,agents:[]}]}));
   const delQTK=(qid,tid)=>updQO(qid,q=>({...q,tasks:(q.tasks||[]).filter(t=>t.id!==tid)}));
 
   const setQIC=(qid,rid,k,v)=>updQO(qid,q=>({...q,costs:(q.costs||[]).map(r=>r.id===rid?{...r,[k]:v}:r)}));
@@ -4779,8 +4791,6 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
 //  New GS schema: one row per oppCode+taskId+agentUid+year+month+week
 // ============================================================
 
-const RATE_PER_HOUR = {Manager:1441, Senior:948, Junior:600};
-
 // ── ISO week helpers (Mon = 1) ──
 const getISOWeekOfMonth = (date) => {
   // Week 1 = Mon of that week contains day 1-7
@@ -4853,12 +4863,12 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
   const getAgentWeekPlan = (task, agent, col) => {
     const om = opexMonths.find(m => m.payMonth === (task.payMonth || 1));
     if(!om || om.year !== col.year || om.month !== col.month) return 0;
-    const hrs = (agent.manager||0) + (agent.senior||0) + (agent.junior||0);
+    const hrs = IH_LEVEL_FIELDS.reduce((s,f)=>s+(agent[f]||0),0);
     return Math.round(hrs / 4 * 10) / 10;
   };
 
   const getAgentPlanTotal = (task, agent) =>
-    (agent.manager||0) + (agent.senior||0) + (agent.junior||0);
+    IH_LEVEL_FIELDS.reduce((s,f)=>s+(agent[f]||0),0);
 
   const getTaskPlanTotal = task =>
     getAgents(task).reduce((s,a) => s + getAgentPlanTotal(task,a), 0);
@@ -4886,7 +4896,7 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
       getAgents(task).forEach(agent => {
         if(!map[agent.uid]) {
           const u    = USERS.find(x => x.id === agent.uid);
-          const role = (agent.manager||0)>0?"Manager":(agent.senior||0)>0?"Senior":"Junior";
+          const role = roleOfAgent(agent);
           map[agent.uid] = {uid:agent.uid, name:u?.name||agent.uid, role, planHrs:0, actualHrs:0};
         }
         map[agent.uid].planHrs += getAgentPlanTotal(task, agent);
@@ -5016,9 +5026,8 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
                       const agentName   = u?.name || agent.uid;
                       const agentActual = getActual(task.id, agent.uid);
                       const hasAg       = agentActual > 0;
-                      const role   = (agent.manager||0)>0?"M":(agent.senior||0)>0?"S":"J";
-                      const roleC  = role==="M"?"#1e40af":role==="S"?"#7c3aed":"#16a34a";
-                      const roleBg = role==="M"?"#dbeafe":role==="S"?"#ede9fe":"#dcfce7";
+                      const roleName = roleOfAgent(agent);
+                      const {abbr:roleAbbr, c:roleC, bg:roleBg} = ROLE_META[roleName];
 
                       return (
                         <tr key={agent.uid} style={{background:"#fff", borderBottom: ai===agents.length-1?"2px solid #e2e8f0":"1px solid #f1f5f9"}}>
@@ -5027,7 +5036,7 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
                             <span style={{color:"#94a3b8", fontSize:10, marginRight:4}}>↳</span>
                             <span style={{fontSize:11, fontWeight:600, color:"#374151", marginRight:5}}>{agentName}</span>
                             <span style={{fontSize:9, fontWeight:700, padding:"1px 4px", borderRadius:3, background:roleBg, color:roleC, marginRight:5}}>
-                              {role==="M"?"Mgr":role==="S"?"Sr":"Jr"}
+                              {roleAbbr}
                             </span>
                             {ai===0 && <span style={{fontSize:9, fontWeight:800, color:"#0f766e", background:"#ccfbf1", padding:"2px 6px", borderRadius:3, textTransform:"uppercase", letterSpacing:"0.05em"}}>Actual</span>}
                           </td>
@@ -5113,14 +5122,14 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
             </thead>
             <tbody>
               {agentSummary.map(r => {
-                const rate  = RATE_PER_HOUR[r.role] || 948;
+                const rate  = rateForRole(r.role);
                 const pB    = r.planHrs * rate;
                 const aB    = r.actualHrs * rate;
                 const vH    = r.actualHrs - r.planHrs;
                 const vB    = aB - pB;
                 const vc    = vH < 0 ? "#16a34a" : vH > 0 ? "#dc2626" : "#64748b";
-                const roleC = r.role==="Manager"?"#1e40af":r.role==="Senior"?"#7c3aed":"#16a34a";
-                const roleBg= r.role==="Manager"?"#dbeafe":r.role==="Senior"?"#ede9fe":"#dcfce7";
+                const roleC = ROLE_META[r.role]?.c || "#16a34a";
+                const roleBg= ROLE_META[r.role]?.bg || "#dcfce7";
                 return (
                   <tr key={r.uid} style={{borderBottom:"1px solid #f1f5f9"}}>
                     <td style={{padding:"6px 10px", fontWeight:600, color:"#0f172a"}}>{r.name}</td>
@@ -5141,8 +5150,8 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
               {(() => {
                 const totPlanHrs   = agentSummary.reduce((s,r) => s+r.planHrs, 0);
                 const totActualHrs = agentSummary.reduce((s,r) => s+r.actualHrs, 0);
-                const totPlanB     = agentSummary.reduce((s,r) => s+(r.planHrs*(RATE_PER_HOUR[r.role]||948)), 0);
-                const totActualB   = agentSummary.reduce((s,r) => s+(r.actualHrs*(RATE_PER_HOUR[r.role]||948)), 0);
+                const totPlanB     = agentSummary.reduce((s,r) => s+(r.planHrs*rateForRole(r.role)), 0);
+                const totActualB   = agentSummary.reduce((s,r) => s+(r.actualHrs*rateForRole(r.role)), 0);
                 const totVH = totActualHrs - totPlanHrs;
                 const totVB = totActualB - totPlanB;
                 const vc    = totVH < 0 ? "#16a34a" : totVH > 0 ? "#dc2626" : "#64748b";
@@ -5234,7 +5243,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
         agents.forEach(agent => {
           if(!agentMap[agent.uid]){
             const u    = USERS.find(x=>x.id===agent.uid);
-            const role = (agent.manager||0)>0?"Manager":(agent.senior||0)>0?"Senior":"Junior";
+            const role = roleOfAgent(agent);
             agentMap[agent.uid] = {uid:agent.uid, name:u?.name||agent.uid, role, months:{}};
           }
           const actual   = tsRows.filter(r=>r.taskId===task.id && r.agentUid===agent.uid && +r.week>0)
@@ -5353,8 +5362,8 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
             </Card>
           )}
           {monthlySummaryByProject.map(({opp,cust,agents,months})=>{
-            const roleC = r=>r==="Manager"?"#1e40af":r==="Senior"?"#7c3aed":"#16a34a";
-            const roleBg= r=>r==="Manager"?"#dbeafe":r==="Senior"?"#ede9fe":"#dcfce7";
+            const roleC = r=>ROLE_META[r]?.c || "#16a34a";
+            const roleBg= r=>ROLE_META[r]?.bg || "#dcfce7";
             return (
               <Card key={opp.oppCode} style={{marginBottom:10,overflow:"hidden"}}>
                 {/* Card header */}
@@ -5380,7 +5389,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                     </thead>
                     <tbody>
                       {agents.map(a=>{
-                        const rate     = RATE_PER_HOUR[a.role]||948;
+                        const rate     = rateForRole(a.role);
                         const totalHrs = Object.values(a.months).reduce((s,h)=>s+h,0);
                         return (
                           <tr key={a.uid} style={{borderBottom:"1px solid #f1f5f9"}}>
@@ -5408,7 +5417,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                         <td colSpan={2} style={{padding:"7px 12px",fontWeight:800,fontSize:12,color:"#0f172a"}}>Total</td>
                         {months.map(m=>{
                           const h=agents.reduce((s,a)=>s+(a.months[m]||0),0);
-                          const b=agents.reduce((s,a)=>s+(a.months[m]||0)*(RATE_PER_HOUR[a.role]||948),0);
+                          const b=agents.reduce((s,a)=>s+(a.months[m]||0)*rateForRole(a.role),0);
                           return (
                             <td key={m} style={{padding:"7px 12px",textAlign:"right",borderLeft:"1px solid #e2e8f0",fontWeight:700,verticalAlign:"top"}}>
                               {h>0?<><span style={{color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#64748b"}}>฿{fmt(b)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>}
@@ -5416,7 +5425,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                           );
                         })}
                         <td style={{padding:"7px 12px",textAlign:"right",borderLeft:"2px solid #cbd5e1",fontWeight:800,verticalAlign:"top"}}>
-                          {(()=>{const h=agents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v,0),0);const b=agents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v,0)*(RATE_PER_HOUR[a.role]||948),0);return h>0?<><span style={{color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#64748b"}}>฿{fmt(b)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>;})()}
+                          {(()=>{const h=agents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v,0),0);const b=agents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v,0)*rateForRole(a.role),0);return h>0?<><span style={{color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#64748b"}}>฿{fmt(b)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>;})()}
                         </td>
                       </tr>
                     </tfoot>
@@ -5448,10 +5457,10 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                   </thead>
                   <tbody>
                     {grandTotalAgents.map(a=>{
-                      const rate=RATE_PER_HOUR[a.role]||948;
+                      const rate=rateForRole(a.role);
                       const totalHrs=Object.values(a.months).reduce((s,h)=>s+h,0);
-                      const roleC=a.role==="Manager"?"#1e40af":a.role==="Senior"?"#7c3aed":"#16a34a";
-                      const roleBg=a.role==="Manager"?"#dbeafe":a.role==="Senior"?"#ede9fe":"#dcfce7";
+                      const roleC=ROLE_META[a.role]?.c || "#16a34a";
+                      const roleBg=ROLE_META[a.role]?.bg || "#dcfce7";
                       return (
                         <tr key={a.uid} style={{borderBottom:"1px solid #f1f5f9"}}>
                           <td style={{padding:"8px 12px",fontWeight:600,color:"#0f172a",whiteSpace:"nowrap"}}>{a.name}</td>
@@ -5479,7 +5488,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                       <td colSpan={2} style={{padding:"7px 12px",fontWeight:800,fontSize:12,color:"#0f172a"}}>Grand Total</td>
                       {allSummaryMonths.map(m=>{
                         const h=grandTotalAgents.reduce((s,a)=>s+(a.months[m]||0),0);
-                        const b=grandTotalAgents.reduce((s,a)=>s+(a.months[m]||0)*(RATE_PER_HOUR[a.role]||948),0);
+                        const b=grandTotalAgents.reduce((s,a)=>s+(a.months[m]||0)*rateForRole(a.role),0);
                         return (
                           <td key={m} style={{padding:"7px 12px",textAlign:"right",borderLeft:"1px solid #e2e8f0",fontWeight:700,verticalAlign:"top"}}>
                             {h>0?<><span style={{color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#64748b"}}>฿{fmt(b)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>}
@@ -5487,7 +5496,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                         );
                       })}
                       <td style={{padding:"7px 12px",textAlign:"right",borderLeft:"2px solid #cbd5e1",fontWeight:800,verticalAlign:"top"}}>
-                        {(()=>{const h=grandTotalAgents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v,0),0);const b=grandTotalAgents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v,0)*(RATE_PER_HOUR[a.role]||948),0);return<><span style={{color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#64748b"}}>฿{fmt(b)}</span></>;})()}
+                        {(()=>{const h=grandTotalAgents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v,0),0);const b=grandTotalAgents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v,0)*rateForRole(a.role),0);return<><span style={{color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#64748b"}}>฿{fmt(b)}</span></>;})()}
                       </td>
                     </tr>
                   </tfoot>
@@ -5512,7 +5521,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
             </thead>
             <tbody>
               {allAgentSummary.map(r=>{
-                const rate=RATE_PER_HOUR[r.role]||948;
+                const rate=rateForRole(r.role);
                 const pB=r.planHours*rate,aB=r.actualHours*rate;
                 const vH=r.actualHours-r.planHours;
                 const vc=vH<0?"#16a34a":vH>0?"#dc2626":"#64748b";
