@@ -647,7 +647,7 @@ const Modal = ({title,width=740,onClose,children}) => {
     <div style={{background:"#fff",borderRadius:10,width:"100%",maxWidth:width,maxHeight:"92vh",overflow:"auto",boxShadow:"0 24px 64px rgba(0,0,0,.22)"}}>
       <div style={{padding:"17px 24px",borderBottom:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff",zIndex:1}}>
         <Span s={17} w={800} c="#0f172a">{title}</Span>
-        <button onClick={onClose} style={{border:"none",background:"none",fontSize:22,cursor:"pointer",color:"#94a3b8",lineHeight:1}}>×</button>
+        <IconBtn onClick={onClose} title="Close"><XIcon s={16}/></IconBtn>
       </div>
       <div style={{padding:24}}>{children}</div>
     </div>
@@ -921,7 +921,7 @@ const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a 
                   ? <div style={{display:"flex",gap:6,marginTop:4}}>
                       <input autoFocus value={editText} onChange={e=>setEditText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){onEdit(l.id,editText,l.replies);setEditId(null);}if(e.key==="Escape")setEditId(null);}} style={{flex:1,fontSize:13,padding:"4px 8px",border:"1px solid #1e40af",borderRadius:5,outline:"none",boxShadow:"0 0 0 3px rgba(30,64,175,.15)"}}/>
                       <IconBtn variant="accept" title="Save" onClick={()=>{onEdit(l.id,editText,l.replies);setEditId(null);}}><CheckIcon s={15}/></IconBtn>
-                      <IconBtn title="Cancel" onClick={()=>setEditId(null)}><XIcon s={14}/></IconBtn>
+                      <IconBtn title="Cancel" onClick={()=>setEditId(null)}><XIcon s={13}/></IconBtn>
                     </div>
                   : <div style={{fontSize:13,color:"#374151",lineHeight:1.5}}><RenderMentionText text={l.note} users={allUsers}/></div>
                 }
@@ -979,7 +979,7 @@ const ActivityLog = ({logs,currentUser,onAdd,onEdit,onDelete,placeholder="Add a 
                                     onEdit(l.id,l.note,updatedReplies);
                                     setReplyEditId(null);
                                   }}><CheckIcon s={13}/></IconBtn>
-                                  <IconBtn size="sm" title="Cancel" onClick={()=>setReplyEditId(null)}><XIcon s={12}/></IconBtn>
+                                  <IconBtn size="sm" title="Cancel" onClick={()=>setReplyEditId(null)}><XIcon s={13}/></IconBtn>
                                 </div>
                               : <div style={{fontSize:12,color:"#374151"}}><RenderMentionText text={r.note} users={allUsers}/></div>
                             }
@@ -2882,7 +2882,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                           {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
                           <RenderMentionText text={body} users={userList}/>
                         </div>
-                        <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
+                        <IconBtn size="sm" variant="danger" title="Delete note" style={{flexShrink:0}} onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))}><XIcon s={12}/></IconBtn>
                       </div>
                     );});
                   })()}
@@ -3533,7 +3533,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
                           {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
                           <RenderMentionText text={body} users={userList}/>
                         </div>
-                        <button onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete note">×</button>
+                        <IconBtn size="sm" variant="danger" title="Delete note" style={{flexShrink:0}} onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))}><XIcon s={12}/></IconBtn>
                       </div>
                     );});
                   })()}
@@ -3549,8 +3549,8 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
                       users={userList} minHeight={36}
                     />
                     {noteInput&&(
-                      <button onClick={()=>sNoteInput("")} title="Clear"
-                        style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:16,lineHeight:1,padding:"2px 4px"}}>×</button>
+                      <IconBtn size="sm" variant="danger" title="Clear" onClick={()=>sNoteInput("")}
+                        style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)"}}><XIcon s={12}/></IconBtn>
                     )}
                   </div>
                 </div>
@@ -3588,7 +3588,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
                   <TD><Inp value={ins.receiptNo} onChange={e=>changeIns(idx,"receiptNo",e.target.value)} style={{padding:"4px 6px",fontSize:12}}/></TD>
                   <TD><Inp type="date" value={ins.receiptDate} onChange={e=>changeIns(idx,"receiptDate",e.target.value)} style={{padding:"4px 6px",fontSize:12}}/></TD>
                   <TD><Sel value={ins.status} onChange={e=>changeIns(idx,"status",e.target.value)} style={{padding:"4px 6px",fontSize:12}}>{INS_STATUSES.map(s=><option key={s}>{s}</option>)}</Sel></TD>
-                  <TD><Btn variant="danger" style={{fontSize:11,padding:"2px 7px"}} onClick={()=>delIns(idx)}>×</Btn></TD>
+                  <TD><IconBtn size="sm" variant="danger" title="Delete installment" onClick={()=>delIns(idx)}><XIcon s={12}/></IconBtn></TD>
                 </tr>
               ))}</tbody>
             </table>
@@ -3823,7 +3823,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
                         {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
                         <RenderMentionText text={body} users={userList}/>
                       </div>
-                      <button onClick={()=>{const lines=(localD.remark||"").split("\n").filter(Boolean);markDirty({...localD,remark:lines.filter((_,idx)=>idx!==arr.length-1-i).join("\n")});}} style={{flexShrink:0,border:"none",background:"transparent",color:"#cbd5e1",cursor:"pointer",fontSize:14,lineHeight:1,padding:"1px 2px"}} title="Delete">×</button>
+                      <IconBtn size="sm" variant="danger" title="Delete" style={{flexShrink:0}} onClick={()=>{const lines=(localD.remark||"").split("\n").filter(Boolean);markDirty({...localD,remark:lines.filter((_,idx)=>idx!==arr.length-1-i).join("\n")});}}><XIcon s={12}/></IconBtn>
                     </div>
                   );
                 })}
@@ -3995,7 +3995,7 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
               style={{fontSize:13,padding:"1px 5px",border:`1px solid ${agents.length>0?"#86efac":"#e2e8f0"}`,borderRadius:3,background:agents.length>0?"#f0fdf4":"#f8fafc",color:agents.length>0?"#16a34a":"#64748b",cursor:"pointer",whiteSpace:"nowrap",minWidth:24,textAlign:"center"}}>
               {agents.length > 0 ? `@${agents.length}` : "@"}
             </button>
-            <Btn variant="danger" style={{fontSize:13,padding:"1px 5px"}} onClick={()=>onDel(t.id)}>×</Btn>
+            <IconBtn size="sm" variant="danger" title="Delete task" onClick={()=>onDel(t.id)}><XIcon s={12}/></IconBtn>
           </div>
         </td>
       </tr>
@@ -4033,7 +4033,7 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
                 ))}
                 <td style={{padding:"3px 4px",fontWeight:700,fontSize:12,whiteSpace:"nowrap",color:"#16a34a"}}>฿{fmt(agentCost)}</td>
                 <td colSpan={2} style={{padding:"3px 4px"}}>
-                  <button onClick={()=>removeAgent(a.uid)} style={{fontSize:12,color:"#dc2626",background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:3,padding:"1px 7px",cursor:"pointer"}}>×</button>
+                  <IconBtn size="sm" variant="danger" title="Remove agent" onClick={()=>removeAgent(a.uid)}><XIcon s={12}/></IconBtn>
                 </td>
               </tr>
             );
@@ -4240,7 +4240,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                                 {Array.from({length:(months||3)+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
                               </Sel>
                             </td>
-                            <td><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQIC(q.id,r.id)}>×</Btn></td>
+                            <td><IconBtn size="sm" variant="danger" title="Delete cost row" onClick={()=>delQIC(q.id,r.id)}><XIcon s={12}/></IconBtn></td>
                           </tr>
                         ))}
                         <tr style={{borderTop:"1px solid #e2e8f0"}}>
@@ -4292,7 +4292,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                                 {Array.from({length:months+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
                               </Sel>
                             </td>
-                            <td style={{padding:"4px 4px",width:20}}><Btn variant="danger" style={{fontSize:13,padding:"1px 4px"}} onClick={()=>delQInst(q.id,ins.id)}>×</Btn></td>
+                            <td style={{padding:"4px 4px",width:20}}><IconBtn size="sm" variant="danger" title="Delete installment" onClick={()=>delQInst(q.id,ins.id)}><XIcon s={12}/></IconBtn></td>
                           </tr>
                         ))}
                         <tr><td colSpan={6} style={{padding:"6px 4px"}}>
@@ -4383,7 +4383,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                       <div key={d.id} style={{display:"flex",gap:8,alignItems:"center"}}>
                         <span style={{color:"#94a3b8",fontWeight:700,fontSize:12,flexShrink:0,minWidth:20,textAlign:"right"}}>{i+1}</span>
                         <Inp value={d.item} onChange={e=>setQDlv(q.id,d.id,e.target.value)} placeholder="" style={{fontSize:12,flex:1}}/>
-                        <Btn variant="danger" style={{fontSize:13,padding:"1px 5px",flexShrink:0}} onClick={()=>delQDlv(q.id,d.id)}>×</Btn>
+                        <IconBtn size="sm" variant="danger" title="Delete deliverable" style={{flexShrink:0}} onClick={()=>delQDlv(q.id,d.id)}><XIcon s={12}/></IconBtn>
                       </div>
                     ))}
                     {(()=>{const full=(q.deliverables||[]).length>=DELIV_MAX;return(
@@ -4404,7 +4404,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                       <div key={n.id} style={{display:"flex",gap:8,alignItems:"center"}}>
                         <span style={{color:"#94a3b8",fontWeight:700,fontSize:12,flexShrink:0,minWidth:20,textAlign:"right"}}>{i+1}</span>
                         <Inp value={n.item} onChange={e=>setQNote(q.id,n.id,e.target.value)} placeholder="" style={{fontSize:12,flex:1}}/>
-                        <Btn variant="danger" style={{fontSize:13,padding:"1px 5px",flexShrink:0}} onClick={()=>delQNote(q.id,n.id)}>×</Btn>
+                        <IconBtn size="sm" variant="danger" title="Delete note" style={{flexShrink:0}} onClick={()=>delQNote(q.id,n.id)}><XIcon s={12}/></IconBtn>
                       </div>
                     ))}
                     {(()=>{const full=toItemList(q.notes).length>=NOTES_MAX;return(
@@ -5066,7 +5066,7 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
                               {canEdit && hasAg && (
                                 <IconBtn size="sm" variant="danger" title="Clear all weeks"
                                   onClick={() => clearAgentTask(task.id, agent.uid)}>
-                                  <TrashIcon s={12}/>
+                                  <XIcon s={12}/>
                                 </IconBtn>
                               )}
                             </span>
