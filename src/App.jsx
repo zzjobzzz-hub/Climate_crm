@@ -449,6 +449,36 @@ const TagChip = ({tag,onRemove,size=11}) => { const cl=tagColor(tag); return (
   </span>
 );};
 
+// Shared keyboard-nav for div-based listbox/dropdown widgets (the app's native <select>s
+// already get this for free from the browser — this is only for custom option lists).
+// ArrowUp/Down clamp a highlighted index over `count` items; Home/End jump to the ends;
+// Enter/Tab commit the highlighted item; Escape closes. Spread `onKeyDown` onto whatever
+// owns the listbox (an input, or the trigger button for a click-to-open picker).
+function useListboxNav(count, {onCommit, onClose}) {
+  const [hi, setHi] = useState(0);
+  useEffect(()=>{ if(hi>count-1) setHi(Math.max(0,count-1)); },[count]); // clamp when the list shrinks
+  const onKeyDown = e => {
+    if(e.key==="Escape"){ e.preventDefault(); onClose(); return; }
+    if(count<=0) return;
+    if(e.key==="ArrowDown"){ e.preventDefault(); setHi(i=>Math.min(i+1,count-1)); }
+    else if(e.key==="ArrowUp"){ e.preventDefault(); setHi(i=>Math.max(i-1,0)); }
+    else if(e.key==="Home"){ e.preventDefault(); setHi(0); }
+    else if(e.key==="End"){ e.preventDefault(); setHi(count-1); }
+    else if(e.key==="Enter"||e.key==="Tab"){ e.preventDefault(); onCommit(hi); }
+  };
+  return {hi, setHi, onKeyDown};
+}
+// Scrolls the option currently marked data-hi="true" inside `containerRef` into view as `hi` changes.
+const useScrollHiIntoView = (containerRef, hi) => {
+  useEffect(()=>{ containerRef.current?.querySelector('[data-hi="true"]')?.scrollIntoView({block:"nearest"}); },[hi]);
+};
+// Debounces a fast-changing value (e.g. a search input) so expensive work only runs once typing pauses.
+const useDebouncedValue = (value, delay=250) => {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(()=>{ const t=setTimeout(()=>setDebounced(value), delay); return ()=>clearTimeout(t); },[value,delay]);
+  return debounced;
+};
+
 // Tag input with a styled, clickable suggestion dropdown (replaces native <datalist>).
 // Caller owns `value`/`onChange` (the pending typed text) and must render this inside a
 // position:relative ancestor so the dropdown anchors correctly. onCommit fires with the
@@ -456,32 +486,37 @@ const TagChip = ({tag,onRemove,size=11}) => { const cl=tagColor(tag); return (
 // (add a chip, stage a bulk-assign value, etc.) and is responsible for clearing `value`.
 const TagTypeahead = ({value,onChange,suggestions=[],onCommit,placeholder,inputStyle}) => {
   const [open,setOpen] = React.useState(false);
-  const [hi,setHi] = React.useState(0);
   const q = value.trim().toLowerCase();
   const filtered = suggestions.filter(t=>t.toLowerCase().includes(q));
+  const listRef = useRef(null);
+  const idRef = useRef(`tta-${uid()}`);
 
   const commit = t => { const v=(t??"").trim(); if(!v) return; onCommit(v); setOpen(false); };
 
+  const {hi, setHi, onKeyDown:navKeyDown} = useListboxNav(open?filtered.length:0, {
+    onCommit: i => commit(filtered[i]),
+    onClose: () => setOpen(false),
+  });
+  useScrollHiIntoView(listRef, hi);
+
   const handleKeyDown = e => {
-    if(open && filtered.length>0) {
-      if(e.key==="ArrowDown"){ e.preventDefault(); setHi(i=>Math.min(i+1,filtered.length-1)); return; }
-      if(e.key==="ArrowUp"){   e.preventDefault(); setHi(i=>Math.max(i-1,0)); return; }
-      if(e.key==="Enter"||e.key==="Tab"){ e.preventDefault(); commit(filtered[hi]); return; }
-      if(e.key==="Escape"){ setOpen(false); return; }
-    }
+    if(open && filtered.length>0){ navKeyDown(e); return; }
     if(e.key==="Enter"){ e.preventDefault(); commit(value); }
   };
 
+  const showList = open && filtered.length>0;
   return (<>
     <input value={value} placeholder={placeholder} style={inputStyle}
+      role="combobox" aria-expanded={showList} aria-controls={idRef.current}
+      aria-activedescendant={showList?`${idRef.current}-opt-${hi}`:undefined}
       onChange={e=>{ onChange(e.target.value); setOpen(true); setHi(0); }}
       onFocus={()=>setOpen(true)}
       onBlur={()=>setTimeout(()=>setOpen(false),150)}
       onKeyDown={handleKeyDown}/>
-    {open && filtered.length>0 && (
-      <div style={{position:"absolute",left:0,right:0,top:"100%",marginTop:4,zIndex:800,background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,boxShadow:"0 8px 24px rgba(0,0,0,.18)",maxHeight:200,overflow:"auto"}}>
+    {showList && (
+      <div ref={listRef} id={idRef.current} role="listbox" style={{position:"absolute",left:0,right:0,top:"100%",marginTop:4,zIndex:800,background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,boxShadow:"0 8px 24px rgba(0,0,0,.18)",maxHeight:200,overflow:"auto"}}>
         {filtered.map((t,i)=>{ const cl=tagColor(t); return (
-          <div key={t}
+          <div key={t} id={`${idRef.current}-opt-${i}`} role="option" aria-selected={i===hi} data-hi={i===hi?"true":undefined}
             onMouseDown={e=>{ e.preventDefault(); commit(t); }}
             style={{padding:"7px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:8,background:i===hi?"#eff6ff":"transparent",fontSize:12.5,color:"#374151"}}>
             <span style={{width:8,height:8,borderRadius:"50%",background:cl.c,flexShrink:0}}/>
@@ -636,16 +671,47 @@ const SortReset = ({sorts,onReset}) => (sorts.length>1
     </button>
   : null);
 
+// Elements a Tab-trap / auto-focus should consider — matches visible, enabled controls only.
+const FOCUSABLE_SEL = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
 const Modal = ({title,width=740,onClose,closeOnOverlay=false,children}) => {
+  const panelRef = useRef(null);
+  const prevFocusRef = useRef(null);
+
   useEffect(()=>{
     const h=e=>{if(e.key==="Escape")onClose();};
     document.addEventListener("keydown",h);
     return()=>document.removeEventListener("keydown",h);
   },[onClose]);
+
+  // Focus trap (Tab/Shift+Tab cycle within the panel), auto-focus on open, focus-restore on close.
+  useEffect(()=>{
+    prevFocusRef.current = document.activeElement;
+    const panel = panelRef.current;
+    const focusables = () => panel ? Array.from(panel.querySelectorAll(FOCUSABLE_SEL)).filter(el=>el.offsetParent!==null) : [];
+    (focusables()[0]||panel)?.focus();
+
+    const onKeyDown = e => {
+      if(e.key!=="Tab" || !panel) return;
+      const items = focusables();
+      if(items.length===0){ e.preventDefault(); return; }
+      const first = items[0], last = items[items.length-1];
+      if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
+      else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return ()=>{
+      document.removeEventListener("keydown", onKeyDown);
+      const prev = prevFocusRef.current;
+      if(prev && document.body.contains(prev)) prev.focus();
+    };
+  },[]);
+
   return (
   <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}
     onClick={closeOnOverlay ? e=>{ if(e.target===e.currentTarget) onClose(); } : undefined}>
-    <div style={{background:"#fff",borderRadius:10,width:"100%",maxWidth:width,maxHeight:"92vh",overflow:"auto",boxShadow:"0 24px 64px rgba(0,0,0,.22)"}}>
+    <div ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title}
+      style={{background:"#fff",borderRadius:10,width:"100%",maxWidth:width,maxHeight:"92vh",overflow:"auto",boxShadow:"0 24px 64px rgba(0,0,0,.22)",outline:"none"}}>
       <div style={{padding:"17px 24px",borderBottom:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff",zIndex:1}}>
         <Span s={17} w={800} c="#0f172a">{title}</Span>
         <IconBtn onClick={onClose} title="Close"><XIcon s={16}/></IconBtn>
@@ -654,6 +720,46 @@ const Modal = ({title,width=740,onClose,closeOnOverlay=false,children}) => {
     </div>
   </div>
   );
+};
+
+// Shared confirm dialog — used both for "discard unsaved edits?" guards and for
+// higher-stakes delete confirmations (bulk clears, cascading deletes).
+const ConfirmDialog = ({title,message,cancelLabel="Cancel",confirmLabel,confirmVariant="danger-solid",onCancel,onConfirm}) => (
+  <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,.5)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}
+    onClick={e=>{if(e.target===e.currentTarget)onCancel();}}>
+    <div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:360,boxShadow:"0 32px 80px rgba(0,0,0,.2)",padding:"22px 24px"}}>
+      <div style={{fontSize:15,fontWeight:800,color:"#0f172a",marginBottom:6}}>{title}</div>
+      <div style={{fontSize:12,color:"#64748b",lineHeight:1.6,marginBottom:18}}>{message}</div>
+      <div style={{display:"flex",gap:8}}>
+        <Btn variant="ghost" style={{flex:1,justifyContent:"center"}} onClick={onCancel}>{cancelLabel}</Btn>
+        <Btn variant={confirmVariant} style={{flex:1,justifyContent:"center"}} onClick={onConfirm}>{confirmLabel}</Btn>
+      </div>
+    </div>
+  </div>
+);
+// Form modals' "discard unsaved edits?" guard — click-outside/Escape/Cancel route through
+// this instead of closing immediately when the form is dirty.
+const ConfirmDiscard = ({onKeepEditing,onDiscard}) => (
+  <ConfirmDialog title="Discard unsaved changes?" message="You have edits that haven't been saved yet. Closing now will lose them."
+    cancelLabel="Keep Editing" confirmLabel="Discard" onCancel={onKeepEditing} onConfirm={onDiscard}/>
+);
+// Drop-in replacement for a bare row-remove IconBtn (the app's existing convention uses XIcon
+// for "remove this row", reserving TrashIcon for whole-record deletes) inside dense editable
+// tables — turns into an inline Yes/No confirm in place, instead of a disruptive full dialog.
+// Pass `children` (a single trigger element, e.g. a labeled danger Btn) to override the
+// default icon-only trigger; its onClick is replaced with the confirm-arming click.
+const ConfirmIconBtn = ({onConfirm, title="Delete", size, children}) => {
+  const [confirming,setConfirming] = useState(false);
+  if (confirming) return (
+    <span style={{display:"inline-flex",gap:3,alignItems:"center"}}>
+      <button onClick={()=>{setConfirming(false);onConfirm();}} title="Confirm delete"
+        style={{border:"none",background:"#dc2626",color:"#fff",borderRadius:4,padding:"2px 8px",cursor:"pointer",fontSize:10,fontWeight:700}}>Yes</button>
+      <button onClick={()=>setConfirming(false)} title="Cancel"
+        style={{border:"1px solid #e2e8f0",background:"#fff",borderRadius:4,padding:"2px 8px",cursor:"pointer",fontSize:10,color:"#64748b",fontWeight:600}}>No</button>
+    </span>
+  );
+  if (children) return React.cloneElement(children, {onClick:()=>setConfirming(true)});
+  return <IconBtn size={size} variant="danger" title={title} onClick={()=>setConfirming(true)}><XIcon s={12}/></IconBtn>;
 };
 
 //  Toast (Req 15) 
@@ -681,13 +787,38 @@ const useToast = () => {
 const MultiSelect = ({label,options,selected,onChange,width=180}) => {
   const [open,sO] = useState(false);
   const ref = useRef();
+  const triggerRef = useRef();
+  const listRef = useRef();
+  const idRef = useRef(`msel-${uid()}`);
   useEffect(() => { const h=e=>{if(ref.current&&!ref.current.contains(e.target))sO(false);}; document.addEventListener("mousedown",h); return()=>document.removeEventListener("mousedown",h); },[]);
   const toggle = v => onChange(selected.includes(v)?selected.filter(x=>x!==v):[...selected,v]);
   const allSel = selected.length===0;
   const display = allSel?`All ${label}`:`${selected.length} selected`;
+
+  // Combined option space: index 0 = the "All {label}" row, 1..n = the real options.
+  const items = [{value:"__all__",label:`All ${label}`}, ...options];
+  const commitIdx = i => { if(i===0) onChange([]); else toggle(items[i].value); };
+  const {hi, setHi, onKeyDown:navKeyDown} = useListboxNav(open?items.length:0, {
+    onCommit: commitIdx,
+    onClose: () => { sO(false); triggerRef.current?.focus(); },
+  });
+  useScrollHiIntoView(listRef, hi);
+
+  const onTriggerKeyDown = e => {
+    if(!open){
+      if(e.key==="ArrowDown"||e.key==="Enter"||e.key===" "){ e.preventDefault(); sO(true); setHi(0); }
+      return;
+    }
+    if(e.key===" "){ e.preventDefault(); commitIdx(hi); return; } // Space toggles like a checkbox; Enter/Tab handled by navKeyDown
+    navKeyDown(e);
+  };
+
   return (
     <div ref={ref} style={{position:"relative",userSelect:"none"}}>
-      <button onClick={()=>sO(!open)} style={{
+      <button ref={triggerRef} onClick={()=>{sO(p=>!p);setHi(0);}} onKeyDown={onTriggerKeyDown}
+        role="combobox" aria-haspopup="listbox" aria-expanded={open} aria-controls={idRef.current}
+        aria-activedescendant={open?`${idRef.current}-opt-${hi}`:undefined}
+        style={{
         padding:"6px 10px",border:`1px solid ${allSel?"#e2e8f0":"#93c5fd"}`,borderRadius:6,
         background:allSel?"#fafafa":"#eff6ff",fontSize:13,cursor:"pointer",
         display:"flex",alignItems:"center",gap:6,width,justifyContent:"space-between",
@@ -697,10 +828,14 @@ const MultiSelect = ({label,options,selected,onChange,width=180}) => {
         <ChevronDown/>
       </button>
       {open && (
-        <div style={{position:"absolute",top:"110%",left:0,zIndex:600,background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,boxShadow:"0 8px 32px rgba(0,0,0,.12)",minWidth:width,padding:8,maxHeight:260,overflow:"auto"}}>
-          <div onClick={()=>onChange([])} style={{padding:"6px 10px",cursor:"pointer",fontSize:12,fontWeight:allSel?700:400,color:allSel?"#0f172a":"#64748b",borderRadius:4,background:allSel?"#f1f5f9":"transparent",marginBottom:4}}> All {label}</div>
-          {options.map(o => { const s=selected.includes(o.value); return (
-            <div key={o.value} onClick={()=>toggle(o.value)} style={{padding:"6px 10px",cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",gap:8,borderRadius:4,background:s?"#eff6ff":"transparent",color:s?"#1e40af":"#374151",marginBottom:2}}>
+        <div ref={listRef} id={idRef.current} role="listbox" aria-multiselectable="true" style={{position:"absolute",top:"110%",left:0,zIndex:600,background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,boxShadow:"0 8px 32px rgba(0,0,0,.12)",minWidth:width,padding:8,maxHeight:260,overflow:"auto"}}>
+          <div id={`${idRef.current}-opt-0`} role="option" aria-selected={allSel} data-hi={hi===0?"true":undefined}
+            onClick={()=>onChange([])} onMouseEnter={()=>setHi(0)}
+            style={{padding:"6px 10px",cursor:"pointer",fontSize:12,fontWeight:allSel?700:400,color:allSel?"#0f172a":"#64748b",borderRadius:4,background:allSel?"#f1f5f9":"transparent",boxShadow:hi===0?"inset 0 0 0 2px #93c5fd":"none",marginBottom:4}}> All {label}</div>
+          {options.map((o,oi) => { const s=selected.includes(o.value); const i=oi+1; return (
+            <div key={o.value} id={`${idRef.current}-opt-${i}`} role="option" aria-selected={s} data-hi={hi===i?"true":undefined}
+              onClick={()=>toggle(o.value)} onMouseEnter={()=>setHi(i)}
+              style={{padding:"6px 10px",cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",gap:8,borderRadius:4,background:s?"#eff6ff":"transparent",boxShadow:hi===i?"inset 0 0 0 2px #93c5fd":"none",color:s?"#1e40af":"#374151",marginBottom:2}}>
               <div style={{width:14,height:14,border:`2px solid ${s?"#1e40af":"#cbd5e1"}`,borderRadius:3,background:s?"#1e40af":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{s&&<span style={{color:"#fff",fontSize:9,fontWeight:900,lineHeight:1}}></span>}</div>
               <span>{o.label}</span>
             </div>
@@ -708,6 +843,110 @@ const MultiSelect = ({label,options,selected,onChange,width=180}) => {
           })}
         </div>
       )}
+    </div>
+  );
+};
+
+// Header search — matches customers/opportunities the same way each page's own search box
+// does (mirrors CustomersPage's/OppsPage's filter predicates), and reuses the app's existing
+// "jump to record" navigation (onGoToCust/onGoToOpp) rather than any new plumbing.
+const GlobalSearch = ({customers,opps,onGoToCust,onGoToOpp,page}) => {
+  const CAP = 6;
+  const [q,setQ] = useState("");
+  const [open,setOpen] = useState(false);
+  const dq = useDebouncedValue(q, 200);
+  const ref = useRef();
+  const listRef = useRef();
+  const idRef = useRef(`gsearch-${uid()}`);
+
+  useEffect(() => { const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);}; document.addEventListener("mousedown",h); return()=>document.removeEventListener("mousedown",h); },[]);
+  useEffect(() => { setQ(""); setOpen(false); },[page]); // clear on page navigation
+
+  const query = dq.trim().toLowerCase();
+  const custMatches = query ? customers.filter(c=>
+    c.companyEN.toLowerCase().includes(query) || c.id.includes(query) || (c.contacts||[]).some(ct=>(ct.name||"").toLowerCase().includes(query))
+  ) : [];
+  const oppMatches = query ? opps.filter(o=>{
+    const c = customers.find(x=>x.id===o.custId);
+    return o.oppCode.toLowerCase().includes(query) || (c?.companyEN||"").toLowerCase().includes(query) || o.quoteNo.toLowerCase().includes(query) || o.serviceCode.toLowerCase().includes(query);
+  }) : [];
+  const custShown = custMatches.slice(0,CAP);
+  const oppShown  = oppMatches.slice(0,CAP);
+  const items = [...custShown.map(c=>({type:"cust",item:c})), ...oppShown.map(o=>({type:"opp",item:o}))];
+
+  const selectItem = it => {
+    if(it.type==="cust") onGoToCust(it.item.id); else onGoToOpp(it.item.oppCode);
+    setQ(""); setOpen(false);
+  };
+
+  const showList = open && query.length>0;
+  const {hi, setHi, onKeyDown:navKeyDown} = useListboxNav(showList?items.length:0, {
+    onCommit: i => selectItem(items[i]),
+    onClose: () => setOpen(false),
+  });
+  useScrollHiIntoView(listRef, hi);
+
+  return (
+    <div ref={ref} style={{position:"relative",width:220}}>
+      <Inp value={q} placeholder="Search customers, opps…"
+        role="combobox" aria-expanded={showList} aria-controls={idRef.current}
+        aria-activedescendant={showList?`${idRef.current}-opt-${hi}`:undefined}
+        onChange={e=>{setQ(e.target.value);setOpen(true);setHi(0);}}
+        onFocus={()=>{if(q.trim())setOpen(true);}}
+        onKeyDown={navKeyDown}
+        style={{fontSize:12,padding:"6px 10px"}}/>
+      {showList && (
+        <div ref={listRef} id={idRef.current} role="listbox" style={{position:"absolute",left:0,right:0,top:"100%",marginTop:4,zIndex:800,background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,boxShadow:"0 8px 24px rgba(0,0,0,.18)",maxHeight:360,overflow:"auto"}}>
+          {items.length===0 && <div style={{padding:"16px 12px",textAlign:"center",color:"#94a3b8",fontSize:12}}>No matches</div>}
+          {custShown.length>0 && (<>
+            <div style={{padding:"6px 12px 3px",fontSize:10,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.06em"}}>Customers</div>
+            {custShown.map((c,ci)=>(
+              <div key={c.id} id={`${idRef.current}-opt-${ci}`} role="option" aria-selected={ci===hi} data-hi={ci===hi?"true":undefined}
+                onMouseDown={e=>{e.preventDefault();selectItem({type:"cust",item:c});}} onMouseEnter={()=>setHi(ci)}
+                style={{padding:"7px 12px",cursor:"pointer",fontSize:12.5,color:"#374151",background:ci===hi?"#eff6ff":"transparent"}}>
+                <div style={{fontWeight:700,color:"#1e293b"}}>{c.companyEN}</div>
+                <div style={{fontSize:10,color:"#94a3b8",fontFamily:"monospace"}}>{c.id}</div>
+              </div>
+            ))}
+            {custMatches.length>CAP && <div style={{padding:"4px 12px",fontSize:10,color:"#94a3b8",fontStyle:"italic"}}>+{custMatches.length-CAP} more — refine your search</div>}
+          </>)}
+          {oppShown.length>0 && (<>
+            <div style={{padding:"6px 12px 3px",fontSize:10,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.06em",borderTop:custShown.length>0?"1px solid #f1f5f9":"none",marginTop:custShown.length>0?4:0}}>Opportunities</div>
+            {oppShown.map((o,oi)=>{ const i=custShown.length+oi; const c=customers.find(x=>x.id===o.custId); return (
+              <div key={o.id} id={`${idRef.current}-opt-${i}`} role="option" aria-selected={i===hi} data-hi={i===hi?"true":undefined}
+                onMouseDown={e=>{e.preventDefault();selectItem({type:"opp",item:o});}} onMouseEnter={()=>setHi(i)}
+                style={{padding:"7px 12px",cursor:"pointer",fontSize:12.5,color:"#374151",background:i===hi?"#eff6ff":"transparent"}}>
+                <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                  <span style={{fontFamily:"monospace",fontWeight:700,color:"#1e40af"}}>{o.oppCode}</span>
+                  <SvcBadge code={o.serviceCode}/>
+                </div>
+                <div style={{fontSize:10,color:"#94a3b8"}}>{c?.companyEN||o.custId}</div>
+              </div>
+            );})}
+            {oppMatches.length>CAP && <div style={{padding:"4px 12px",fontSize:10,color:"#94a3b8",fontStyle:"italic"}}>+{oppMatches.length-CAP} more — refine your search</div>}
+          </>)}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Simple page-based pager for large tables — Prev/Next + "Showing X–Y of Z". Parent owns
+// `page` state; this just renders controls and reports the requested page back.
+// Renders nothing when everything already fits on one page.
+const Pagination = ({page, pageSize, total, onPageChange}) => {
+  if(total<=pageSize) return null;
+  const maxPage = Math.max(1, Math.ceil(total/pageSize));
+  const start = (page-1)*pageSize+1;
+  const end = Math.min(page*pageSize, total);
+  return (
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 4px 4px",fontSize:12,color:"#64748b"}}>
+      <span>Showing {fmt(start)}–{fmt(end)} of {fmt(total)}</span>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <Btn variant="ghost" size="sm" onClick={()=>onPageChange(Math.max(1,page-1))} disabled={page<=1}>Prev</Btn>
+        <span style={{fontWeight:700,color:"#374151"}}>Page {page} / {maxPage}</span>
+        <Btn variant="ghost" size="sm" onClick={()=>onPageChange(Math.min(maxPage,page+1))} disabled={page>=maxPage}>Next</Btn>
+      </div>
     </div>
   );
 };
@@ -738,31 +977,15 @@ const gsSaveNotification = (toUserId, fromUser, context, recordId, message) => {
 const MentionTextarea = ({value, onChange, onKeyDown, placeholder, style, users=[], minHeight=44, autoFocus=false}) => {
   const [showPicker, setShowPicker] = useState(false);
   const [pickerQ,    setPickerQ]    = useState("");
-  const [pickerIdx,  setPickerIdx]  = useState(0);
   const textareaRef  = useRef();
   const mentionStart = useRef(-1); // index of the @ character
+  const listRef = useRef(null);
+  const idRef = useRef(`mention-${uid()}`);
 
   const allUsers = users.length > 0 ? users : USERS;
   const filtered = pickerQ
     ? allUsers.filter(u => u.name.toLowerCase().includes(pickerQ.toLowerCase()) || u.id.toLowerCase().includes(pickerQ.toLowerCase()))
     : allUsers;
-
-  const handleChange = e => {
-    const v   = e.target.value;
-    const pos = e.target.selectionStart;
-    const before = v.slice(0, pos);
-    const atMatch = before.match(/@(\w*)$/);
-    if(atMatch) {
-      mentionStart.current = before.lastIndexOf("@");
-      setPickerQ(atMatch[1]);
-      setShowPicker(true);
-      setPickerIdx(0);
-    } else {
-      setShowPicker(false);
-      setPickerQ("");
-    }
-    onChange(v);
-  };
 
   const insertMention = u => {
     // Use mentionStart ref + current pickerQ length to know what to replace
@@ -783,13 +1006,33 @@ const MentionTextarea = ({value, onChange, onKeyDown, placeholder, style, users=
     }, 0);
   };
 
-  const handleKeyDown = e => {
-    if(showPicker && filtered.length > 0) {
-      if(e.key==="ArrowDown"){ e.preventDefault(); setPickerIdx(i=>Math.min(i+1,filtered.length-1)); return; }
-      if(e.key==="ArrowUp"){   e.preventDefault(); setPickerIdx(i=>Math.max(i-1,0)); return; }
-      if(e.key==="Enter"||e.key==="Tab"){ e.preventDefault(); insertMention(filtered[pickerIdx]||filtered[0]); return; }
-      if(e.key==="Escape"){ setShowPicker(false); setPickerQ(""); return; }
+  const showList = showPicker && filtered.length>0;
+  const {hi:pickerIdx, setHi:setPickerIdx, onKeyDown:navKeyDown} = useListboxNav(showList?filtered.length:0, {
+    onCommit: i => insertMention(filtered[i]),
+    onClose: () => { setShowPicker(false); setPickerQ(""); },
+  });
+  useScrollHiIntoView(listRef, pickerIdx);
+
+  const handleChange = e => {
+    const v   = e.target.value;
+    const pos = e.target.selectionStart;
+    const before = v.slice(0, pos);
+    const atMatch = before.match(/@(\w*)$/);
+    if(atMatch) {
+      mentionStart.current = before.lastIndexOf("@");
+      setPickerQ(atMatch[1]);
+      setShowPicker(true);
+      setPickerIdx(0);
+    } else {
+      setShowPicker(false);
+      setPickerQ("");
     }
+    onChange(v);
+  };
+
+  const NAV_KEYS = ["ArrowDown","ArrowUp","Home","End","Enter","Tab","Escape"];
+  const handleKeyDown = e => {
+    if(showList && NAV_KEYS.includes(e.key)){ navKeyDown(e); return; }
     if(onKeyDown) onKeyDown(e);
   };
 
@@ -803,13 +1046,15 @@ const MentionTextarea = ({value, onChange, onKeyDown, placeholder, style, users=
         onBlur={()=>{ /* small delay so onMouseDown on picker fires first */ setTimeout(()=>setShowPicker(false), 150); }}
         placeholder={placeholder}
         autoFocus={autoFocus}
+        role="combobox" aria-expanded={showList} aria-controls={idRef.current}
+        aria-activedescendant={showList?`${idRef.current}-opt-${pickerIdx}`:undefined}
         style={{...SI, resize:"vertical", minHeight, fontSize:13, ...style}}
       />
-      {showPicker && filtered.length > 0 && (
-        <div style={{position:"absolute",left:0,bottom:"calc(100% + 4px)",zIndex:800,background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,boxShadow:"0 8px 24px rgba(0,0,0,.18)",minWidth:220,maxHeight:200,overflow:"auto"}}>
+      {showList && (
+        <div ref={listRef} id={idRef.current} role="listbox" style={{position:"absolute",left:0,bottom:"calc(100% + 4px)",zIndex:800,background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,boxShadow:"0 8px 24px rgba(0,0,0,.18)",minWidth:220,maxHeight:200,overflow:"auto"}}>
           <div style={{padding:"4px 10px",fontSize:10,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.06em",borderBottom:"1px solid #f1f5f9"}}>Mention user</div>
           {filtered.map((u,i)=>(
-            <div key={u.id}
+            <div key={u.id} id={`${idRef.current}-opt-${i}`} role="option" aria-selected={i===pickerIdx} data-hi={i===pickerIdx?"true":undefined}
               onMouseDown={e=>{ e.preventDefault(); insertMention(u); }}
               style={{padding:"7px 12px",cursor:"pointer",background:i===pickerIdx?"#eff6ff":"transparent",display:"flex",gap:8,alignItems:"center"}}>
               <div style={{width:24,height:24,background:"#0f172a",color:"#fff",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,flexShrink:0}}>{u.name[0]}</div>
@@ -1829,6 +2074,10 @@ const CustForm = ({initial,user,onSave,onClose,onDelete,tagSuggestions=[]}) => {
   const blank={id:"",companyEN:"",industry:"",sector:"",businessType:"",companySize:"",address:"",province:"",contacts:[blankContact()],assignedTo:"",remark:"",lastContact:today(),tags:[]};
   const [f,sF] = useState(initial?{...initial,contacts:initial.contacts||[{id:uid(),name:initial.contactName||"",title:initial.titlePosition||"",email:initial.email||"",phone:initial.phone||"",active:true}],tags:safeArr(initial.tags)}:blank);
   const [tagInput,setTagInput] = useState("");
+  const initialFRef = useRef(f);
+  const dirty = JSON.stringify(f) !== JSON.stringify(initialFRef.current);
+  const [showDiscard,setShowDiscard] = useState(false);
+  const requestClose = () => { dirty ? setShowDiscard(true) : onClose(); };
   const set = (k,v) => sF(p=>({...p,[k]:v}));
   const setCt=(id,k,v)=>sF(p=>({...p,contacts:p.contacts.map(c=>c.id===id?{...c,[k]:v}:c)}));
   const addCt=()=>sF(p=>({...p,contacts:[...p.contacts,blankContact()]}));
@@ -1836,7 +2085,8 @@ const CustForm = ({initial,user,onSave,onClose,onDelete,tagSuggestions=[]}) => {
   const addTag=(override)=>{const t=(override??tagInput).trim();if(!t)return;sF(p=>({...p,tags:[...new Set([...safeArr(p.tags),t])]}));setTagInput("");};
   const removeTag=t=>sF(p=>({...p,tags:safeArr(p.tags).filter(x=>x!==t)}));
   return (
-    <Modal title={initial?"Edit Customer":"Add Customer"} width={860} onClose={onClose}>
+    <>
+    <Modal title={initial?"Edit Customer":"Add Customer"} width={860} onClose={requestClose} closeOnOverlay>
       <G2>
         <FRow label="Customer ID"><Inp value={f.id} onChange={e=>set("id",e.target.value)} placeholder="TAX ID (e.g. 0105536088510)"/></FRow>
         <FRow label="Company (EN)"><Inp value={f.companyEN} onChange={e=>set("companyEN",e.target.value.toUpperCase())}/></FRow>
@@ -1886,7 +2136,11 @@ const CustForm = ({initial,user,onSave,onClose,onDelete,tagSuggestions=[]}) => {
               <Span s={12} w={700} c="#64748b">Contact #{idx+1}</Span>
               <button onClick={()=>setCt(ct.id,"active",!ct.active)} style={{padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:700,border:"1px solid",borderColor:ct.active?"#86efac":"#fca5a5",background:ct.active?"#dcfce7":"#fee2e2",color:ct.active?"#16a34a":"#dc2626",cursor:"pointer"}}>{ct.active?"Active":"Inactive"}</button>
             </div>
-            {(f.contacts||[]).length>1&&<Btn variant="danger" style={{fontSize:11,padding:"2px 8px"}} onClick={()=>delCt(ct.id)}>Remove</Btn>}
+            {(f.contacts||[]).length>1&&(
+              <ConfirmIconBtn onConfirm={()=>delCt(ct.id)}>
+                <Btn variant="danger" style={{fontSize:11,padding:"2px 8px"}}>Remove</Btn>
+              </ConfirmIconBtn>
+            )}
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
             <FRow label="Name"><Inp value={ct.name} onChange={e=>setCt(ct.id,"name",e.target.value)} placeholder="Full name"/></FRow>
@@ -1898,10 +2152,12 @@ const CustForm = ({initial,user,onSave,onClose,onDelete,tagSuggestions=[]}) => {
       ))}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:8}}>
         {onDelete&&<Btn variant="danger" icon={<TrashIcon/>} style={{marginRight:"auto"}} onClick={()=>onDelete(f)}>Delete</Btn>}
-        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn variant="ghost" onClick={requestClose}>Cancel</Btn>
         <Btn icon={<CheckIcon/>} onClick={()=>onSave({...f,lastContact:today()})}>Save customer</Btn>
       </div>
     </Modal>
+    {showDiscard && <ConfirmDiscard onKeepEditing={()=>setShowDiscard(false)} onDiscard={()=>{setShowDiscard(false);onClose();}}/>}
+    </>
   );
 };
 
@@ -1915,6 +2171,11 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
   const [colWidths,setColWidths] = React.useState([130,220,200,110,180,90,120,140,60,60]);
   const toggleSort=col=>setSorts(p=>cycleSort(p,col));
   const resetSort=()=>setSorts(p=>p.slice(0,1));
+  // Pagination — page resets to 1 whenever the filters/search/sort change; separately clamped
+  // if the filtered result count shrinks (e.g. after a delete) below the current page.
+  const PAGE_SIZE=50;
+  const [pg,setPg]=useState(1);
+  useEffect(()=>{setPg(1);},[search,fR,fSt,fAg,fTag,sorts]);
   // Tags: row selection + bulk assign/delete + tag filter
   const [fTag,setFTag]=useState([]);
   const [selected,setSelected]=useState(()=>new Set());
@@ -1973,6 +2234,8 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
     };
     return [...filtered].sort((a,b)=>multiCmp(a,b,sorts,getV));
   },[customers,opps,deliveries,search,fR,fSt,fAg,fTag,sorts]);
+  useEffect(()=>{const maxPg=Math.max(1,Math.ceil(list.length/PAGE_SIZE));if(pg>maxPg)setPg(maxPg);},[list.length]);
+  const pageList = list.slice((pg-1)*PAGE_SIZE, pg*PAGE_SIZE);
   const activeContacts = c => (c.contacts||[]).filter(ct=>ct.active);
   return (
     <div>
@@ -2077,7 +2340,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
               </th>
             );})}
           </tr></thead>
-          <tbody>{list.map(c=>(
+          <tbody>{pageList.map(c=>(
             <TR key={c.id} onClick={()=>{sE(c);sF(true);}} hi={selected.has(c.id)}>
               <td onClick={e=>e.stopPropagation()} style={{textAlign:"center",borderBottom:"1px solid #f1f5f9"}}>
                 <input type="checkbox" checked={selected.has(c.id)} onChange={()=>toggleRow(c.id)} style={{width:15,height:15,cursor:"pointer",accentColor:"#1e40af"}}/>
@@ -2107,7 +2370,9 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
         </table>
         );
       })()}
-      {list.length===0&&<div style={{padding:40,textAlign:"center",color:"#94a3b8"}}>No records.</div>}</div></Card>
+      {list.length===0&&<div style={{padding:40,textAlign:"center",color:"#94a3b8"}}>No records.</div>}
+      <Pagination page={pg} pageSize={PAGE_SIZE} total={list.length} onPageChange={setPg}/>
+      </div></Card>
       {form&&<CustForm initial={edit} user={user} tagSuggestions={tagOptions} onSave={c=>{if(edit&&edit.id&&edit.id!==c.id)onDelete(edit.id);onSave(c);sF(false);toast("Customer saved",c.companyEN);}} onClose={()=>sF(false)} onDelete={edit?c=>{sF(false);sDelConfirm(c);}:null}/>}
       {bulkDel&&(
         <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,.5)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
@@ -2595,6 +2860,11 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
     notes: buildNotes(),
   });
 
+  const initialFRef = useRef(f);
+  const dirty = JSON.stringify(f) !== JSON.stringify(initialFRef.current);
+  const [showDiscard,setShowDiscard] = useState(false);
+  const requestClose = () => { dirty ? setShowDiscard(true) : onClose(); };
+
   const set    = (k,v) => sF(p=>({...p,[k]:v}));
   const setIssue = v  => sF(p=>({...p,issueDate:v,dueDate:addDays(v,30)}));
 
@@ -2637,7 +2907,8 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
   const exportPDF = (lang="en") => exportQuotationPDF(f, customer, logoB64, lang);
 
   return (
-    <Modal title={`Quotation — ${f.quoteNo||"Draft"}`} width={1020} onClose={onClose}>
+    <>
+    <Modal title={`Quotation — ${f.quoteNo||"Draft"}`} width={1020} onClose={requestClose} closeOnOverlay>
 
       {/* TOP INFO BAR — read-only */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14,padding:"14px 16px",background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0"}}>
@@ -2827,15 +3098,17 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
       </div>
 
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14,alignItems:"center"}}>
-        <Btn variant="ghost" onClick={onClose}>Close</Btn>
+        <Btn variant="ghost" onClick={requestClose}>Close</Btn>
         <Btn variant="export" icon={<DlIcon/>} onClick={()=>exportPDF("en")}>Print / Export PDF (EN)</Btn>
         <Btn variant="export" icon={<DlIcon/>} onClick={()=>exportPDF("th")}>พิมพ์ / Export PDF (TH)</Btn>
       </div>
     </Modal>
+    {showDiscard && <ConfirmDiscard onKeepEditing={()=>setShowDiscard(false)} onDiscard={()=>{setShowDiscard(false);onClose();}}/>}
+    </>
   );
 };
 
-const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS,onDelete,initTab="detail",userList=[],onMentionNotify=()=>{}}) => {
+const OppForm =({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS,onDelete,initTab="detail",userList=[],onMentionNotify=()=>{}}) => {
   const newOppCode=genOppCode(opps); const newQtNo=genQuoteNo(opps);
   const blank={id:newOppCode,custId:customers[0]?.id||"",oppCode:newOppCode,quoteNo:newQtNo,memoNo:"",jobCode:"",serviceCode:SERVICES[0].code,serviceType:SERVICES[0].name,salesPrice:SERVICES[0].stdPrice,totalCost:SERVICES[0].stdCost,status:"Proposal",assignedTo:SALES_USERS[0]?.id||"",createdDate:today(),lostReason:"",activityLog:[],remark:"",ranking:"Medium",successRate:""};
   const [f,sF] = useState(initial?{...initial,activityLog:initial.activityLog||[]}:blank);
@@ -2851,9 +3124,13 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
   const jobCode=isWon?genJobCode(f.oppCode):"";
   const [delConfirm,setDelConfirm] = useState(false);
   const [validErr,setValidErr] = useState("");
+  const initialFRef = useRef(f);
+  const dirty = JSON.stringify(f) !== JSON.stringify(initialFRef.current);
+  const [showDiscard,setShowDiscard] = useState(false);
+  const requestClose = () => { dirty ? setShowDiscard(true) : onClose(); };
   return (
     <>
-    <Modal title={initial?"Edit Opportunity":"New Opportunity"} width={940} onClose={onClose}>
+    <Modal title={initial?"Edit Opportunity":"New Opportunity"} width={940} onClose={requestClose} closeOnOverlay>
       {/* ── IDENTITY HEADER — read-only context + the promoted Status control ── */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:16,flexWrap:"wrap",paddingBottom:14,marginBottom:18,borderBottom:"1px solid #e2e8f0"}}>
         <div style={{minWidth:0,flex:"1 1 300px"}}>
@@ -2903,7 +3180,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
                           {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
                           <RenderMentionText text={body} users={userList}/>
                         </div>
-                        <IconBtn size="sm" variant="danger" title="Delete note" style={{flexShrink:0}} onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))}><XIcon s={12}/></IconBtn>
+                        <ConfirmIconBtn size="sm" title="Delete note" onConfirm={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))}/>
                       </div>
                     );});
                   })()}
@@ -3009,7 +3286,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
 
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:18}}>
         {initial&&onDelete&&<Btn variant="danger" icon={<TrashIcon/>} style={{marginRight:"auto"}} onClick={()=>setDelConfirm(true)}>Delete</Btn>}
-        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn variant="ghost" onClick={requestClose}>Cancel</Btn>
         {validErr&&<span style={{fontSize:12,color:"#dc2626",fontWeight:600,marginRight:4,alignSelf:"center"}}>{validErr}</span>}
         <Btn icon={<CheckIcon/>} onClick={()=>{
           if(!f.custId){setValidErr("Customer is required");return;}
@@ -3050,6 +3327,7 @@ const OppForm = ({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS
         </div>
       )}
     </Modal>
+    {showDiscard && <ConfirmDiscard onKeepEditing={()=>setShowDiscard(false)} onDiscard={()=>{setShowDiscard(false);onClose();}}/>}
 
     {/* Quotation opens as its own overlay (it returns a full Modal); closing returns to the edit view */}
     {view==="quotation"&&<QuotationPreview opp={f} customer={customers.find(c=>c.id===f.custId)} costSheets={costSheets||[]} onClose={()=>setView("edit")} onSaveQuotation={qd=>{const updated={...f,quotationData:qd,jobCode:isWon?genJobCode(f.oppCode):f.jobCode,lostReason:isLost?f.lostReason:""};onSave(updated);}}/>}
@@ -3068,10 +3346,17 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
   const kanbanV=(o,col)=>col==="ranking"?["High","Medium","Low"].indexOf(o.ranking||"Medium"):(o.createdDate||"");
   const [logOpp,sLog]=useState(null); const [gs,sGS]=useState(false); const [quotationOpp,sQT]=useState(null);
   const [dragId,setDragId]=useState(null); const [dragOver,setDragOver]=useState(null);
+  // Dragging a Won opp to another status cascades into deleting its auto-created Delivery —
+  // real data loss from a slip of the drag, so it's gated behind a confirm rather than applied instantly.
+  const [pendingDragDelete,setPendingDragDelete]=useState(null); // {opp, status, dlv}
   const [sorts,setSorts]=useState([{col:"oppCode",dir:"asc"}]);
   const toggleSort=col=>setSorts(p=>cycleSort(p,col));
   const resetSort=()=>setSorts(p=>p.slice(0,1));
   useEffect(()=>{if(initOppCode){const o=opps.find(x=>x.oppCode===initOppCode);if(o){sE(o);sF(true);}if(onOppReady)onOppReady();}},[initOppCode]);
+  // Pagination — table view only (kanban already shards by status into small columns).
+  const PAGE_SIZE=50;
+  const [pg,setPg]=useState(1);
+  useEffect(()=>{setPg(1);},[search,fSt,fAg,fSvc,sorts]);
   const list=useMemo(()=>{
     const filtered=opps.filter(o=>{const c=customers.find(x=>x.id===o.custId);const q=search.toLowerCase();return(!search||o.oppCode.toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||o.quoteNo.toLowerCase().includes(q)||o.serviceCode.toLowerCase().includes(q))&&(fSt.length===0||fSt.includes(o.status))&&(fAg.length===0||fAg.includes(o.assignedTo))&&(fSvc.length===0||fSvc.includes(o.serviceCode));});
     const getV=(o,col)=>{
@@ -3095,6 +3380,8 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
     };
     return [...filtered].sort((a,b)=>multiCmp(a,b,sorts,getV));
   },[opps,customers,search,fSt,fAg,fSvc,sorts]);
+  useEffect(()=>{const maxPg=Math.max(1,Math.ceil(list.length/PAGE_SIZE));if(pg>maxPg)setPg(maxPg);},[list.length]);
+  const pageList = list.slice((pg-1)*PAGE_SIZE, pg*PAGE_SIZE);
   const totalPipeline=list.filter(o=>o.status!=="Lost").reduce((s,o)=>s+o.salesPrice,0);
   const totalWon=list.filter(o=>o.status==="Won").reduce((s,o)=>s+o.salesPrice,0);
 
@@ -3113,7 +3400,21 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
     toast("Opportunity saved",`${o.oppCode} · ${o.status}`);
   };
 
-  //  Drag and Drop state 
+  //  Drag and Drop state
+
+  // Applies a drag-triggered status change (and its Delivery cascade-delete, if any) immediately —
+  // called either straight from onDrop (no cascade) or after the user confirms the cascade dialog.
+  const applyStatusChange=(opp,status,dlv)=>{
+    const wasWon=opp.status==="Won";
+    const nowWon=status==="Won";
+    const updated={...opp,status,
+      lostReason:status==="Lost"?opp.lostReason:"",
+      jobCode:nowWon?genJobCode(opp.oppCode):"",
+      activityLog:[...(opp.activityLog||[]),{id:uid(),ts:nowTS(),author:user.id,note:`Status changed from ${opp.status} to ${status} (drag & drop)`}]
+    };
+    if(wasWon&&!nowWon&&dlv&&onDeleteDelivery) onDeleteDelivery(dlv.id);
+    handleSave(updated);
+  };
 
   const kanbanView = (
     <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
@@ -3132,18 +3433,10 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
                 if(opp&&opp.status!==status){
                   const wasWon=opp.status==="Won";
                   const nowWon=status==="Won";
-                  const updated={...opp,status,
-                    lostReason:status==="Lost"?opp.lostReason:"",
-                    jobCode:nowWon?genJobCode(opp.oppCode):"",
-                    activityLog:[...(opp.activityLog||[]),{id:uid(),ts:nowTS(),author:user.id,note:`Status changed from ${opp.status} to ${status} (drag & drop)`}]
-                  };
-                  // ถ้าเคย Won แล้วเปลี่ยนกลับ → ลบ Delivery ทิ้ง
-                  if(wasWon&&!nowWon){
-                    const dlv=deliveries.find(d=>d.oppCode===opp.oppCode);
-                    if(dlv&&onDeleteDelivery) onDeleteDelivery(dlv.id);
-                  }
-
-                  handleSave(updated);
+                  // ถ้าเคย Won แล้วเปลี่ยนกลับ → ลบ Delivery ทิ้ง (confirm first — real data loss)
+                  const dlv=(wasWon&&!nowWon)?deliveries.find(d=>d.oppCode===opp.oppCode):null;
+                  if(dlv) setPendingDragDelete({opp,status,dlv});
+                  else applyStatusChange(opp,status,null);
                 }
               }
               setDragId(null);setDragOver(null);
@@ -3292,7 +3585,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
               <SortableTh key={col} col={col} label={label} sorts={sorts} onToggle={toggleSort}/>
             ))}
           </tr></thead>
-          <tbody>{list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);const mAmt=marginAmt(o.salesPrice,o.totalCost||0);const oRank=o.ranking||"Medium";return(
+          <tbody>{pageList.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);const mAmt=marginAmt(o.salesPrice,o.totalCost||0);const oRank=o.ranking||"Medium";return(
             <TR key={o.id} onClick={()=>{sE(o);sF(true);}}>
               <TD style={{fontWeight:700,color:"#1e40af",fontFamily:"monospace",fontSize:12}}>{o.oppCode}</TD>
               <TD>
@@ -3327,7 +3620,9 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
             </TR>
           );})}
           </tbody>
-        </table>{list.length===0&&<div style={{padding:40,textAlign:"center",color:"#94a3b8"}}>No records.</div>}</div></Card>
+        </table>{list.length===0&&<div style={{padding:40,textAlign:"center",color:"#94a3b8"}}>No records.</div>}
+        <Pagination page={pg} pageSize={PAGE_SIZE} total={list.length} onPageChange={setPg}/>
+        </div></Card>
       )}
       {view==="kanban"&&kanbanView}
 
@@ -3362,13 +3657,20 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
           <div style={{display:"flex",justifyContent:"flex-end",marginTop:12}}><Btn onClick={()=>sLog(null)}>Done</Btn></div>
         </Modal>
       )}
+      {pendingDragDelete && (
+        <ConfirmDialog title="Delete the linked Delivery?"
+          message={`Moving ${pendingDragDelete.opp.oppCode} out of "Won" will delete its linked Delivery record (${pendingDragDelete.dlv.jobCode||pendingDragDelete.dlv.id}) — including any contract, installment, and receipt data on it. This can't be undone.`}
+          confirmLabel="Delete Delivery"
+          onCancel={()=>setPendingDragDelete(null)}
+          onConfirm={()=>{const {opp,status,dlv}=pendingDragDelete;setPendingDragDelete(null);applyStatusChange(opp,status,dlv);}}/>
+      )}
     </div>
   );
 };
 
-// 
+//
 // DELIVERY
-// 
+//
 // Req 10: Cost breakdown panel from cost sheet
 const CostBreakdown = ({quoteNo,costSheets}) => {
   const q = useMemo(()=>{
@@ -3441,6 +3743,10 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
   const wonOpps=opps.filter(o=>o.status==="Won");
   const blank={id:`DLV-${uid()}`,custId:"",oppCode:"",quoteNo:"",jobCode:"",contractNo:"",contractDate:"",serviceCode:"",serviceType:"",totalContractValue:0,deliveryStatus:"In Progress",currentStep:DLV_STEPS[0],deliveryDate:"",assignedTo:SALES_USERS[0]?.id||"",installments:[],paymentTerm:"30 days",remark:""};
   const [f,sF] = useState(initial?{...initial}:blank);
+  const initialFRef = useRef(f);
+  const dirty = JSON.stringify(f) !== JSON.stringify(initialFRef.current);
+  const [showDiscard,setShowDiscard] = useState(false);
+  const requestClose = () => { dirty ? setShowDiscard(true) : onClose(); };
   // Auto-sync installments on mount when editing existing delivery
   useEffect(()=>{
     if(initial?.quoteNo&&(!initial.installments||initial.installments.length===0)){
@@ -3508,14 +3814,15 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
   };
   const cust=customers.find(c=>c.id===f.custId);
   const totalPct=(f.installments||[]).reduce((s,i)=>s+i.pct,0);
-  const totalRec=(f.installments||[]).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);
+  const totalRec=(f.installments||[]).filter(i=>i.status==="Received"&&i.receiptDate).reduce((s,i)=>s+i.amount,0);
   const changeIns=(idx,k,v)=>sF(p=>{const ins=p.installments.map((ins2,i)=>{if(i!==idx)return ins2;const upd={...ins2,[k]:k==="pct"?+v:v};if(k==="pct")upd.amount=Math.round(p.totalContractValue*(+v||0)/100);return upd;});return{...p,installments:ins};});
   const setCv=v=>sF(p=>({...p,totalContractValue:+v,installments:p.installments.map(ins=>({...ins,amount:Math.round((+v)*(ins.pct||0)/100)}))}));
   const addIns=()=>sF(p=>({...p,installments:[...p.installments,{id:uid(),seq:p.installments.length+1,label:`Installment ${p.installments.length+1}`,pct:0,amount:0,expected_date:"",invoiceNo:"",invoiceDate:"",receiptNo:"",receiptDate:"",status:"Pending"}]}));
   const delIns=idx=>sF(p=>({...p,installments:p.installments.filter((_,i)=>i!==idx)}));
   const [validErr,setValidErr] = useState("");
   return (
-    <Modal title={initial?`Edit — ${f.jobCode||f.id}`:"Add Delivery"} width={1000} onClose={onClose}>
+    <>
+    <Modal title={initial?`Edit — ${f.jobCode||f.id}`:"Add Delivery"} width={1000} onClose={requestClose} closeOnOverlay>
       <div style={{display:"flex",gap:0,borderBottom:"2px solid #e2e8f0",marginBottom:16}}>
         {[["detail","Contract & Billing"],["cost","Pricing Breakdown"]].map(([k,l])=>(
           <button key={k} onClick={()=>sTab(k)} style={{padding:"8px 16px",border:"none",background:"none",cursor:"pointer",fontSize:12,fontWeight:tab===k?800:500,color:tab===k?"#0f172a":"#94a3b8",borderBottom:tab===k?"2.5px solid #0f172a":"2.5px solid transparent",marginBottom:-2,whiteSpace:"nowrap"}}>{l}</button>
@@ -3554,7 +3861,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
                           {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
                           <RenderMentionText text={body} users={userList}/>
                         </div>
-                        <IconBtn size="sm" variant="danger" title="Delete note" style={{flexShrink:0}} onClick={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))}><XIcon s={12}/></IconBtn>
+                        <ConfirmIconBtn size="sm" title="Delete note" onConfirm={()=>set("remark",lines.filter((_,idx)=>idx!==origIdx).join("\n"))}/>
                       </div>
                     );});
                   })()}
@@ -3609,7 +3916,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
                   <TD><Inp value={ins.receiptNo} onChange={e=>changeIns(idx,"receiptNo",e.target.value)} style={{padding:"4px 6px",fontSize:12}}/></TD>
                   <TD><Inp type="date" value={ins.receiptDate} onChange={e=>changeIns(idx,"receiptDate",e.target.value)} style={{padding:"4px 6px",fontSize:12}}/></TD>
                   <TD><Sel value={ins.status} onChange={e=>changeIns(idx,"status",e.target.value)} style={{padding:"4px 6px",fontSize:12}}>{INS_STATUSES.map(s=><option key={s}>{s}</option>)}</Sel></TD>
-                  <TD><IconBtn size="sm" variant="danger" title="Delete installment" onClick={()=>delIns(idx)}><XIcon s={12}/></IconBtn></TD>
+                  <TD><ConfirmIconBtn size="sm" title="Delete installment" onConfirm={()=>delIns(idx)}/></TD>
                 </tr>
               ))}</tbody>
             </table>
@@ -3620,7 +3927,7 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
 
       {tab==="cost"&&<CostBreakdown quoteNo={f.quoteNo} costSheets={costSheets}/>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
-        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn variant="ghost" onClick={requestClose}>Cancel</Btn>
         {validErr&&<span style={{fontSize:12,color:"#dc2626",fontWeight:600,marginRight:4}}>{validErr}</span>}
         <Btn icon={<CheckIcon/>} onClick={()=>{
           if(!f.oppCode){setValidErr("OPP Code is required");return;}
@@ -3630,6 +3937,8 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
         }}>Save Delivery</Btn>
       </div>
     </Modal>
+    {showDiscard && <ConfirmDiscard onKeepEditing={()=>setShowDiscard(false)} onDiscard={()=>{setShowDiscard(false);onClose();}}/>}
+    </>
   );
 };
 
@@ -3649,7 +3958,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
   const opp   = opps.find(o=>o.oppCode===d.oppCode);
   const cust  = customers.find(c=>c.id===d.custId);
   const agent = USERS.find(u=>u.id===(d.assignedTo||opp?.assignedTo));
-  const totalRec = safeArr(d.installments).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);
+  const totalRec = safeArr(d.installments).filter(i=>i.status==="Received"&&i.receiptDate).reduce((s,i)=>s+i.amount,0);
   const lastLog = [...(d.saveLog||[])].sort((a,b)=>(b.ts||"").localeCompare(a.ts||""))[0];
 
   //  Helpers 
@@ -3844,7 +4153,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
                         {authorPart&&<span style={{fontSize:10,fontWeight:700,color:"#1e40af",background:"#eff6ff",padding:"1px 5px",borderRadius:3,marginRight:6}}>{authorPart}</span>}
                         <RenderMentionText text={body} users={userList}/>
                       </div>
-                      <IconBtn size="sm" variant="danger" title="Delete" style={{flexShrink:0}} onClick={()=>{const lines=(localD.remark||"").split("\n").filter(Boolean);markDirty({...localD,remark:lines.filter((_,idx)=>idx!==arr.length-1-i).join("\n")});}}><XIcon s={12}/></IconBtn>
+                      <ConfirmIconBtn size="sm" title="Delete" onConfirm={()=>{const lines=(localD.remark||"").split("\n").filter(Boolean);markDirty({...localD,remark:lines.filter((_,idx)=>idx!==arr.length-1-i).join("\n")});}}/>
                     </div>
                   );
                 })}
@@ -3900,7 +4209,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
     .sort((a,b)=>multiCmp(a,b,sorts,getDV));
 
   const totContract = list.reduce((s,d)=>s+(Number(d.totalContractValue)||0),0);
-  const totReceived = list.reduce((s,d)=>s+safeArr(d.installments).filter(i=>i.status==="Received").reduce((x,i)=>x+(i.amount||0),0),0);
+  const totReceived = list.reduce((s,d)=>s+safeArr(d.installments).filter(i=>i.status==="Received"&&i.receiptDate).reduce((x,i)=>x+(i.amount||0),0),0);
 
   return (
     <div>
@@ -3910,7 +4219,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
           <CountPill n={list.length} label="deliveries"/>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=safeArr(d.installments).filter(i=>i.status==="Received").reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}>CSV</Btn>
+          <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=safeArr(d.installments).filter(i=>i.status==="Received"&&i.receiptDate).reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}>CSV</Btn>
         </div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
@@ -4016,7 +4325,7 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
               style={{fontSize:13,padding:"1px 5px",border:`1px solid ${agents.length>0?"#86efac":"#e2e8f0"}`,borderRadius:3,background:agents.length>0?"#f0fdf4":"#f8fafc",color:agents.length>0?"#16a34a":"#64748b",cursor:"pointer",whiteSpace:"nowrap",minWidth:24,textAlign:"center"}}>
               {agents.length > 0 ? `@${agents.length}` : "@"}
             </button>
-            <IconBtn size="sm" variant="danger" title="Delete task" onClick={()=>onDel(t.id)}><XIcon s={12}/></IconBtn>
+            <ConfirmIconBtn size="sm" title="Delete task" onConfirm={()=>onDel(t.id)}/>
           </div>
         </td>
       </tr>
@@ -4054,7 +4363,7 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
                 ))}
                 <td style={{padding:"4px 6px",fontWeight:700,fontSize:12,whiteSpace:"nowrap",color:"#16a34a"}}>฿{fmt(agentCost)}</td>
                 <td colSpan={2} style={{padding:"4px 6px"}}>
-                  <IconBtn size="sm" variant="danger" title="Remove agent" onClick={()=>removeAgent(a.uid)}><XIcon s={12}/></IconBtn>
+                  <ConfirmIconBtn size="sm" title="Remove agent" onConfirm={()=>removeAgent(a.uid)}/>
                 </td>
               </tr>
             );
@@ -4261,7 +4570,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                                 {Array.from({length:(months||3)+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
                               </Sel>
                             </td>
-                            <td><IconBtn size="sm" variant="danger" title="Delete cost row" onClick={()=>delQIC(q.id,r.id)}><XIcon s={12}/></IconBtn></td>
+                            <td><ConfirmIconBtn size="sm" title="Delete cost row" onConfirm={()=>delQIC(q.id,r.id)}/></td>
                           </tr>
                         ))}
                         <tr style={{borderTop:"1px solid #e2e8f0"}}>
@@ -4313,7 +4622,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                                 {Array.from({length:months+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
                               </Sel>
                             </td>
-                            <td style={{padding:"4px 4px",width:20}}><IconBtn size="sm" variant="danger" title="Delete installment" onClick={()=>delQInst(q.id,ins.id)}><XIcon s={12}/></IconBtn></td>
+                            <td style={{padding:"4px 4px",width:20}}><ConfirmIconBtn size="sm" title="Delete installment" onConfirm={()=>delQInst(q.id,ins.id)}/></td>
                           </tr>
                         ))}
                         <tr><td colSpan={6} style={{padding:"6px 4px"}}>
@@ -4404,7 +4713,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                       <div key={d.id} style={{display:"flex",gap:8,alignItems:"center"}}>
                         <span style={{color:"#94a3b8",fontWeight:700,fontSize:12,flexShrink:0,minWidth:20,textAlign:"right"}}>{i+1}</span>
                         <Inp value={d.item} onChange={e=>setQDlv(q.id,d.id,e.target.value)} placeholder="" style={{fontSize:12,flex:1}}/>
-                        <IconBtn size="sm" variant="danger" title="Delete deliverable" style={{flexShrink:0}} onClick={()=>delQDlv(q.id,d.id)}><XIcon s={12}/></IconBtn>
+                        <ConfirmIconBtn size="sm" title="Delete deliverable" onConfirm={()=>delQDlv(q.id,d.id)}/>
                       </div>
                     ))}
                     {(()=>{const full=(q.deliverables||[]).length>=DELIV_MAX;return(
@@ -4425,7 +4734,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                       <div key={n.id} style={{display:"flex",gap:8,alignItems:"center"}}>
                         <span style={{color:"#94a3b8",fontWeight:700,fontSize:12,flexShrink:0,minWidth:20,textAlign:"right"}}>{i+1}</span>
                         <Inp value={n.item} onChange={e=>setQNote(q.id,n.id,e.target.value)} placeholder="" style={{fontSize:12,flex:1}}/>
-                        <IconBtn size="sm" variant="danger" title="Delete note" style={{flexShrink:0}} onClick={()=>delQNote(q.id,n.id)}><XIcon s={12}/></IconBtn>
+                        <ConfirmIconBtn size="sm" title="Delete note" onConfirm={()=>delQNote(q.id,n.id)}/>
                       </div>
                     ))}
                     {(()=>{const full=toItemList(q.notes).length>=NOTES_MAX;return(
@@ -4862,6 +5171,9 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
   const [open,       setOpen]            = useState(false);
   // key = "taskId:agentUid_year_month_week" → actual hours logged that week
   const [weekActual, setWeekActualState] = useState({});
+  // Bulk "clear all weeks" is destructive enough to warrant the full ConfirmDialog rather
+  // than the inline row-level confirm — pending target lives here, not per-row state.
+  const [clearConfirm, setClearConfirm]  = useState(null); // {taskId, taskName, agentUid, agentName}
 
   const tasks      = useMemo(() => safeArr(snapshot?.tasks || []), [snapshot]);
   const opexMonths = useMemo(() => getOPEXMonths(tasks, null), [tasks]);
@@ -4969,6 +5281,7 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
   const CELL_W = 52;
 
   return (
+    <>
     <Card style={{marginBottom:10, overflow:"hidden"}}>
       {/* Header */}
       <div style={{padding:"12px 18px", background:"#f8fafc", borderBottom:"1px solid #e2e8f0", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8}}>
@@ -5086,7 +5399,7 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
                               <span style={{fontSize:12, fontWeight:hasAg?800:400, color:hasAg?"#0f766e":"#94a3b8"}}>{hasAg?`${agentActual}h`:"—"}</span>
                               {canEdit && hasAg && (
                                 <IconBtn size="sm" variant="danger" title="Clear all weeks"
-                                  onClick={() => clearAgentTask(task.id, agent.uid)}>
+                                  onClick={() => setClearConfirm({taskId:task.id, taskName:task.taskName||"(Unnamed)", agentUid:agent.uid, agentName})}>
                                   <XIcon s={12}/>
                                 </IconBtn>
                               )}
@@ -5193,6 +5506,14 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
         </div>
       )}
     </Card>
+    {clearConfirm && (
+      <ConfirmDialog title="Clear all hours?"
+        message={`This clears every logged actual hour for ${clearConfirm.agentName} on "${clearConfirm.taskName}" across all weeks. This can't be undone.`}
+        confirmLabel="Clear Hours"
+        onCancel={()=>setClearConfirm(null)}
+        onConfirm={()=>{clearAgentTask(clearConfirm.taskId, clearConfirm.agentUid);setClearConfirm(null);}}/>
+    )}
+    </>
   );
 };
 
@@ -5850,6 +6171,23 @@ const stripJsonSuffix = obj => {
 
   // Close bell on outside click
   const bellRef = useRef();
+  const bellTriggerRef = useRef();
+  const bellListRef = useRef();
+  const bellIdRef = useRef(`bell-${uid()}`);
+  const sortedNotifs = [...notifications].sort((a,b)=>(b.ts||"").localeCompare(a.ts||""));
+  const openNotif = n => { markNotifRead(n.id); if(n.context==="OPP"){sOppCode(n.recordId);sPage("opps");} else if(n.context==="Delivery"){sPage("delivery");} sBellOpen(false); };
+  const {hi:bellHi, setHi:setBellHi, onKeyDown:bellNavKeyDown} = useListboxNav(bellOpen?sortedNotifs.length:0, {
+    onCommit: i => openNotif(sortedNotifs[i]),
+    onClose: () => { sBellOpen(false); bellTriggerRef.current?.focus(); },
+  });
+  useScrollHiIntoView(bellListRef, bellHi);
+  const onBellTriggerKeyDown = e => {
+    if(!bellOpen){
+      if(e.key==="ArrowDown"||e.key==="Enter"){ e.preventDefault(); sBellOpen(true); setBellHi(0); }
+      return;
+    }
+    bellNavKeyDown(e);
+  };
   useEffect(()=>{
     const h=e=>{ if(bellRef.current&&!bellRef.current.contains(e.target)) sBellOpen(false); };
     document.addEventListener("mousedown",h);
@@ -5974,11 +6312,17 @@ const stripJsonSuffix = obj => {
           <nav style={{display:"flex",flex:1,overflow:"auto"}}>
             {NAV.map(n=><button key={n.key} onClick={()=>sPage(n.key)} style={{padding:"15px 13px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:page===n.key?800:500,color:page===n.key?BRAND.navy:"#94a3b8",borderBottom:page===n.key?`2.5px solid ${BRAND.teal}`:"2.5px solid transparent",whiteSpace:"nowrap"}}>{n.label}</button>)}
           </nav>
-          <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+          <GlobalSearch customers={customers} opps={opps} page={page}
+            onGoToCust={id=>{sCustId(id);sPage("customers");}}
+            onGoToOpp={code=>{sOppCode(code);sPage("opps");}}/>
+          <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0,marginLeft:10}}>
             <SyncBadge/>
             {/* Notification Bell */}
             <div ref={bellRef} style={{position:"relative"}}>
-              <button onClick={()=>sBellOpen(p=>!p)} style={{position:"relative",border:"none",borderRadius:6,background:"none",padding:"4px 6px",cursor:"pointer",fontSize:18,lineHeight:1,display:"flex",alignItems:"center"}}>
+              <button ref={bellTriggerRef} onClick={()=>{sBellOpen(p=>!p);setBellHi(0);}} onKeyDown={onBellTriggerKeyDown}
+                aria-haspopup="listbox" aria-expanded={bellOpen} aria-controls={bellIdRef.current}
+                aria-activedescendant={bellOpen?`${bellIdRef.current}-opt-${bellHi}`:undefined}
+                style={{position:"relative",border:"none",borderRadius:6,background:"none",padding:"4px 6px",cursor:"pointer",fontSize:18,lineHeight:1,display:"flex",alignItems:"center"}}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{color:"#0f172a",display:"block"}}>
                   <path d="M12 2C10.9 2 10 2.9 10 4c0 .1 0 .2.01.3A7.002 7.002 0 0 0 5 11v5l-2 2v1h18v-1l-2-2v-5a7.002 7.002 0 0 0-5.01-6.7C13.99 4.2 14 4.1 14 4c0-1.1-.9-2-2-2zm0 20c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2z"/>
                 </svg>
@@ -5990,11 +6334,12 @@ const stripJsonSuffix = obj => {
                     <span style={{fontSize:13,fontWeight:800,color:"#0f172a"}}>Notifications</span>
                     {unreadCount>0&&<button onClick={markAllRead} style={{fontSize:11,color:"#1e40af",background:"none",border:"none",cursor:"pointer",fontWeight:600}}>Mark all read</button>}
                   </div>
-                  <div style={{overflow:"auto",flex:1}}>
-                    {notifications.length===0&&<div style={{padding:24,textAlign:"center",color:"#94a3b8",fontSize:13}}>No notifications</div>}
-                    {[...notifications].sort((a,b)=>(b.ts||"").localeCompare(a.ts||"")).map(n=>(
-                      <div key={n.id} onClick={()=>{markNotifRead(n.id);if(n.context==="OPP"){sOppCode(n.recordId);sPage("opps");}else if(n.context==="Delivery"){sPage("delivery");}sBellOpen(false);}}
-                        style={{padding:"10px 16px",borderBottom:"1px solid #f1f5f9",background:n.read?"#fff":"#eff6ff",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start"}}>
+                  <div ref={bellListRef} id={bellIdRef.current} role="listbox" style={{overflow:"auto",flex:1}}>
+                    {sortedNotifs.length===0&&<div style={{padding:24,textAlign:"center",color:"#94a3b8",fontSize:13}}>No notifications</div>}
+                    {sortedNotifs.map((n,i)=>(
+                      <div key={n.id} id={`${bellIdRef.current}-opt-${i}`} role="option" aria-selected={i===bellHi} data-hi={i===bellHi?"true":undefined}
+                        onClick={()=>openNotif(n)} onMouseEnter={()=>setBellHi(i)}
+                        style={{padding:"10px 16px",borderBottom:"1px solid #f1f5f9",background:n.read?(i===bellHi?"#f8fafc":"#fff"):"#eff6ff",cursor:"pointer",display:"flex",gap:10,alignItems:"flex-start",boxShadow:i===bellHi?"inset 0 0 0 2px #93c5fd":"none"}}>
                         <div style={{width:8,height:8,borderRadius:"50%",background:n.read?"transparent":"#3b82f6",flexShrink:0,marginTop:5}}/>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:2,flexWrap:"wrap"}}>
