@@ -636,14 +636,15 @@ const SortReset = ({sorts,onReset}) => (sorts.length>1
     </button>
   : null);
 
-const Modal = ({title,width=740,onClose,children}) => {
+const Modal = ({title,width=740,onClose,closeOnOverlay=false,children}) => {
   useEffect(()=>{
     const h=e=>{if(e.key==="Escape")onClose();};
     document.addEventListener("keydown",h);
     return()=>document.removeEventListener("keydown",h);
   },[onClose]);
   return (
-  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}
+    onClick={closeOnOverlay ? e=>{ if(e.target===e.currentTarget) onClose(); } : undefined}>
     <div style={{background:"#fff",borderRadius:10,width:"100%",maxWidth:width,maxHeight:"92vh",overflow:"auto",boxShadow:"0 24px 64px rgba(0,0,0,.22)"}}>
       <div style={{padding:"17px 24px",borderBottom:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff",zIndex:1}}>
         <Span s={17} w={800} c="#0f172a">{title}</Span>
@@ -1152,7 +1153,7 @@ const InstallmentSummary = ({contractValue, received, variant="form"}) => {
 
 const ExportBar = ({onCSV,onGS}) =><div style={{display:"flex",gap:6}}><Btn variant="export" size="sm" icon={<DlIcon/>} onClick={onCSV}>CSV</Btn><Btn variant="export" size="sm" icon={<SheetIcon/>} onClick={onGS}>Sheets</Btn></div>;
 const GSGuideModal = ({module,headers,onClose}) => (
-  <Modal title={`Google Sheets Guide — ${module}`} width={600} onClose={onClose}>
+  <Modal title={`Google Sheets Guide — ${module}`} width={600} onClose={onClose} closeOnOverlay>
     <FRow label="Tab Name"><div style={{fontFamily:"monospace",padding:"6px 10px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:5,fontWeight:700}}>{module}</div></FRow>
     <FRow label="Headers"><div style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:5,padding:"8px 10px",lineHeight:2}}>{headers.map((h,i)=><span key={i} style={{display:"inline-block",background:"#dbeafe",color:"#1e40af",margin:"2px",padding:"1px 7px",borderRadius:3,fontSize:11}}>{h}</span>)}</div></FRow>
     <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}}><Btn onClick={onClose}>Close</Btn></div>
@@ -1444,7 +1445,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   // Defaults to a per-company ฿ list; a card's tip can override unitLabel/fmtAmt (e.g. a per-month ฿M list),
   // and optionally set drillDown(name,i)=>newPayload to make rows clickable into a second-level breakdown.
   const SCDetailModal = () => detailSC ? (
-    <Modal title={detailSC.title} width={520} onClose={()=>setDetailSC(null)}>
+    <Modal title={detailSC.title} width={520} onClose={()=>setDetailSC(null)} closeOnOverlay>
       {(()=>{ const fmtAmt = detailSC.fmtAmt || (amt=>`฿${fmt(amt)}`); const canDrill = !!detailSC.drillDown; return (<>
       {detailSC.parent && (
         <button onClick={()=>setDetailSC(detailSC.parent)} style={{border:"none",background:"none",color:"#1e40af",fontSize:12,fontWeight:700,cursor:"pointer",padding:0,marginBottom:10,display:"flex",alignItems:"center",gap:4}}>
@@ -2163,7 +2164,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
         </div>
       )}
       {logCust&&(
-        <Modal title={`Work Log — ${logCust.companyEN}`} width={700} onClose={()=>sLog(null)}>
+        <Modal title={`Work Log — ${logCust.companyEN}`} width={700} onClose={()=>sLog(null)} closeOnOverlay>
           {/* Summary header */}
           <div style={{marginBottom:14,padding:"12px 16px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
             <div style={{display:"flex",alignItems:"center",gap:6,background:"#fff",border:"1px solid #e2e8f0",borderRadius:6,padding:"4px 12px"}}>
@@ -3350,7 +3351,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
       }}/>}
       {quotationOpp&&!form&&<QuotationPreview opp={quotationOpp} customer={customers.find(c=>c.id===quotationOpp.custId)} costSheets={costSheets||[]} onClose={()=>sQT(null)} onSaveQuotation={qd=>{onSave({...quotationOpp,quotationData:qd});sQT(null);}}/>}
       {logOpp&&(
-        <Modal title={`Activity Log — ${logOpp.oppCode}`} width={680} onClose={()=>sLog(null)}>
+        <Modal title={`Activity Log — ${logOpp.oppCode}`} width={680} onClose={()=>sLog(null)} closeOnOverlay>
           <div style={{marginBottom:12,padding:"8px 14px",background:"#f8fafc",borderRadius:6,display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
             <Span s={12} c="#64748b">{customers.find(c=>c.id===logOpp.custId)?.companyEN}</Span>
             <Badge value={logOpp.status} colorMap={Object.fromEntries(OPP_STATUSES.map((s,i)=>[s,{c:STAGE_COLORS[i]}]))}/>
