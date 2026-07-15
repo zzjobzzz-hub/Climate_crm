@@ -1271,6 +1271,14 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const splits      = kpiSplits[year]||DEFAULT_SPLIT.slice();
   const totalSplit  = splits.reduce((s,v)=>s+v,0);
 
+  // Convert any date string to BE year format for consistent comparison
+  const toBEDate = d => {
+    if (!d) return "";
+    const y = parseInt(d.slice(0, 4));
+    if (y < 2500) return `${y + 543}${d.slice(4)}`; // CE → BE
+    return d; // already BE
+  };
+
   // Revenue: sum of installment.amount where expected_date is in the current CE year (no status filter)
   const revenue = useMemo(()=>{
     const ceYear = new Date().getFullYear();
@@ -1285,16 +1293,15 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     },0);
   },[deliveries]);
 
-  // Invoice Received: sum of installment.amount where invoiceDate is in the current CE year AND status="Received"
+  // Invoice Received: sum of installment.amount where receiptDate is in the current BE year AND status="Received"
+  // (receiptDate, not invoiceDate, so this matches the monthly bar chart's "Received" series below.)
   const invoiceReceived = useMemo(()=>{
-    const ceYear = new Date().getFullYear();
-    const prefix = String(ceYear);
+    const prefix = String(new Date().getFullYear()+543);
     return deliveries.reduce((total,d)=>{
       return total + safeArr(d.installments).reduce((s,ins)=>{
         if(ins.status!=="Received") return s;
-        if(!ins.invoiceDate) return s;
-        const dateStr = String(ins.invoiceDate);
-        if(dateStr.startsWith(prefix)) return s + (ins.amount||0);
+        const be = toBEDate(ins.receiptDate);
+        if(be && be.startsWith(prefix)) return s + (ins.amount||0);
         return s;
       },0);
     },0);
@@ -1353,20 +1360,27 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const wonBreakdown = useMemo(()=>
     groupByCompany(wonOpps.map(o=>({name:custName(o.custId),amount:o.salesPrice||0})))
   ,[filteredOpps,customers]);
-  const receivedBreakdown = useMemo(()=>{
-    const prefix = String(new Date().getFullYear());
-    return groupByCompany(deliveries.flatMap(d=>safeArr(d.installments)
-      .filter(ins=>ins.status==="Received" && ins.invoiceDate && String(ins.invoiceDate).startsWith(prefix))
-      .map(ins=>({name:custName(d.custId),amount:ins.amount||0}))));
+  // Received breaks down by month (mirrors revenueByMonth's shape), with a per-month
+  // company breakdown ([2]) for the modal's month→company drill-down.
+  const receivedByMonth = useMemo(()=>{
+    const prefix = String(new Date().getFullYear()+543);
+    const perMonth = Array.from({length:12},()=>({})); // company name -> amount, per month
+    deliveries.forEach(d=>{
+      const name = custName(d.custId);
+      safeArr(d.installments).forEach(ins=>{
+        if(ins.status!=="Received") return;
+        const be = toBEDate(ins.receiptDate);
+        if(!be || !be.startsWith(prefix)) return;
+        const m = parseInt(be.slice(5,7),10)-1;
+        if(m<0||m>11) return;
+        perMonth[m][name] = (perMonth[m][name]||0) + (ins.amount||0);
+      });
+    });
+    return MONTHS.map((name,i)=>{
+      const companies = Object.entries(perMonth[i]).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+      return [name, companies.reduce((s,[,v])=>s+v,0), companies];
+    });
   },[deliveries,customers]);
-
-  // Convert any date string to BE year format for consistent comparison
-  const toBEDate = d => {
-    if (!d) return "";
-    const y = parseInt(d.slice(0, 4));
-    if (y < 2500) return `${y + 543}${d.slice(4)}`; // CE → BE
-    return d; // already BE
-  };
 
   // Won opps only enter the Backlog once their linked Delivery's Contract Date is filled in —
   // deliberately no fallback (no auto-inferred date) so Backlog reflects an actually signed/dated contract.
@@ -1648,7 +1662,13 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
             <SC label="Won YTD"          val={`฿${fmtM(totalWon)}`}      sub={`${wonOpps.length} deals closed`} c="#1e40af"
               tip={{title:"Won YTD", items:wonBreakdown, total:totalWon}}/>
             <SC label="Received" val={`฿${fmtM(invoiceReceived)}`} c="#22c55e"
-              tip={{title:`Received ${new Date().getFullYear()}`, items:receivedBreakdown, total:invoiceReceived}}/>
+              tip={{title:`Received ${new Date().getFullYear()}`, items:receivedByMonth.map(([m,t])=>[m,t]), total:invoiceReceived,
+                    unitLabel:"months", fmtAmt:amt=>`฿${fmt(amt)}`,
+                    drillDown:(monthName,i)=>({
+                      title:`${monthName} ${new Date().getFullYear()} — Received by Company`,
+                      items:receivedByMonth[i][2], total:receivedByMonth[i][1],
+                      unitLabel:"companies", fmtAmt:amt=>`฿${fmt(amt)}`,
+                    })}}/>
             <SC label="Opportunities" val={`฿${fmtM(oppsPipeline)}`} grad="linear-gradient(90deg,#a78bfa,#f59e0b)"/>
             <SC label="Pipeline (Proposal+Nego+Won)" val={`฿${fmtM(pipeline)}`}/>
           </div>
