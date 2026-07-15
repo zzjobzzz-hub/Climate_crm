@@ -3962,35 +3962,35 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
     <>
       {/* ── Main task row ── */}
       <tr style={{borderBottom: agentOpen ? "none" : "1px solid #f8fafc"}}>
-        <td style={{padding:"3px 4px",textAlign:"center",fontSize:11,color:"#94a3b8",fontWeight:700,width:24}}>{rowNum}</td>
-        <td style={{padding:"3px 4px"}}>
+        <td style={{padding:"4px 5px",textAlign:"center",fontSize:11,color:"#94a3b8",fontWeight:700,width:24}}>{rowNum}</td>
+        <td style={{padding:"4px 6px"}}>
           <input value={name}
             onChange={e=>setName(e.target.value)}
             onBlur={e=>onSet(t.id,"taskName",e.target.value)}
-            style={{padding:"2px 5px",fontSize:13,width:"100%",boxSizing:"border-box",border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",outline:"none"}}/>
+            style={{padding:"3px 6px",fontSize:13,width:"100%",boxSizing:"border-box",border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",outline:"none"}}/>
         </td>
         {/* One column per level — read-only totals when agents assigned, editable otherwise */}
         {IH_LEVEL_FIELDS.map(lvl => {
           const val = fieldTotals[lvl];
           return (
-            <td key={lvl} style={{padding:"3px 4px"}}>
+            <td key={lvl} style={{padding:"4px 5px"}}>
               {agents.length > 0
-                ? <span style={{display:"block",textAlign:"center",fontSize:13,fontWeight:600,color:"#64748b",padding:"2px 4px"}}>{val||""}</span>
+                ? <span style={{display:"block",textAlign:"center",fontSize:13,fontWeight:600,color:"#64748b",padding:"3px 4px"}}>{val||""}</span>
                 : <input type="text" inputMode="numeric" value={t[lvl]||""}
                     onChange={e=>setTaskField(lvl,e.target.value)}
-                    style={{padding:"2px 4px",fontSize:13,width:48,textAlign:"center",border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",outline:"none"}}/>
+                    style={{padding:"3px 4px",fontSize:13,width:"100%",boxSizing:"border-box",textAlign:"center",border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",outline:"none"}}/>
               }
             </td>
           );
         })}
-        <td style={{padding:"3px 4px",fontWeight:700,whiteSpace:"nowrap",fontSize:13}}>฿{fmt(tc)}</td>
-        <td style={{padding:"3px 4px"}}>
-          <Sel value={t.payMonth||1} onChange={e=>onSet(t.id,"payMonth",+e.target.value)} style={{padding:"2px 3px",fontSize:13,width:52}}>
+        <td style={{padding:"4px 6px",fontWeight:700,whiteSpace:"nowrap",fontSize:13}}>฿{fmt(tc)}</td>
+        <td style={{padding:"4px 5px"}}>
+          <Sel value={t.payMonth||1} onChange={e=>onSet(t.id,"payMonth",+e.target.value)} style={{padding:"3px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}>
             {Array.from({length:(months||3)+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
           </Sel>
         </td>
-        <td style={{padding:"3px 4px"}}>
-          <div style={{display:"flex",gap:3,alignItems:"center"}}>
+        <td style={{padding:"4px 6px"}}>
+          <div style={{display:"flex",gap:5,alignItems:"center"}}>
             <button onClick={()=>setAO(p=>!p)} title="Assign agents"
               style={{fontSize:13,padding:"1px 5px",border:`1px solid ${agents.length>0?"#86efac":"#e2e8f0"}`,borderRadius:3,background:agents.length>0?"#f0fdf4":"#f8fafc",color:agents.length>0?"#16a34a":"#64748b",cursor:"pointer",whiteSpace:"nowrap",minWidth:24,textAlign:"center"}}>
               {agents.length > 0 ? `@${agents.length}` : "@"}
@@ -4008,7 +4008,7 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
             const agentCost = ihLevelCost(a);
             return (
               <tr key={a.uid} style={{background:"#f0fdf4",borderBottom:"1px solid #dcfce7"}}>
-                <td colSpan={2} style={{padding:"3px 8px 3px 28px"}}>
+                <td colSpan={2} style={{padding:"4px 8px 4px 28px"}}>
                   <select
                     value={a.uid}
                     onChange={e=>{
@@ -4016,7 +4016,7 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
                       if(!newUid || assignedUids.filter(x=>x!==a.uid).includes(newUid)) return;
                       onSet(t.id, "agents", agents.map(x=>x.uid===a.uid?{...x,uid:newUid}:x));
                     }}
-                    style={{fontSize:12,padding:"2px 5px",border:"1px solid #86efac",borderRadius:3,background:"#fff",color:"#16a34a",fontWeight:700,width:"100%"}}>
+                    style={{fontSize:12,padding:"3px 6px",border:"1px solid #86efac",borderRadius:3,background:"#fff",color:"#16a34a",fontWeight:700,width:"100%",boxSizing:"border-box"}}>
                     {eligibleUsers.map(eu=>(
                       <option key={eu.id} value={eu.id} disabled={assignedUids.includes(eu.id)&&eu.id!==a.uid}>
                         {eu.name.split(" ")[0]} ({eu.role})
@@ -4025,14 +4025,14 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
                   </select>
                 </td>
                 {IH_LEVEL_FIELDS.map(lvl=>(
-                  <td key={lvl} style={{padding:"3px 4px"}}>
+                  <td key={lvl} style={{padding:"4px 5px"}}>
                     <input type="text" inputMode="numeric" value={a[lvl]||""}
                       onChange={e=>setAgentField(a.uid,lvl,e.target.value||0)}
-                      style={{padding:"2px 4px",fontSize:13,width:48,textAlign:"center",border:"1px solid #bbf7d0",borderRadius:3,background:"#fff",outline:"none"}}/>
+                      style={{padding:"3px 4px",fontSize:13,width:"100%",boxSizing:"border-box",textAlign:"center",border:"1px solid #bbf7d0",borderRadius:3,background:"#fff",outline:"none"}}/>
                   </td>
                 ))}
-                <td style={{padding:"3px 4px",fontWeight:700,fontSize:12,whiteSpace:"nowrap",color:"#16a34a"}}>฿{fmt(agentCost)}</td>
-                <td colSpan={2} style={{padding:"3px 4px"}}>
+                <td style={{padding:"4px 6px",fontWeight:700,fontSize:12,whiteSpace:"nowrap",color:"#16a34a"}}>฿{fmt(agentCost)}</td>
+                <td colSpan={2} style={{padding:"4px 6px"}}>
                   <IconBtn size="sm" variant="danger" title="Remove agent" onClick={()=>removeAgent(a.uid)}><XIcon s={12}/></IconBtn>
                 </td>
               </tr>
@@ -4041,7 +4041,7 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
 
           {/* Add agent row */}
           <tr style={{background:"#f8fffe",borderBottom:"1px solid #e2e8f0"}}>
-            <td colSpan={TASK_TABLE_COLS} style={{padding:"5px 8px 5px 28px"}}>
+            <td colSpan={TASK_TABLE_COLS} style={{padding:"6px 8px 6px 28px"}}>
               <select onChange={e=>{addAgent(e.target.value);e.target.value="";}}
                 style={{fontSize:12,padding:"2px 8px",border:"1px dashed #86efac",borderRadius:4,background:"#fff",color:"#16a34a",cursor:"pointer"}}>
                 <option value="">+ Add Agent</option>
@@ -4065,13 +4065,13 @@ const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
   return (
     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
       <colgroup>
-        <col style={{width:24}}/><col style={{width:"30%"}}/>
-        {IH_LEVEL_DEFS.map(l=><col key={l.field} style={{width:"7%"}}/>)}
-        <col style={{width:"10%"}}/><col style={{width:"8%"}}/><col style={{width:"12%"}}/>
+        <col style={{width:24}}/><col style={{width:"23%"}}/>
+        {IH_LEVEL_DEFS.map(l=><col key={l.field} style={{width:"10%"}}/>)}
+        <col style={{width:"11%"}}/><col style={{width:"7%"}}/><col style={{width:"9%"}}/>
       </colgroup>
       <thead><tr style={{background:"#f8fafc"}}>
         {headers.map(h=>(
-          <th key={h} style={{padding:"5px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:9,borderBottom:"1px solid #e2e8f0"}}>{h}</th>
+          <th key={h} style={{padding:"6px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:9.5,lineHeight:1.3,letterSpacing:"0.01em",borderBottom:"1px solid #e2e8f0"}}>{h}</th>
         ))}
       </tr></thead>
       <tbody>
@@ -4080,11 +4080,11 @@ const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
         )}
         {(tasks||[]).map((t,idx)=><TaskRow key={t.id} t={t} rowNum={idx+1} onSet={onSet} onDel={onDel} months={months}/>)}
         <tr style={{borderTop:"1px solid #e2e8f0"}}>
-          <td colSpan={2+IH_LEVEL_DEFS.length} style={{padding:"5px 4px"}}>
+          <td colSpan={2+IH_LEVEL_DEFS.length} style={{padding:"6px 5px"}}>
             <button onClick={onAdd} className="wb-addrow">+ Task</button>
           </td>
-          <td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap",color:"#94a3b8",fontSize:11,fontWeight:600}}>Total OPEX</td>
-          <td style={{padding:"5px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a"}}>฿{fmt(totalOPEX)}</td>
+          <td colSpan={2} style={{padding:"6px 5px",textAlign:"right",whiteSpace:"nowrap",color:"#94a3b8",fontSize:11,fontWeight:600}}>Total OPEX</td>
+          <td style={{padding:"6px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a"}}>฿{fmt(totalOPEX)}</td>
         </tr>
       </tbody>
     </table>
