@@ -2171,17 +2171,17 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
   const [colWidths,setColWidths] = React.useState([130,220,200,110,180,90,120,140,60,60]);
   const toggleSort=col=>setSorts(p=>cycleSort(p,col));
   const resetSort=()=>setSorts(p=>p.slice(0,1));
-  // Pagination — page resets to 1 whenever the filters/search/sort change; separately clamped
-  // if the filtered result count shrinks (e.g. after a delete) below the current page.
-  const PAGE_SIZE=50;
-  const [pg,setPg]=useState(1);
-  useEffect(()=>{setPg(1);},[search,fR,fSt,fAg,fTag,sorts]);
   // Tags: row selection + bulk assign/delete + tag filter
   const [fTag,setFTag]=useState([]);
   const [selected,setSelected]=useState(()=>new Set());
   const [bulkTag,setBulkTag]=useState("");
   const [bulkDel,setBulkDel]=useState(false);
   const tagOptions=useMemo(()=>allTags(customers),[customers]);
+  // Pagination — page resets to 1 whenever the filters/search/sort change; separately clamped
+  // if the filtered result count shrinks (e.g. after a delete) below the current page.
+  const PAGE_SIZE=50;
+  const [pg,setPg]=useState(1);
+  useEffect(()=>{setPg(1);},[search,fR,fSt,fAg,fTag,sorts]);
   const toggleRow=(id)=>setSelected(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n;});
   const clearSel=()=>setSelected(new Set());
   // Drop selected ids that no longer exist (e.g. after a delete elsewhere)
