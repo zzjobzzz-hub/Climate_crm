@@ -1866,6 +1866,46 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
       ? monthOpps.filter(o=>o.serviceCode===hoveredTag.code && o.status===hoveredTag.stage)
       : [];
 
+    // Agent Performance leaderboard — ranked by won value (a real sequence, not decorative numbering).
+    // Color/initials are keyed off each agent's fixed position in SALES_USERS, so they stay stable
+    // across reloads even as the won-value ranking shuffles.
+    const agentStats = SALES_USERS.map(a=>{
+      const wonForAgent = opps.filter(o=>o.assignedTo===a.id&&o.status==="Won");
+      const aw = wonForAgent.reduce((s,o)=>s+o.salesPrice,0);
+      const ac = opps.filter(o=>o.assignedTo===a.id&&!["Won","Lost"].includes(o.status)).length;
+      const closed = opps.filter(o=>o.assignedTo===a.id&&["Won","Lost"].includes(o.status)).length;
+      const wr = closed>0?Math.round((wonForAgent.length/closed)*100):0;
+      const aWonBreakdown = groupByCompany(wonForAgent.map(o=>({name:custName(o.custId),amount:o.salesPrice||0})));
+      const color = SVC_PALETTE[SALES_USERS.findIndex(u=>u.id===a.id)%SVC_PALETTE.length];
+      const initials = a.name.split(" ").map(n=>n[0]).filter(Boolean).slice(0,2).join("").toUpperCase();
+      return {agent:a, aw, ac, wr, aWonBreakdown, color, initials};
+    }).sort((x,y)=>y.aw-x.aw);
+
+    const AgentRow = ({rank,stat}) => {
+      const [h,setH]=React.useState(false);
+      const {agent:a,aw,ac,wr,aWonBreakdown,color,initials}=stat;
+      return (
+        <div onClick={()=>setDetailSC({title:`${a.name} — Won Deals`, items:aWonBreakdown, total:aw})}
+          onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}
+          style={{display:"flex",alignItems:"center",gap:10,padding:"7px 8px",borderRadius:6,cursor:"pointer",background:h?"#f8fafc":"transparent",transition:"background-color .16s ease"}}>
+          <span style={{fontSize:11,fontWeight:800,color:"#475569",width:16,textAlign:"right",fontVariantNumeric:"tabular-nums",flexShrink:0}}>{String(rank).padStart(2,"0")}</span>
+          <span style={{width:28,height:28,borderRadius:"50%",background:color,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,flexShrink:0}}>{initials}</span>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8}}>
+              <span style={{fontSize:12.5,fontWeight:700,color:"#0f172a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name.split(" ")[0]}</span>
+              <span style={{fontSize:12.5,fontWeight:800,color:"#0f172a",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>฿{fmtM(aw)}</span>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:7,marginTop:4}}>
+              <div style={{flex:1,height:5,background:"#f1f5f9",borderRadius:99,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${wr}%`,background:color,borderRadius:99,transition:"width .3s"}}/>
+              </div>
+              <span style={{fontSize:10,color:"#475569",fontWeight:600,whiteSpace:"nowrap"}}>{ac} active · {wr}%</span>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
     return (
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
         <Card style={{padding:20,position:"relative"}}>
@@ -1929,11 +1969,22 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
           )}
         </Card>
 
-        <Card style={{padding:20,overflow:"hidden"}}>
-          <Span s={13} w={700} style={{display:"block",marginBottom:14}}>Won Value by Service</Span>
-          <PieChart data={wonByGroup} colors={groupColor} valueFmt={v=>fmtK(v)} onSliceClick={openGroupBreakdown} size={200} hole={0.62}
-            center={<div><div style={{fontSize:20,fontWeight:900,color:"#0f172a",letterSpacing:"-0.02em",lineHeight:1.1}}>฿{fmtM(wonByGroup.reduce((s,[,v])=>s+v,0))}</div><div style={{fontSize:11,fontWeight:600,color:"#64748b",marginTop:2}}>Total Won</div></div>}/>
-        </Card>
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          <Card style={{padding:20,overflow:"hidden"}}>
+            <Span s={13} w={700} style={{display:"block",marginBottom:14}}>Won Value by Service</Span>
+            <PieChart data={wonByGroup} colors={groupColor} valueFmt={v=>fmtK(v)} onSliceClick={openGroupBreakdown} size={200} hole={0.62}
+              center={<div><div style={{fontSize:20,fontWeight:900,color:"#0f172a",letterSpacing:"-0.02em",lineHeight:1.1}}>฿{fmtM(wonByGroup.reduce((s,[,v])=>s+v,0))}</div><div style={{fontSize:11,fontWeight:600,color:"#64748b",marginTop:2}}>Total Won</div></div>}/>
+          </Card>
+
+          <Card style={{padding:20}}>
+            <Span s={13} w={700} style={{display:"block",marginBottom:10}}>Agent Performance</Span>
+            {agentStats.length===0
+              ? <Span s={12} c="#475569">No sales agents yet</Span>
+              : <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                  {agentStats.map((stat,i)=><AgentRow key={stat.agent.id} rank={i+1} stat={stat}/>)}
+                </div>}
+          </Card>
+        </div>
       </div>
     );
   };
@@ -2047,27 +2098,6 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
           </Card>
 
           <PipelineAnalysis/>
-
-          <Card style={{padding:20,marginTop:14}}>
-            <Span s={13} w={700} style={{display:"block",marginBottom:10}}>Agent Performance</Span>
-            <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-              {SALES_USERS.map(a => {
-                const aw=opps.filter(o=>o.assignedTo===a.id&&o.status==="Won").reduce((s,o)=>s+o.salesPrice,0);
-                const ac=opps.filter(o=>o.assignedTo===a.id&&!["Won","Lost"].includes(o.status)).length;
-                const closed=opps.filter(o=>o.assignedTo===a.id&&["Won","Lost"].includes(o.status)).length;
-                const wr=closed>0?((opps.filter(o=>o.assignedTo===a.id&&o.status==="Won").length/closed)*100).toFixed(0):0;
-                const aWonBreakdown = groupByCompany(opps.filter(o=>o.assignedTo===a.id&&o.status==="Won").map(o=>({name:custName(o.custId),amount:o.salesPrice||0})));
-                return (
-                  <div key={a.id} style={{flex:1,minWidth:160,padding:16,background:"#f8fafc",borderRadius:7,border:"1px solid #e2e8f0",cursor:"pointer"}}
-                    onClick={()=>setDetailSC({title:`${a.name} — Won Deals`, items:aWonBreakdown, total:aw})}>
-                    <Span s={13} w={800} c="#0f172a" style={{display:"block"}}>{a.name.split(" ")[0]}</Span>
-                    <div style={{fontSize:20,fontWeight:900,color:"#16a34a",margin:"6px 0 2px"}}>฿{fmtM(aw)}</div>
-                    <Span s={11} c="#64748b">{ac} active · Win {wr}%</Span>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
         </>
       )}
 
@@ -4372,8 +4402,8 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
     <>
       {/* ── Main task row ── */}
       <tr style={{borderBottom: agentOpen ? "none" : "1px solid #f8fafc"}}>
-        <td style={{padding:"4px 5px",textAlign:"center",fontSize:11,color:"#94a3b8",fontWeight:700,width:24}}>{rowNum}</td>
-        <td style={{padding:"4px 6px"}}>
+        <td style={{padding:"5px 6px",textAlign:"center",fontSize:11,color:"#94a3b8",fontWeight:700,width:24}}>{rowNum}</td>
+        <td style={{padding:"5px 7px"}}>
           <input value={name}
             onChange={e=>setName(e.target.value)}
             onBlur={e=>onSet(t.id,"taskName",e.target.value)}
@@ -4383,9 +4413,9 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
         {IH_LEVEL_FIELDS.map(lvl => {
           const val = fieldTotals[lvl];
           return (
-            <td key={lvl} style={{padding:"4px 5px"}}>
+            <td key={lvl} style={{padding:"5px 6px"}}>
               {agents.length > 0
-                ? <span style={{display:"block",textAlign:"center",fontSize:13,fontWeight:600,color:"#64748b",padding:"3px 4px"}}>{val||""}</span>
+                ? <span style={{display:"block",textAlign:"center",fontSize:13,fontWeight:600,color:"#64748b",padding:"3px 4px",fontVariantNumeric:"tabular-nums"}}>{val||""}</span>
                 : <input type="text" inputMode="numeric" value={t[lvl]||""}
                     onChange={e=>setTaskField(lvl,e.target.value)}
                     style={{padding:"3px 4px",fontSize:13,width:"100%",boxSizing:"border-box",textAlign:"center",border:"1px solid #e2e8f0",borderRadius:3,background:"#fafafa",outline:"none"}}/>
@@ -4393,14 +4423,14 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
             </td>
           );
         })}
-        <td style={{padding:"4px 6px",fontWeight:700,whiteSpace:"nowrap",fontSize:13}}>฿{fmt(tc)}</td>
-        <td style={{padding:"4px 5px"}}>
+        <td style={{padding:"5px 7px",fontWeight:700,whiteSpace:"nowrap",fontSize:13,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>฿{fmt(tc)}</td>
+        <td style={{padding:"5px 6px"}}>
           <Sel value={t.payMonth||1} onChange={e=>onSet(t.id,"payMonth",+e.target.value)} style={{padding:"3px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}>
             {Array.from({length:(months||3)+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
           </Sel>
         </td>
-        <td style={{padding:"4px 6px"}}>
-          <div style={{display:"flex",gap:5,alignItems:"center"}}>
+        <td style={{padding:"5px 6px"}}>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
             <button onClick={()=>setAO(p=>!p)} title="Assign agents"
               style={{fontSize:13,padding:"1px 5px",border:`1px solid ${agents.length>0?"#86efac":"#e2e8f0"}`,borderRadius:3,background:agents.length>0?"#f0fdf4":"#f8fafc",color:agents.length>0?"#16a34a":"#64748b",cursor:"pointer",whiteSpace:"nowrap",minWidth:24,textAlign:"center"}}>
               {agents.length > 0 ? `@${agents.length}` : "@"}
@@ -4441,7 +4471,7 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
                       style={{padding:"3px 4px",fontSize:13,width:"100%",boxSizing:"border-box",textAlign:"center",border:"1px solid #bbf7d0",borderRadius:3,background:"#fff",outline:"none"}}/>
                   </td>
                 ))}
-                <td style={{padding:"4px 6px",fontWeight:700,fontSize:12,whiteSpace:"nowrap",color:"#16a34a"}}>฿{fmt(agentCost)}</td>
+                <td style={{padding:"5px 7px",fontWeight:700,fontSize:12,whiteSpace:"nowrap",color:"#16a34a",textAlign:"right",fontVariantNumeric:"tabular-nums"}}>฿{fmt(agentCost)}</td>
                 <td colSpan={2} style={{padding:"4px 6px"}}>
                   <ConfirmIconBtn size="sm" title="Remove agent" onConfirm={()=>removeAgent(a.uid)}/>
                 </td>
@@ -4469,20 +4499,31 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
 });
 
 //  TaskTableWidget: standalone table, uses TaskRow to prevent focus loss
+//  Header sizing/weight matches the sibling COGS/Installments tables in the same card (App.jsx ~4665-4721) —
+//  this table used to run its own smaller, untracked 9.5px header and was the visible outlier of the three.
 const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
   const totalOPEX = calcTask(tasks);
-  const headers = ["#","Task / Activity", ...IH_LEVEL_DEFS.map(l=>`${l.abbr} (hrs)`), "Total Cost","Pay Month","Agent / Cancel"];
+  const thStyle = {padding:"6px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:11,whiteSpace:"nowrap",borderBottom:"1px solid #e2e8f0"};
   return (
     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
       <colgroup>
-        <col style={{width:24}}/><col style={{width:"23%"}}/>
-        {IH_LEVEL_DEFS.map(l=><col key={l.field} style={{width:"10%"}}/>)}
-        <col style={{width:"11%"}}/><col style={{width:"7%"}}/><col style={{width:"9%"}}/>
+        <col style={{width:24}}/><col style={{width:"21%"}}/>
+        {IH_LEVEL_DEFS.map(l=><col key={l.field} style={{width:"9.5%"}}/>)}
+        <col style={{width:"12%"}}/><col style={{width:"8%"}}/><col style={{width:"11%"}}/>
       </colgroup>
       <thead><tr style={{background:"#f8fafc"}}>
-        {headers.map(h=>(
-          <th key={h} style={{padding:"6px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:9.5,lineHeight:1.3,letterSpacing:"0.01em",borderBottom:"1px solid #e2e8f0"}}>{h}</th>
+        <th style={thStyle}>#</th>
+        <th style={thStyle}>Task / Activity</th>
+        {/* Each level already has its own color in ROLE_META — reuse that as a compact pill instead of
+            plain "Sec Mgr (hrs)" text, which was long enough to wrap the header row to two lines. */}
+        {IH_LEVEL_DEFS.map(l=>(
+          <th key={l.field} style={{...thStyle,textAlign:"center"}} title={`${l.name} hours`}>
+            <span style={{fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:3,background:l.bg,color:l.c,whiteSpace:"nowrap"}}>{l.abbr}</span>
+          </th>
         ))}
+        <th style={{...thStyle,textAlign:"right"}}>Total Cost</th>
+        <th style={thStyle}>Pay M.</th>
+        <th style={thStyle}>Agent</th>
       </tr></thead>
       <tbody>
         {(tasks||[]).length===0&&(
@@ -4494,7 +4535,7 @@ const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
             <button onClick={onAdd} className="wb-addrow">+ Task</button>
           </td>
           <td colSpan={2} style={{padding:"6px 5px",textAlign:"right",whiteSpace:"nowrap",color:"#94a3b8",fontSize:11,fontWeight:600}}>Total OPEX</td>
-          <td style={{padding:"6px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a"}}>฿{fmt(totalOPEX)}</td>
+          <td style={{padding:"6px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a",fontVariantNumeric:"tabular-nums"}}>฿{fmt(totalOPEX)}</td>
         </tr>
       </tbody>
     </table>
@@ -4569,7 +4610,10 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                   </div>
                   <div style={{flex:"1 1 180px",minWidth:0}}>
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>Customer <span style={{color:"#dc2626",fontWeight:800}}>*</span></Span>
-                    <Sel value={q.custId||""} onChange={e=>setQF(q.id,"custId",e.target.value)} style={{fontSize:11,padding:"4px 7px",width:"100%"}}>
+                    <Sel value={q.custId||""} onChange={e=>{
+                      const custId=e.target.value;
+                      updQO(q.id, quote=>({...quote, custId, salesAgent: quote.salesAgent || customers.find(c=>c.id===custId)?.assignedTo || quote.salesAgent}));
+                    }} style={{fontSize:11,padding:"4px 7px",width:"100%"}}>
                       <option value="">— Select —</option>{[...customers].sort((a,b)=>(a.companyEN||"").localeCompare(b.companyEN||"")).map(c=><option key={c.id} value={c.id}>{c.companyEN}</option>)}
                     </Sel>
                   </div>
