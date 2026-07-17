@@ -444,48 +444,72 @@ const Badge   = ({value,colorMap}) => { const cfg=colorMap[value]||{c:"#64748b"}
 const SvcBadge = ({code}) => <span style={{background:"#f1f5f9",color:"#1e40af",fontWeight:800,fontSize:11,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{code}</span>;
 const G2 = ({children,gap=16}) => <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap}}>{children}</div>;
 
-// Self-contained SVG pie chart (no charting lib is loaded — see index.html).
+// Slice pop-out + legend-row transitions live in a real stylesheet (not inline) so the
+// prefers-reduced-motion override can disable the transform without touching JS. Same
+// injected-once convention as WB_BTN_CSS/WB_SORT_CSS above.
+const WB_PIE_CSS = `
+.wb-pie-slice{transition:transform .18s cubic-bezier(.25,1,.5,1),opacity .15s ease;}
+.wb-pie-row{transition:background-color .16s ease,opacity .15s ease;}
+@media (prefers-reduced-motion: reduce){.wb-pie-slice{transition:opacity .15s ease;}}
+`;
+if (typeof document !== "undefined" && !document.getElementById("wb-pie-css")) {
+  const _s = document.createElement("style"); _s.id = "wb-pie-css"; _s.textContent = WB_PIE_CSS;
+  document.head.appendChild(_s);
+}
+
+// Self-contained SVG pie/donut chart (no charting lib is loaded — see index.html).
 // data: [label,value][] already in the desired slice order. colors: label -> css color.
-const PieChart = ({data,colors,onSliceClick,valueFmt=v=>fmt(v),size=150}) => {
+// hole: optional 0-1 fraction of radius to punch out as a donut ring, with `center` rendered inside it.
+const PieChart = ({data,colors,onSliceClick,valueFmt=v=>fmt(v),size=150,hole=0,center}) => {
   const [hover,setHover]=useState(null);
   const total=data.reduce((s,[,v])=>s+v,0);
-  const r=size/2, cx=r, cy=r;
+  const r=size/2, cx=r, cy=r, pop=6;
   const polar=a=>[cx+r*Math.cos(a), cy+r*Math.sin(a)];
   let acc=0;
   return (
-    <div style={{display:"flex",gap:20,alignItems:"center",flexWrap:"wrap"}}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{flexShrink:0}}>
-        {total<=0 && <circle cx={cx} cy={cy} r={r-1} fill="#f1f5f9"/>}
-        {total>0 && data.map(([label,value],i)=>{
-          const frac=value/total;
-          const color=colors(label,i);
-          const start=acc*2*Math.PI-Math.PI/2;
-          acc+=frac;
-          const end=acc*2*Math.PI-Math.PI/2;
-          const dimmed=hover!==null&&hover!==i;
-          const common={
-            key:label, fill:color, stroke:"#fff", strokeWidth:1,
-            style:{cursor:onSliceClick?"pointer":"default",opacity:dimmed?0.45:1,transition:"opacity .15s"},
-            onMouseEnter:()=>setHover(i), onMouseLeave:()=>setHover(null),
-            onClick:()=>onSliceClick&&onSliceClick(label),
-          };
-          // A single 100%-share slice degenerates into a zero-length arc — draw a full circle instead.
-          if(frac>=0.999) return <circle {...common} cx={cx} cy={cy} r={r-0.5}><title>{`${label}: ${valueFmt(value)} (100%)`}</title></circle>;
-          const [x1,y1]=polar(start), [x2,y2]=polar(end);
-          const largeArc=frac>0.5?1:0;
-          const d=`M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc} 1 ${x2},${y2} Z`;
-          return <path {...common} d={d}><title>{`${label}: ${valueFmt(value)} (${(frac*100).toFixed(1)}%)`}</title></path>;
-        })}
-      </svg>
-      <div style={{display:"flex",flexDirection:"column",gap:6,minWidth:160,flex:1}}>
+    <div style={{display:"flex",gap:24,alignItems:"center",flexWrap:"wrap"}}>
+      <div style={{position:"relative",flexShrink:0,filter:total>0?"drop-shadow(0 10px 24px rgba(15,23,42,.14))":"none"}}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{display:"block"}}>
+          {total<=0 && <circle cx={cx} cy={cy} r={r-1} fill="#f1f5f9"/>}
+          {total>0 && data.map(([label,value],i)=>{
+            const frac=value/total;
+            const color=colors(label,i);
+            const start=acc*2*Math.PI-Math.PI/2;
+            acc+=frac;
+            const end=acc*2*Math.PI-Math.PI/2;
+            const mid=(start+end)/2;
+            const dimmed=hover!==null&&hover!==i;
+            const popped=hover===i;
+            const common={
+              key:label, className:"wb-pie-slice", fill:color, stroke:"#fff", strokeWidth:2,
+              style:{cursor:onSliceClick?"pointer":"default",opacity:dimmed?0.45:1,
+                     transform:popped?`translate(${Math.cos(mid)*pop}px,${Math.sin(mid)*pop}px)`:"none"},
+              onMouseEnter:()=>setHover(i), onMouseLeave:()=>setHover(null),
+              onClick:()=>onSliceClick&&onSliceClick(label),
+            };
+            // A single 100%-share slice degenerates into a zero-length arc — draw a full circle instead
+            // (and skip the pop, since there's no "other" slice to stand out from).
+            if(frac>=0.999) return <circle {...common} cx={cx} cy={cy} r={r-1} style={{...common.style,transform:"none"}}><title>{`${label}: ${valueFmt(value)} (100%)`}</title></circle>;
+            const [x1,y1]=polar(start), [x2,y2]=polar(end);
+            const largeArc=frac>0.5?1:0;
+            const d=`M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc} 1 ${x2},${y2} Z`;
+            return <path {...common} d={d}><title>{`${label}: ${valueFmt(value)} (${(frac*100).toFixed(1)}%)`}</title></path>;
+          })}
+          {hole>0 && <circle cx={cx} cy={cy} r={r*hole} fill="#fff"/>}
+        </svg>
+        {hole>0 && center && <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center",pointerEvents:"none"}}>{center}</div>}
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:2,minWidth:180,flex:1}}>
         {data.length===0 && <Span s={12} c="#94a3b8">No won deals</Span>}
         {data.map(([label,value],i)=>(
-          <div key={label} onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)} onClick={()=>onSliceClick&&onSliceClick(label)}
-            style={{display:"flex",alignItems:"center",gap:8,fontSize:12,cursor:onSliceClick?"pointer":"default",opacity:hover!==null&&hover!==i?0.5:1,transition:"opacity .15s"}}>
+          <div key={label} className="wb-pie-row" onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)} onClick={()=>onSliceClick&&onSliceClick(label)}
+            style={{display:"flex",alignItems:"center",gap:8,fontSize:12,padding:"5px 8px",margin:"0 -8px",borderRadius:6,
+                    cursor:onSliceClick?"pointer":"default",opacity:hover!==null&&hover!==i?0.5:1,
+                    background:hover===i?colors(label,i)+"1a":"transparent"}}>
             <span style={{width:10,height:10,borderRadius:2,background:colors(label,i),flexShrink:0}}/>
             <span style={{fontWeight:700,color:"#0f172a"}}>{label}</span>
-            <span style={{marginLeft:"auto",color:"#64748b",fontWeight:600,whiteSpace:"nowrap"}}>{valueFmt(value)}</span>
-            <span style={{color:"#94a3b8",minWidth:38,textAlign:"right"}}>{total>0?((value/total)*100).toFixed(1):"0.0"}%</span>
+            <span style={{marginLeft:"auto",color:"#0f172a",fontWeight:800,fontSize:13,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>{valueFmt(value)}</span>
+            <span style={{color:"#475569",fontWeight:600,minWidth:38,textAlign:"right"}}>{total>0?((value/total)*100).toFixed(1):"0.0"}%</span>
           </div>
         ))}
       </div>
@@ -1906,11 +1930,9 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
         </Card>
 
         <Card style={{padding:20,overflow:"hidden"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-            <Span s={13} w={700}>Won Value by Service</Span>
-            <Span s={12} w={700} c="#0f172a">฿{fmtM(wonByGroup.reduce((s,[,v])=>s+v,0))} total</Span>
-          </div>
-          <PieChart data={wonByGroup} colors={groupColor} valueFmt={v=>fmtK(v)} onSliceClick={openGroupBreakdown}/>
+          <Span s={13} w={700} style={{display:"block",marginBottom:14}}>Won Value by Service</Span>
+          <PieChart data={wonByGroup} colors={groupColor} valueFmt={v=>fmtK(v)} onSliceClick={openGroupBreakdown} size={200} hole={0.62}
+            center={<div><div style={{fontSize:20,fontWeight:900,color:"#0f172a",letterSpacing:"-0.02em",lineHeight:1.1}}>฿{fmtM(wonByGroup.reduce((s,[,v])=>s+v,0))}</div><div style={{fontSize:11,fontWeight:600,color:"#64748b",marginTop:2}}>Total Won</div></div>}/>
         </Card>
       </div>
     );
