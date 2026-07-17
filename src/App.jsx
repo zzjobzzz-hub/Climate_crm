@@ -135,9 +135,24 @@ const SERVICES = [
   {code:"REC",    name:"Renewable Energy Certificate",       stdCost:0,  stdPrice:0},
   // VRF: Verifier
   {code:"VRF",    name:"Verifier",                           stdCost:0,  stdPrice:0},
+  // DRO&GIS: Drone + GIS survey/mapping service
+  {code:"DRO&GIS",name:"Drone+GIS",                          stdCost:0,  stdPrice:0},
   // OTH: 3M+6S+5J + COGS
   {code:"OTH",    name:"Other Service",                      stdCost:0,  stdPrice:0},
-  
+
+];
+
+// Business-facing groupings of SERVICES, used to roll the Dashboard's won-value pie chart
+// up from ~23 individual service slices into a handful of meaningful categories.
+const SERVICE_GROUPS = [
+  {name:"Carbon Footprint",                       codes:["CFO","CFP","ISO14064","ISO14067","CFO&ISO","CNE","DR","VRF"]},
+  {name:"Sustainability Hospitality",             codes:["GSTC","GH","GHP"]},
+  {name:"Industrial Sustainability",              codes:["GC","CSRDIW"]},
+  {name:"Upskills Training",                      codes:["TRN"]},
+  {name:"Carbon Credit Development",              codes:["CCAWD","CCREF","CSRAWD","LCR","FS"]},
+  {name:"Carbon Credit & RECs",                   codes:["CC","REC"]},
+  {name:"Advanced Drone Surveys & GIS Solutions", codes:["DRO&GIS"]},
+  {name:"Other",                                  codes:["OTH"]},
 ];
 
 const ANNUAL_KPI    = 0;
@@ -428,6 +443,55 @@ const Divider = () => <div style={{height:1,background:"#f1f5f9",margin:"16px 0"
 const Badge   = ({value,colorMap}) => { const cfg=colorMap[value]||{c:"#64748b"}; return <span style={{background:cfg.bg||cfg.c+"22",color:cfg.c,padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>{value}</span>; };
 const SvcBadge = ({code}) => <span style={{background:"#f1f5f9",color:"#1e40af",fontWeight:800,fontSize:11,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{code}</span>;
 const G2 = ({children,gap=16}) => <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap}}>{children}</div>;
+
+// Self-contained SVG pie chart (no charting lib is loaded — see index.html).
+// data: [label,value][] already in the desired slice order. colors: label -> css color.
+const PieChart = ({data,colors,onSliceClick,valueFmt=v=>fmt(v),size=150}) => {
+  const [hover,setHover]=useState(null);
+  const total=data.reduce((s,[,v])=>s+v,0);
+  const r=size/2, cx=r, cy=r;
+  const polar=a=>[cx+r*Math.cos(a), cy+r*Math.sin(a)];
+  let acc=0;
+  return (
+    <div style={{display:"flex",gap:20,alignItems:"center",flexWrap:"wrap"}}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{flexShrink:0}}>
+        {total<=0 && <circle cx={cx} cy={cy} r={r-1} fill="#f1f5f9"/>}
+        {total>0 && data.map(([label,value],i)=>{
+          const frac=value/total;
+          const color=colors(label,i);
+          const start=acc*2*Math.PI-Math.PI/2;
+          acc+=frac;
+          const end=acc*2*Math.PI-Math.PI/2;
+          const dimmed=hover!==null&&hover!==i;
+          const common={
+            key:label, fill:color, stroke:"#fff", strokeWidth:1,
+            style:{cursor:onSliceClick?"pointer":"default",opacity:dimmed?0.45:1,transition:"opacity .15s"},
+            onMouseEnter:()=>setHover(i), onMouseLeave:()=>setHover(null),
+            onClick:()=>onSliceClick&&onSliceClick(label),
+          };
+          // A single 100%-share slice degenerates into a zero-length arc — draw a full circle instead.
+          if(frac>=0.999) return <circle {...common} cx={cx} cy={cy} r={r-0.5}><title>{`${label}: ${valueFmt(value)} (100%)`}</title></circle>;
+          const [x1,y1]=polar(start), [x2,y2]=polar(end);
+          const largeArc=frac>0.5?1:0;
+          const d=`M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc} 1 ${x2},${y2} Z`;
+          return <path {...common} d={d}><title>{`${label}: ${valueFmt(value)} (${(frac*100).toFixed(1)}%)`}</title></path>;
+        })}
+      </svg>
+      <div style={{display:"flex",flexDirection:"column",gap:6,minWidth:160,flex:1}}>
+        {data.length===0 && <Span s={12} c="#94a3b8">No won deals</Span>}
+        {data.map(([label,value],i)=>(
+          <div key={label} onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)} onClick={()=>onSliceClick&&onSliceClick(label)}
+            style={{display:"flex",alignItems:"center",gap:8,fontSize:12,cursor:onSliceClick?"pointer":"default",opacity:hover!==null&&hover!==i?0.5:1,transition:"opacity .15s"}}>
+            <span style={{width:10,height:10,borderRadius:2,background:colors(label,i),flexShrink:0}}/>
+            <span style={{fontWeight:700,color:"#0f172a"}}>{label}</span>
+            <span style={{marginLeft:"auto",color:"#64748b",fontWeight:600,whiteSpace:"nowrap"}}>{valueFmt(value)}</span>
+            <span style={{color:"#94a3b8",minWidth:38,textAlign:"right"}}>{total>0?((value/total)*100).toFixed(1):"0.0"}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 // ── Customer tags ──
 // User-defined labels (e.g. "hotel"). Chip colour is deterministic per tag name so the
@@ -1480,7 +1544,7 @@ const LoginPage = ({onLogin}) => {
 // 
 // DASHBOARD (Req 12, 13, 14)
 // 
-const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toast,onGoToCS}) => {
+const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toast}) => {
   const [tab,sTab]   = useState("dash");
   const [year,sYear] = useState(new Date().getFullYear() + 543); // BE year
   const [annual,sAnn] = useState(()=>kpiSplits[new Date().getFullYear()+543+"_annual"]||ANNUAL_KPI);
@@ -1741,8 +1805,37 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     const sorted=byStage;
     const maxTotal=Math.max(...sorted.map(s=>s.total),1);
     const allStagesTotal=sorted.reduce((s,x)=>s+x.total,0);
-    // service type count per stage
-    const allSvcs=[...new Set(monthOpps.map(o=>o.serviceCode))];
+
+    // Won value by service group, in fixed SERVICE_GROUPS order (groups with no won value are dropped).
+    const wonMonthOpps = monthOpps.filter(o=>o.status==="Won");
+    const wonByCode = React.useMemo(()=>{
+      const map={};
+      wonMonthOpps.forEach(o=>{map[o.serviceCode]=(map[o.serviceCode]||0)+(o.salesPrice||0);});
+      return map;
+    },[monthOpps]);
+    const wonByGroup = React.useMemo(()=>
+      SERVICE_GROUPS
+        .map(g=>[g.name, g.codes.reduce((s,code)=>s+(wonByCode[code]||0),0)])
+        .filter(([,v])=>v>0)
+    ,[wonByCode]);
+    const groupColor = (name)=>SVC_PALETTE[SERVICE_GROUPS.findIndex(g=>g.name===name)%SVC_PALETTE.length];
+    // Group -> services -> companies: click a group slice for its per-service split,
+    // then drill into a service row for the companies behind it (reuses SCDetailModal's drillDown/parent).
+    const openGroupBreakdown = groupName => {
+      const group = SERVICE_GROUPS.find(g=>g.name===groupName);
+      const items = group.codes.filter(code=>wonByCode[code]>0).map(code=>[code,wonByCode[code]]);
+      const total = items.reduce((s,[,v])=>s+v,0);
+      setDetailSC({
+        title:`${groupName} — Won by Service`, items, total,
+        unitLabel:"services", fmtAmt:v=>`฿${fmt(v)}`,
+        drillDown:code=>({
+          title:`${code} — Won Deals`,
+          items: groupByCompany(wonMonthOpps.filter(o=>o.serviceCode===code).map(o=>({name:custName(o.custId),amount:o.salesPrice||0}))),
+          total: wonByCode[code],
+          unitLabel:"companies", fmtAmt:v=>`฿${fmt(v)}`,
+        }),
+      });
+    };
 
     // companies for hovered tag
     const tooltipOpps = hoveredTag
@@ -1813,46 +1906,11 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
         </Card>
 
         <Card style={{padding:20,overflow:"hidden"}}>
-          <Span s={13} w={700} style={{display:"block",marginBottom:8}}>Service × Stage (Count + Value)</Span>
-          <div style={{overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-              <thead>
-                <tr style={{background:"#f8fafc"}}>
-                  <th style={{padding:"6px 8px",textAlign:"left",color:"#64748b",fontWeight:700,borderBottom:"1px solid #e2e8f0"}}>Service</th>
-                  {OPP_STATUSES.map((st,j)=><th key={st} style={{padding:"6px 8px",textAlign:"right",color:STAGE_COLORS[j],fontWeight:700,borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{st}</th>)}
-                  <th style={{padding:"6px 8px",textAlign:"right",fontWeight:700,borderBottom:"1px solid #e2e8f0"}}>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {allSvcs.length===0&&<tr><td colSpan={7} style={{padding:20,textAlign:"center",color:"#94a3b8"}}>No data</td></tr>}
-                {allSvcs.map(code => {
-                  const rowOpps=monthOpps.filter(o=>o.serviceCode===code);
-                  const rowTotal=rowOpps.reduce((s,o)=>s+o.salesPrice,0);
-                  return (
-                    <tr key={code} style={{borderBottom:"1px solid #f1f5f9"}}>
-                      <td style={{padding:"6px 8px",fontWeight:700}}>
-                        <button onClick={()=>onGoToCS&&onGoToCS(code)} style={{background:"none",border:"none",padding:0,cursor:"pointer",color:"#1e40af",fontWeight:700,fontSize:11,textDecoration:"underline",textDecorationStyle:"dotted",textUnderlineOffset:2}}>{code}</button>
-                      </td>
-                      {OPP_STATUSES.map((st,j) => { const items=rowOpps.filter(o=>o.status===st); const v=items.reduce((s,o)=>s+o.salesPrice,0); return (
-                        <td key={st} style={{padding:"6px 8px",textAlign:"right",color:v>0?"#0f172a":"#e2e8f0",fontWeight:v>0?700:400}}>
-                          {v>0?<><span style={{color:STAGE_COLORS[j]}}>{items.length}×</span> {fmtK(v)}</>:"—"}
-                        </td>
-                      );
-                      })}
-                      <td style={{padding:"6px 8px",textAlign:"right",fontWeight:900}}>฿{fmt(rowTotal)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr style={{background:"#f8fafc"}}>
-                  <td style={{padding:"6px 8px",fontWeight:800}}>TOTAL</td>
-                  {OPP_STATUSES.map((st,j)=>{const v=monthOpps.filter(o=>o.status===st).reduce((s,o)=>s+o.salesPrice,0);return<td key={st} style={{padding:"6px 8px",textAlign:"right",fontWeight:800,color:STAGE_COLORS[j]}}>฿{fmt(v)}</td>;})}
-                  <td style={{padding:"6px 8px",textAlign:"right",fontWeight:900}}>฿{fmt(pipeline)}</td>
-                </tr>
-              </tfoot>
-            </table>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <Span s={13} w={700}>Won Value by Service</Span>
+            <Span s={12} w={700} c="#0f172a">฿{fmtM(wonByGroup.reduce((s,[,v])=>s+v,0))} total</Span>
           </div>
+          <PieChart data={wonByGroup} colors={groupColor} valueFmt={v=>fmtK(v)} onSliceClick={openGroupBreakdown}/>
         </Card>
       </div>
     );
@@ -6364,7 +6422,7 @@ const stripJsonSuffix = obj => {
         </div>
       </div>
       <div style={{maxWidth:1440,margin:"0 auto",padding:24}}>
-        {page==="dashboard" && <ErrorBoundary><DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI} toast={toast} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}}/></ErrorBoundary>}
+        {page==="dashboard" && <ErrorBoundary><DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI} toast={toast}/></ErrorBoundary>}
         {page==="customers" && <ErrorBoundary><CustomersPage user={user} customers={customers} opps={opps} onSave={saveCust} onDelete={deleteCust} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)} userList={userList}/></ErrorBoundary>}
         {page==="opps"      && <ErrorBoundary><OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} onDelete={deleteOpp} onSaveCS={saveCS} deliveries={deliveries} onSaveDelivery={saveDlv} onDeleteDelivery={deleteDlv} toast={toast} costSheets={costSheets} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)} userList={userList} onMentionNotify={handleMentionNotify}/></ErrorBoundary>}
         {page==="delivery"  && <ErrorBoundary><DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveDlv} toast={toast} costSheets={costSheets} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}} userList={userList} onMentionNotify={handleMentionNotify}/></ErrorBoundary>}
