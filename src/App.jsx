@@ -460,13 +460,11 @@ const Badge   = ({value,colorMap}) => { const cfg=colorMap[value]||{c:"#64748b"}
 const SvcBadge = ({code}) => <span style={{background:"#f1f5f9",color:"#1e40af",fontWeight:800,fontSize:11,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{code}</span>;
 const G2 = ({children,gap=16}) => <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap}}>{children}</div>;
 
-// Slice pop-out + legend-row transitions live in a real stylesheet (not inline) so the
-// prefers-reduced-motion override can disable the transform without touching JS. Same
-// injected-once convention as WB_BTN_CSS/WB_SORT_CSS above.
+// Hover feedback is opacity-only (no pop-out translate) — a gentle focus cue rather than a
+// spotlight effect. Lives in a real stylesheet so it's identical for slices and legend rows.
 const WB_PIE_CSS = `
-.wb-pie-slice{transition:transform .18s cubic-bezier(.25,1,.5,1),opacity .15s ease;}
+.wb-pie-slice{transition:opacity .15s ease;}
 .wb-pie-row{transition:background-color .16s ease,opacity .15s ease;}
-@media (prefers-reduced-motion: reduce){.wb-pie-slice{transition:opacity .15s ease;}}
 `;
 if (typeof document !== "undefined" && !document.getElementById("wb-pie-css")) {
   const _s = document.createElement("style"); _s.id = "wb-pie-css"; _s.textContent = WB_PIE_CSS;
@@ -479,12 +477,12 @@ if (typeof document !== "undefined" && !document.getElementById("wb-pie-css")) {
 const PieChart = ({data,colors,onSliceClick,valueFmt=v=>fmt(v),size=150,hole=0,center}) => {
   const [hover,setHover]=useState(null);
   const total=data.reduce((s,[,v])=>s+v,0);
-  const r=size/2, cx=r, cy=r, pop=6;
+  const r=size/2, cx=r, cy=r;
   const polar=a=>[cx+r*Math.cos(a), cy+r*Math.sin(a)];
   let acc=0;
   return (
     <div style={{display:"flex",gap:24,alignItems:"center",flexWrap:"wrap"}}>
-      <div style={{position:"relative",flexShrink:0,filter:total>0?"drop-shadow(0 10px 24px rgba(15,23,42,.14))":"none"}}>
+      <div style={{position:"relative",flexShrink:0,filter:total>0?"drop-shadow(0 2px 6px rgba(15,23,42,.08))":"none"}}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{display:"block"}}>
           {total<=0 && <circle cx={cx} cy={cy} r={r-1} fill="#f1f5f9"/>}
           {total>0 && data.map(([label,value],i)=>{
@@ -493,19 +491,15 @@ const PieChart = ({data,colors,onSliceClick,valueFmt=v=>fmt(v),size=150,hole=0,c
             const start=acc*2*Math.PI-Math.PI/2;
             acc+=frac;
             const end=acc*2*Math.PI-Math.PI/2;
-            const mid=(start+end)/2;
             const dimmed=hover!==null&&hover!==i;
-            const popped=hover===i;
             const common={
               key:label, className:"wb-pie-slice", fill:color, stroke:"#fff", strokeWidth:2,
-              style:{cursor:onSliceClick?"pointer":"default",opacity:dimmed?0.45:1,
-                     transform:popped?`translate(${Math.cos(mid)*pop}px,${Math.sin(mid)*pop}px)`:"none"},
+              style:{cursor:onSliceClick?"pointer":"default",opacity:dimmed?0.7:1},
               onMouseEnter:()=>setHover(i), onMouseLeave:()=>setHover(null),
               onClick:()=>onSliceClick&&onSliceClick(label),
             };
-            // A single 100%-share slice degenerates into a zero-length arc — draw a full circle instead
-            // (and skip the pop, since there's no "other" slice to stand out from).
-            if(frac>=0.999) return <circle {...common} cx={cx} cy={cy} r={r-1} style={{...common.style,transform:"none"}}><title>{`${label}: ${valueFmt(value)} (100%)`}</title></circle>;
+            // A single 100%-share slice degenerates into a zero-length arc — draw a full circle instead.
+            if(frac>=0.999) return <circle {...common} cx={cx} cy={cy} r={r-1}><title>{`${label}: ${valueFmt(value)} (100%)`}</title></circle>;
             const [x1,y1]=polar(start), [x2,y2]=polar(end);
             const largeArc=frac>0.5?1:0;
             const d=`M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc} 1 ${x2},${y2} Z`;
@@ -520,10 +514,10 @@ const PieChart = ({data,colors,onSliceClick,valueFmt=v=>fmt(v),size=150,hole=0,c
         {data.map(([label,value],i)=>(
           <div key={label} className="wb-pie-row" onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)} onClick={()=>onSliceClick&&onSliceClick(label)}
             style={{display:"flex",alignItems:"center",gap:8,fontSize:12,padding:"5px 8px",margin:"0 -8px",borderRadius:6,
-                    cursor:onSliceClick?"pointer":"default",opacity:hover!==null&&hover!==i?0.5:1,
+                    cursor:onSliceClick?"pointer":"default",opacity:hover!==null&&hover!==i?0.7:1,
                     background:hover===i?colors(label,i)+"1a":"transparent"}}>
             <span style={{width:10,height:10,borderRadius:2,background:colors(label,i),flexShrink:0}}/>
-            <span style={{fontWeight:700,color:"#0f172a"}}>{label}</span>
+            <span style={{fontWeight:600,color:"#0f172a"}}>{label}</span>
             <span style={{marginLeft:"auto",color:"#0f172a",fontWeight:800,fontSize:13,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>{valueFmt(value)}</span>
             <span style={{color:"#475569",fontWeight:600,minWidth:38,textAlign:"right"}}>{total>0?((value/total)*100).toFixed(1):"0.0"}%</span>
           </div>
@@ -1468,6 +1462,12 @@ const ChevronDown = () => (
     <polyline points="6 9 12 15 18 9"/>
   </svg>
 );
+const GearIcon = ({s=16}) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+  </svg>
+);
 // Shared financial summary — used in DeliveryForm, DeliveryCard collapsed, DeliveryCard expanded
 const InstallmentSummary = ({contractValue, received, variant="form"}) => {
   const balance = (contractValue||0) - (received||0);
@@ -2004,7 +2004,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
           <Card style={{padding:20,overflow:"hidden"}}>
             <Span s={13} w={700} style={{display:"block",marginBottom:14}}>Won Value by Service</Span>
             <PieChart data={wonByGroup} colors={groupColor} valueFmt={v=>fmtK(v)} onSliceClick={openGroupBreakdown} size={200} hole={0.62}
-              center={<div><div style={{fontSize:20,fontWeight:900,color:"#0f172a",letterSpacing:"-0.02em",lineHeight:1.1}}>฿{fmtM(wonByGroup.reduce((s,[,v])=>s+v,0))}</div><div style={{fontSize:11,fontWeight:600,color:"#64748b",marginTop:2}}>Total Won</div></div>}/>
+              center={<div><div style={{fontSize:20,fontWeight:800,color:"#0f172a",letterSpacing:"-0.02em",lineHeight:1.1}}>฿{fmtM(wonByGroup.reduce((s,[,v])=>s+v,0))}</div><div style={{fontSize:11,fontWeight:600,color:"#64748b",marginTop:2}}>Total Won</div></div>}/>
           </Card>
 
           <Card style={{padding:20}}>
@@ -6214,7 +6214,10 @@ const TeamRatesPage = ({user,toast,userList,setUserList,rates,setRates,ratesLog,
                       <TD style={{fontWeight:700,color:"#0f172a"}}>{u.name}</TD>
                       <TD style={{color:"#64748b"}}>{u.email}</TD>
                       <TD>
-                        <span style={{background:rc+"1a",color:rc,fontWeight:700,fontSize:11,padding:"2px 9px",borderRadius:20,textTransform:"uppercase",letterSpacing:"0.04em",whiteSpace:"nowrap"}}>{u.role}</span>
+                        <div style={{display:"flex",alignItems:"center",gap:7}}>
+                          <span style={{width:6,height:6,borderRadius:"50%",background:rc,flexShrink:0}}/>
+                          <span style={{fontSize:12.5,color:"#374151"}}>{u.role}</span>
+                        </div>
                       </TD>
                       <TD style={{overflow:"visible",whiteSpace:"nowrap"}}>
                         <div style={{display:"flex",gap:2,justifyContent:"flex-end"}}>
@@ -6244,10 +6247,10 @@ const TeamRatesPage = ({user,toast,userList,setUserList,rates,setRates,ratesLog,
         <Span s={11} c="#94a3b8" style={{display:"block",marginBottom:12}}>Hourly rate (THB) used to cost out Cost Sheet tasks and Timesheet Plan/Actual ฿ — applies immediately on save.</Span>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
           {IH_LEVEL_DEFS.map(l=>(
-            <div key={l.name} style={{padding:"12px 14px",background:l.bg,borderRadius:8}}>
-              <Span s={11} w={700} c={l.c} style={{display:"block",marginBottom:6}}>{l.abbr} · {l.name}</Span>
+            <div key={l.name} style={{padding:"12px 14px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8}}>
+              <Span s={11} w={700} c="#64748b" style={{display:"block",marginBottom:6}}>{l.abbr} · {l.name}</Span>
               <NumInp value={draft[l.name]??0} onChange={v=>setRate(l.name,v)} showZero style={{background:"#fff"}}/>
-              <Span s={10} c="#64748b" style={{display:"block",marginTop:4}}>THB / hr</Span>
+              <Span s={10} c="#94a3b8" style={{display:"block",marginTop:4}}>THB / hr</Span>
             </div>
           ))}
         </div>
@@ -6709,18 +6712,21 @@ const stripJsonSuffix = obj => {
     gsSave("timesheet", norm);
   }, []);
 
-  //  Sync status badge 
+  //  Sync status badge — quiet by default (a small dot, label on hover); only the states that
+  //  actually need attention (syncing, offline) earn a visible pill. High contrast only where
+  //  it matters, instead of a permanently loud "GS Live" pill sitting in the header all day.
   const SyncBadge = () => {
     const map = {
-      loading: {label:"Syncing…",  c:"#d97706", bg:"#fef3c7"},
-      synced:  {label:" GS Live", c:"#16a34a", bg:"#dcfce7"},
-      error:   {label:"GS Offline",c:"#dc2626", bg:"#fee2e2"},
-      idle:    {label:"GS Ready",  c:"#64748b", bg:"#f1f5f9"},
+      loading: {label:"Syncing…",  c:"#d97706", quiet:false},
+      synced:  {label:"GS Live",   c:"#16a34a", quiet:true},
+      error:   {label:"GS Offline",c:"#dc2626", quiet:false},
+      idle:    {label:"GS Ready",  c:"#94a3b8", quiet:true},
     };
     const s = map[gsStatus]||map.idle;
+    if(s.quiet) return <span title={s.label} style={{width:7,height:7,borderRadius:"50%",background:s.c,flexShrink:0}}/>;
     return (
-      <span style={{fontSize:10,fontWeight:700,color:s.c,background:s.bg,
-        padding:"2px 8px",borderRadius:10,border:`1px solid ${s.c}33`,whiteSpace:"nowrap"}}>
+      <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:10,fontWeight:700,color:s.c,background:s.c+"14",padding:"2px 8px",borderRadius:10,whiteSpace:"nowrap"}}>
+        <span style={{width:6,height:6,borderRadius:"50%",background:s.c,flexShrink:0}}/>
         {s.label}
       </span>
     );
@@ -6748,7 +6754,9 @@ const stripJsonSuffix = obj => {
           </div>
           <div className="wb-header-center">
             <nav className="wb-header-nav" style={{flex:1}}>
-              {NAV.filter(n=>canAccessPage(user.role,n.key)).map(n=><button key={n.key} onClick={()=>sPage(n.key)} style={{padding:"15px 13px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:page===n.key?800:500,color:page===n.key?BRAND.navy:"#94a3b8",borderBottom:page===n.key?`2.5px solid ${BRAND.teal}`:"2.5px solid transparent",whiteSpace:"nowrap"}}>{n.label}</button>)}
+              {/* "team" is deliberately excluded here — admin-only settings live behind the gear icon
+                  in the utility cluster instead of competing for space in this scrolling tab row. */}
+              {NAV.filter(n=>n.key!=="team" && canAccessPage(user.role,n.key)).map(n=><button key={n.key} onClick={()=>sPage(n.key)} style={{padding:"15px 10px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:page===n.key?700:500,color:page===n.key?BRAND.navy:"#94a3b8",borderBottom:page===n.key?`2.5px solid ${BRAND.teal}`:"2.5px solid transparent",whiteSpace:"nowrap"}}>{n.label}</button>)}
             </nav>
             {canAccessPage(user.role,"customers") && <div className="wb-header-search"><GlobalSearch customers={customers} opps={opps} page={page}
               onGoToCust={id=>{sCustId(id);sPage("customers");}}
@@ -6794,10 +6802,15 @@ const stripJsonSuffix = obj => {
                 </div>
               )}
             </div>
-            <div style={{width:1,height:24,background:"#e2e8f0"}}/>
+            {canAccessPage(user.role,"team") && (
+              <button onClick={()=>sPage("team")} title="Team & Rates"
+                style={{border:"none",borderRadius:6,background:page==="team"?"#eff6ff":"none",padding:"5px 7px",cursor:"pointer",display:"flex",alignItems:"center",color:page==="team"?BRAND.navy:"#94a3b8"}}>
+                <GearIcon s={16}/>
+              </button>
+            )}
             <div className="wb-header-userinfo" style={{textAlign:"right"}}>
-              <div style={{fontSize:13,fontWeight:700,color:"#374151"}}>{user.name}</div>
-              <div style={{fontSize:10,color:user.role==="md"?"#0ea5e9":user.role==="admin"?"#16a34a":user.role==="manager"?"#8b5cf6":user.role==="operation"?"#7c3aed":"#1e40af",textTransform:"uppercase",letterSpacing:"0.06em"}}>{user.role}</div>
+              <div style={{fontSize:13,fontWeight:600,color:"#374151"}}>{user.name}</div>
+              <div style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.06em"}}>{user.role}</div>
             </div>
             <button onClick={()=>{ clearSession(); sUser(null); }} style={{padding:"6px 14px",border:"1px solid #e2e8f0",borderRadius:5,background:"#fff",cursor:"pointer",fontSize:13,color:"#64748b"}}>Sign Out</button>
           </div>
