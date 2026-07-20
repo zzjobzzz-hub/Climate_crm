@@ -95,9 +95,9 @@ const BRAND = { teal:"#00b3a4", tealDeep:"#00897e", navy:"#0c1a2e", ink:"#0f172a
 // compete for attention with the named service groups.
 const CI_SERVICE_PALETTE = [BRAND.tealDeep,"#0e7c86","#1a6b8f","#2c5f97","#3d5499","#524a95","#6b4590","#64748b"];
 
-// stdCost = OPEX (man-days × rate/day) + COGS (external/materials)
+// stdCost = OPEX (man-hours × rate/hr) + COGS (external/materials)
 // stdPrice: margin = (price-cost)/price > 30%  →  price > cost/0.70
-// Man-day rates: Manager=1,440  Senior=950  Junior=600 THB/day
+// Man-hour rates: Manager=1,440  Senior=950  Junior=600 THB/hr
 const SERVICES = [
   // CFO: 6M+14S+14J days + COGS
   {code:"CFO",    name:"Carbon Footprint for Organization",  stdCost:0,  stdPrice:0},
@@ -253,7 +253,7 @@ const addDays = (dateStr, days) => {
 };
 
 // COGS = Internal + External costs
-// OPEX = Man-day based labor by task
+// OPEX = Man-hour based labor by task
 const buildDefaultCS = s => ({
   serviceCode: s.code, serviceType: s.name,
   stdCost: s.stdCost, stdPrice: s.stdPrice,
@@ -341,7 +341,17 @@ const gsDelete = (collection, id) => {
     body: JSON.stringify({action:"delete", collection, id, token:GS_AUTH_TOKEN}),
   }).catch(()=>{});
 };
-// 
+
+// Browser-side SHA-256 hex digest — matches GAS's hashPassword() byte-for-byte (both are a
+// plain lowercase-hex SHA-256 of the UTF-8 password), so the Team & Rates page can set a
+// user's passwordHash directly without a new backend endpoint. Used only for admin-initiated
+// password sets, never for login (login still sends the plaintext password for the server
+// to hash and compare).
+const hashPasswordBrowser = async plainText => {
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(plainText));
+  return Array.from(new Uint8Array(bytes)).map(b=>b.toString(16).padStart(2,"0")).join("");
+};
+//
 // UI PRIMITIVES
 // 
 const SI = {width:"100%",border:"1px solid #e2e8f0",borderRadius:5,padding:"8px 11px",fontSize:14,color:"#1e293b",background:"#fafafa",outline:"none",boxSizing:"border-box"};
@@ -6064,8 +6074,50 @@ const SetupPage = () => (
 );
 
 //
-// TEAM & RATES — admin-only: assign user roles + edit man-hour standard day-rates
+// TEAM & RATES — admin-only: add/edit/delete users + set passwords, edit man-hour rates
 //
+const USER_ROLE_OPTIONS = ["admin","manager","sales","operation"];
+// Same role→color mapping already used for the header's user badge (App() render), reused
+// here so a role reads the same color everywhere in the app, not a second palette.
+const userRoleColor = role => role==="admin"?"#16a34a":role==="manager"?"#8b5cf6":role==="operation"?"#7c3aed":"#1e40af";
+
+// Add/edit form for a single user — id is only editable when creating (it's the GS primary
+// key). Password is optional on edit ("leave blank to keep current"); required on create.
+const UserForm = ({initial,existingIds,onSave,onClose}) => {
+  const isNew = !initial;
+  const blank = {id:"",email:"",name:"",role:"sales",password:"",confirmPw:""};
+  const [f,sF] = React.useState(initial ? {...initial,password:"",confirmPw:""} : blank);
+  const [err,setErr] = React.useState("");
+  const set = (k,v) => { sF(p=>({...p,[k]:v})); setErr(""); };
+
+  const submit = () => {
+    const id=f.id.trim(), name=f.name.trim(), email=f.email.trim();
+    if(!id||!name||!email){ setErr("ID, name, and email are required."); return; }
+    if(isNew && existingIds.includes(id)){ setErr("A user with this ID already exists."); return; }
+    if(isNew && !f.password){ setErr("Password is required for a new user."); return; }
+    if(f.password && f.password!==f.confirmPw){ setErr("Passwords don't match."); return; }
+    onSave({...f, id, name, email});
+  };
+
+  return (
+    <Modal title={isNew?"Add User":`Edit ${initial.name}`} width={440} onClose={onClose} closeOnOverlay>
+      <FRow label="User ID"><Inp value={f.id} onChange={e=>set("id",e.target.value)} disabled={!isNew} placeholder="e.g. jane.d"/></FRow>
+      <FRow label="Name"><Inp value={f.name} onChange={e=>set("name",e.target.value)}/></FRow>
+      <FRow label="Email"><Inp type="email" value={f.email} onChange={e=>set("email",e.target.value)}/></FRow>
+      <FRow label="Role"><Sel value={f.role} onChange={e=>set("role",e.target.value)}>{USER_ROLE_OPTIONS.map(r=><option key={r} value={r}>{r}</option>)}</Sel></FRow>
+      <FRow label={isNew?"Password":"New Password (leave blank to keep current)"}>
+        <Inp type="password" value={f.password} onChange={e=>set("password",e.target.value)} placeholder={isNew?"":"••••••••"}/>
+      </FRow>
+      {(isNew||f.password) && <FRow label="Confirm Password"><Inp type="password" value={f.confirmPw} onChange={e=>set("confirmPw",e.target.value)}/></FRow>}
+      {err && <div style={{background:"#fee2e2",color:"#dc2626",padding:"8px 12px",borderRadius:5,fontSize:13,marginBottom:12}}>{err}</div>}
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:8}}>
+        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn icon={<CheckIcon/>} onClick={submit}>{isNew?"Add User":"Save"}</Btn>
+      </div>
+    </Modal>
+  );
+};
+
 const TeamRatesPage = ({user,toast,userList,setUserList,rates,setRates,ratesLog,setRatesLog}) => {
   if(user.role!=="admin") return (
     <Card style={{padding:40,textAlign:"center"}}>
@@ -6073,28 +6125,48 @@ const TeamRatesPage = ({user,toast,userList,setUserList,rates,setRates,ratesLog,
     </Card>
   );
 
-  const ROLE_OPTIONS = ["admin","manager","sales","operation"];
-
   // -- Team Roles --
   // Own raw fetch (not the trimmed `userList` prop, which only carries id/email/name/role)
   // so passwordHash is available to round-trip on save. handleSave in GS Script.txt does a
   // full-row overwrite with no partial-update support — applyWhitelist fills any MISSING
-  // whitelisted key with "" — so a role-only payload would silently wipe passwordHash and
-  // lock the user out. Resending the full raw row sidesteps this without touching the backend.
+  // whitelisted key with "" — so a partial payload would silently wipe passwordHash and lock
+  // the user out. Resending the full raw row (or, for a fresh password, a freshly-hashed one)
+  // sidesteps this without touching the backend.
   const [rawRows,setRawRows] = React.useState(null);
-  const [savingId,setSavingId] = React.useState(null);
+  const [formOpen,setFormOpen] = React.useState(false);
+  const [editingUser,setEditingUser] = React.useState(null); // raw row being edited, or null = "add new"
+  const [deleteTarget,setDeleteTarget] = React.useState(null);
   React.useEffect(()=>{ gsGet("users").then(setRawRows); },[]);
 
-  const saveRole = (raw,newRole) => {
-    if(newRole===raw.role) return;
-    setSavingId(raw.id);
-    gsSave("users", {...raw, role:newRole});
-    setRawRows(p=>p.map(r=>r.id===raw.id?{...r,role:newRole}:r));
-    const next = userList.map(u=>u.id===raw.id?{...u,role:newRole}:u);
-    rebuildUserIndexes(next);
-    setUserList(next);
-    toast("Role updated", `${raw.name} → ${newRole}`);
-    setSavingId(null);
+  const openAdd  = () => { setEditingUser(null); setFormOpen(true); };
+  const openEdit = raw => { setEditingUser(raw); setFormOpen(true); };
+
+  const saveUser = async (f) => {
+    const passwordHash = f.password ? await hashPasswordBrowser(f.password) : (editingUser?.passwordHash || "");
+    const row = {id:f.id, email:f.email, name:f.name, role:f.role, passwordHash};
+    gsSave("users", row);
+    setRawRows(p=>{
+      const exists = (p||[]).some(r=>r.id===row.id);
+      return exists ? p.map(r=>r.id===row.id?row:r) : [...(p||[]),row];
+    });
+    const trimmed = {id:row.id,email:row.email,name:row.name,role:row.role};
+    const nextList = userList.some(u=>u.id===row.id)
+      ? userList.map(u=>u.id===row.id?trimmed:u)
+      : [...userList,trimmed];
+    rebuildUserIndexes(nextList);
+    setUserList(nextList);
+    toast(editingUser?"User updated":"User added", row.name);
+    setFormOpen(false); setEditingUser(null);
+  };
+
+  const deleteUser = raw => {
+    gsDelete("users", raw.id);
+    setRawRows(p=>(p||[]).filter(r=>r.id!==raw.id));
+    const nextList = userList.filter(u=>u.id!==raw.id);
+    rebuildUserIndexes(nextList);
+    setUserList(nextList);
+    toast("User deleted", raw.name, "error");
+    setDeleteTarget(null);
   };
 
   // -- Man-Hour Standard Rates --
@@ -6112,7 +6184,7 @@ const TeamRatesPage = ({user,toast,userList,setUserList,rates,setRates,ratesLog,
     Object.assign(IH_LEVELS, Object.fromEntries(IH_LEVEL_DEFS.map(l=>[l.name,l.rate])));
     setRates({...draft});
     setRatesLog(newLog);
-    gsSave("settings", {key:"manHourRates", value:{rates:draft, saveLog:newLog}, description:"In-house man-hour day rates (THB) by level"});
+    gsSave("settings", {key:"manHourRates", value:{rates:draft, saveLog:newLog}, description:"In-house man-hour rates (THB/hr) by level"});
     toast("Rates saved","Man-hour standard prices updated");
   };
 
@@ -6124,23 +6196,31 @@ const TeamRatesPage = ({user,toast,userList,setUserList,rates,setRates,ratesLog,
       </div>
 
       <Card style={{padding:20,marginBottom:16}}>
-        <Span s={13} w={700} style={{display:"block",marginBottom:4}}>Team Roles</Span>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+          <Span s={13} w={700}>Team Roles</Span>
+          <Btn size="sm" icon={<PlusIcon/>} onClick={openAdd}>Add User</Btn>
+        </div>
         <Span s={11} c="#94a3b8" style={{display:"block",marginBottom:12}}>Administrator: full access · Manager/Sales: every operational page · Operation: Dashboard + Time Sheet only.</Span>
         {rawRows===null
           ? <Span s={12} c="#94a3b8">Loading…</Span>
           : <div className="wb-opptbl" style={{overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse"}}>
-                <TH cols={["Name","Email","Role"]}/>
+                <TH cols={["Name","Email","Role",""]}/>
                 <tbody>{userList.map(u=>{
                   const raw = rawRows.find(r=>String(r.id)===u.id);
+                  const rc = userRoleColor(u.role);
                   return (
                     <TR key={u.id}>
                       <TD style={{fontWeight:700,color:"#0f172a"}}>{u.name}</TD>
                       <TD style={{color:"#64748b"}}>{u.email}</TD>
                       <TD>
-                        <Sel value={u.role} disabled={!raw||savingId===u.id} onChange={e=>raw&&saveRole(raw,e.target.value)} style={{width:130,padding:"4px 8px",fontSize:12}}>
-                          {ROLE_OPTIONS.map(r=><option key={r} value={r}>{r}</option>)}
-                        </Sel>
+                        <span style={{background:rc+"1a",color:rc,fontWeight:700,fontSize:11,padding:"2px 9px",borderRadius:20,textTransform:"uppercase",letterSpacing:"0.04em",whiteSpace:"nowrap"}}>{u.role}</span>
+                      </TD>
+                      <TD style={{overflow:"visible",whiteSpace:"nowrap"}}>
+                        <div style={{display:"flex",gap:2,justifyContent:"flex-end"}}>
+                          <IconBtn size="sm" title="Edit" disabled={!raw} onClick={()=>openEdit(raw)}><EditIcon s={13}/></IconBtn>
+                          <IconBtn size="sm" variant="danger" title={raw&&raw.id===user.id?"You can't delete your own account":"Delete"} disabled={!raw||raw.id===user.id} onClick={()=>setDeleteTarget(raw)}><TrashIcon s={13}/></IconBtn>
+                        </div>
                       </TD>
                     </TR>
                   );
@@ -6149,19 +6229,25 @@ const TeamRatesPage = ({user,toast,userList,setUserList,rates,setRates,ratesLog,
               {userList.length===0&&<div style={{padding:24,textAlign:"center",color:"#94a3b8",fontSize:12}}>No users loaded yet.</div>}
             </div>}
       </Card>
+      {formOpen && <UserForm initial={editingUser} existingIds={(rawRows||[]).map(r=>r.id)} onSave={saveUser} onClose={()=>{setFormOpen(false);setEditingUser(null);}}/>}
+      {deleteTarget && (
+        <ConfirmDialog title="Delete User"
+          message={`${deleteTarget.name} (${deleteTarget.id}) will be permanently removed and immediately lose access. This cannot be undone.`}
+          confirmLabel="Delete User" onCancel={()=>setDeleteTarget(null)} onConfirm={()=>deleteUser(deleteTarget)}/>
+      )}
 
       <Card style={{padding:20}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
           <Span s={13} w={700}>Man-Hour Standard Rates</Span>
           <Btn size="sm" icon={<CheckIcon s={13}/>} onClick={saveRates} disabled={!dirty}>Save Rates</Btn>
         </div>
-        <Span s={11} c="#94a3b8" style={{display:"block",marginBottom:12}}>Day rate (THB) used to cost out Cost Sheet tasks and Timesheet Plan/Actual ฿ — applies immediately on save.</Span>
+        <Span s={11} c="#94a3b8" style={{display:"block",marginBottom:12}}>Hourly rate (THB) used to cost out Cost Sheet tasks and Timesheet Plan/Actual ฿ — applies immediately on save.</Span>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
           {IH_LEVEL_DEFS.map(l=>(
             <div key={l.name} style={{padding:"12px 14px",background:l.bg,borderRadius:8}}>
               <Span s={11} w={700} c={l.c} style={{display:"block",marginBottom:6}}>{l.abbr} · {l.name}</Span>
               <NumInp value={draft[l.name]??0} onChange={v=>setRate(l.name,v)} showZero style={{background:"#fff"}}/>
-              <Span s={10} c="#64748b" style={{display:"block",marginTop:4}}>THB / day</Span>
+              <Span s={10} c="#64748b" style={{display:"block",marginTop:4}}>THB / hr</Span>
             </div>
           ))}
         </div>
@@ -6223,6 +6309,28 @@ const rebuildUserIndexes = (safe) => {
   OP_USERS    = safe.filter(x=>x.role==="operation");
   MANAGER_USERS = safe.filter(x=>x.role==="manager");
 };
+
+// Top header bar — explicit 3-column grid (brand · nav+search · utilities) so the center
+// zone can actually shrink instead of the whole row silently overflowing, plus structural
+// breakpoints (reusing the file's existing 720px convention, see WB_OPPEDIT_CSS/WB_CS_CSS)
+// for laptop-width squeezes. Nav keeps native horizontal scroll as the last-resort fallback —
+// no custom scrollbar styling, just `overflow-x:auto` with room to actually use it.
+const WB_HEADER_CSS = `
+.wb-header-inner{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:24px;}
+.wb-header-center{display:flex;align-items:center;gap:16px;min-width:0;}
+.wb-header-nav{display:flex;min-width:0;overflow-x:auto;}
+@media (max-width:900px){
+  .wb-header-search{display:none;}
+}
+@media (max-width:720px){
+  .wb-header-inner{gap:12px;padding:0 16px;}
+  .wb-header-userinfo{display:none;}
+}
+`;
+if (typeof document !== "undefined" && !document.getElementById("wb-header-css")) {
+  const _s = document.createElement("style"); _s.id = "wb-header-css"; _s.textContent = WB_HEADER_CSS;
+  document.head.appendChild(_s);
+}
 
 function App() {
   // S3: Restore session from localStorage — checks expiry timestamp
@@ -6631,20 +6739,22 @@ const stripJsonSuffix = obj => {
         </div>
       )}
       <div style={{background:"#fff",borderBottom:"1px solid #e2e8f0",position:"sticky",top:0,zIndex:100}}>
-        <div style={{maxWidth:1440,margin:"0 auto",padding:"0 24px",display:"flex",alignItems:"center",gap:0}}>
-          <div onClick={()=>sPage("dashboard")} title="Wave BCG · Climate CRM" style={{display:"flex",alignItems:"center",gap:9,paddingRight:18,borderRight:"1px solid #f1f5f9",marginRight:4,flexShrink:0,cursor:"pointer"}}>
+        <div className="wb-header-inner" style={{maxWidth:1440,margin:"0 auto",padding:"0 24px"}}>
+          <div onClick={()=>sPage("dashboard")} title="Wave BCG · Climate CRM" style={{display:"flex",alignItems:"center",gap:9,paddingRight:18,borderRight:"1px solid #f1f5f9",flexShrink:0,cursor:"pointer"}}>
             <span style={{width:28,height:28,borderRadius:7,background:BRAND.teal,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
               <span style={{fontSize:14,fontWeight:900,color:"#fff",letterSpacing:"-0.04em"}}>W</span>
             </span>
             <div style={{fontSize:13,fontWeight:900,color:BRAND.navy,letterSpacing:"-0.04em",lineHeight:1.1}}>Climate<br/>CRM</div>
           </div>
-          <nav style={{display:"flex",flex:1,overflow:"auto"}}>
-            {NAV.filter(n=>canAccessPage(user.role,n.key)).map(n=><button key={n.key} onClick={()=>sPage(n.key)} style={{padding:"15px 13px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:page===n.key?800:500,color:page===n.key?BRAND.navy:"#94a3b8",borderBottom:page===n.key?`2.5px solid ${BRAND.teal}`:"2.5px solid transparent",whiteSpace:"nowrap"}}>{n.label}</button>)}
-          </nav>
-          {canAccessPage(user.role,"customers") && <GlobalSearch customers={customers} opps={opps} page={page}
-            onGoToCust={id=>{sCustId(id);sPage("customers");}}
-            onGoToOpp={code=>{sOppCode(code);sPage("opps");}}/>}
-          <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0,marginLeft:10}}>
+          <div className="wb-header-center">
+            <nav className="wb-header-nav" style={{flex:1}}>
+              {NAV.filter(n=>canAccessPage(user.role,n.key)).map(n=><button key={n.key} onClick={()=>sPage(n.key)} style={{padding:"15px 13px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:page===n.key?800:500,color:page===n.key?BRAND.navy:"#94a3b8",borderBottom:page===n.key?`2.5px solid ${BRAND.teal}`:"2.5px solid transparent",whiteSpace:"nowrap"}}>{n.label}</button>)}
+            </nav>
+            {canAccessPage(user.role,"customers") && <div className="wb-header-search"><GlobalSearch customers={customers} opps={opps} page={page}
+              onGoToCust={id=>{sCustId(id);sPage("customers");}}
+              onGoToOpp={code=>{sOppCode(code);sPage("opps");}}/></div>}
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
             <SyncBadge/>
             {/* Notification Bell */}
             <div ref={bellRef} style={{position:"relative"}}>
@@ -6684,7 +6794,8 @@ const stripJsonSuffix = obj => {
                 </div>
               )}
             </div>
-            <div style={{textAlign:"right"}}>
+            <div style={{width:1,height:24,background:"#e2e8f0"}}/>
+            <div className="wb-header-userinfo" style={{textAlign:"right"}}>
               <div style={{fontSize:13,fontWeight:700,color:"#374151"}}>{user.name}</div>
               <div style={{fontSize:10,color:user.role==="md"?"#0ea5e9":user.role==="admin"?"#16a34a":user.role==="manager"?"#8b5cf6":user.role==="operation"?"#7c3aed":"#1e40af",textTransform:"uppercase",letterSpacing:"0.06em"}}>{user.role}</div>
             </div>
