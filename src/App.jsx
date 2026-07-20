@@ -88,6 +88,12 @@ const SVC_PALETTE = ["#3b82f6","#f59e0b","#22c55e","#ef4444","#8b5cf6","#06b6d4"
 // Wave BCG brand identity — used sparingly per The One Teal Rule (teal ≤5% of any screen).
 // teal = the brand voice (mark + one hero action + quotation signature). ink/navy = authority/headings.
 const BRAND = { teal:"#00b3a4", tealDeep:"#00897e", navy:"#0c1a2e", ink:"#0f172a" };
+// Categorical palette for the "Won Value by Service" donut — a teal→indigo→violet ramp grown
+// out of the brand's own teal/navy hues (not the generic Tailwind rainbow SVC_PALETTE uses),
+// so the one chart on the dashboard that carries real color reads as Wave BCG's, not a stock
+// dashboard template. Ends on a desaturated slate for "Other" so the catch-all bucket doesn't
+// compete for attention with the named service groups.
+const CI_SERVICE_PALETTE = [BRAND.tealDeep,"#0e7c86","#1a6b8f","#2c5f97","#3d5499","#524a95","#6b4590","#64748b"];
 
 // stdCost = OPEX (man-days × rate/day) + COGS (external/materials)
 // stdPrice: margin = (price-cost)/price > 30%  →  price > cost/0.70
@@ -1842,7 +1848,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
         .map(g=>[g.name, g.codes.reduce((s,code)=>s+(wonByCode[code]||0),0)])
         .filter(([,v])=>v>0)
     ,[wonByCode]);
-    const groupColor = (name)=>SVC_PALETTE[SERVICE_GROUPS.findIndex(g=>g.name===name)%SVC_PALETTE.length];
+    const groupColor = (name)=>CI_SERVICE_PALETTE[SERVICE_GROUPS.findIndex(g=>g.name===name)%CI_SERVICE_PALETTE.length];
     // Group -> services -> companies: click a group slice for its per-service split,
     // then drill into a service row for the companies behind it (reuses SCDetailModal's drillDown/parent).
     const openGroupBreakdown = groupName => {
@@ -1868,7 +1874,9 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
 
     // Agent Performance leaderboard — ranked by won value (a real sequence, not decorative numbering).
     // Color/initials are keyed off each agent's fixed position in SALES_USERS, so they stay stable
-    // across reloads even as the won-value ranking shuffles.
+    // across reloads even as the won-value ranking shuffles. Avatar color comes from the same
+    // brand-aligned ramp as the "Won Value by Service" donut (CI_SERVICE_PALETTE), not the generic
+    // SVC_PALETTE rainbow used for free-form tags elsewhere.
     const agentStats = SALES_USERS.map(a=>{
       const wonForAgent = opps.filter(o=>o.assignedTo===a.id&&o.status==="Won");
       const aw = wonForAgent.reduce((s,o)=>s+o.salesPrice,0);
@@ -1876,33 +1884,46 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
       const closed = opps.filter(o=>o.assignedTo===a.id&&["Won","Lost"].includes(o.status)).length;
       const wr = closed>0?Math.round((wonForAgent.length/closed)*100):0;
       const aWonBreakdown = groupByCompany(wonForAgent.map(o=>({name:custName(o.custId),amount:o.salesPrice||0})));
-      const color = SVC_PALETTE[SALES_USERS.findIndex(u=>u.id===a.id)%SVC_PALETTE.length];
+      const color = CI_SERVICE_PALETTE[SALES_USERS.findIndex(u=>u.id===a.id)%CI_SERVICE_PALETTE.length];
       const initials = a.name.split(" ").map(n=>n[0]).filter(Boolean).slice(0,2).join("").toUpperCase();
       return {agent:a, aw, ac, wr, aWonBreakdown, color, initials};
-    }).sort((x,y)=>y.aw-x.aw);
+    });
 
+    // Sortable dense table — same cycleSort/multiCmp convention as OppsPage/CustomersPage.
+    // "#" isn't a sort key: it always reflects current display position, not a fixed identity.
+    const [agentSorts, setAgentSorts] = React.useState([{col:"won", dir:"desc"}]);
+    const toggleAgentSort = col => setAgentSorts(p => cycleSort(p, col));
+    const resetAgentSort  = () => setAgentSorts(p => p.slice(0,1));
+    const sortedAgentStats = React.useMemo(() => {
+      const getV = (s,col) => col==="agent" ? s.agent.name.toLowerCase()
+        : col==="won" ? s.aw : col==="active" ? s.ac : col==="winRate" ? s.wr : 0;
+      return [...agentStats].sort((a,b)=>multiCmp(a,b,agentSorts,getV));
+    }, [agentStats, agentSorts]);
+
+    // Identity color (avatar) and performance color (win rate) are deliberately different hues —
+    // win rate reuses the app's standard successRateColor() so "rate" always means the same thing
+    // it does in OppsPage's table/kanban, instead of borrowing the agent's arbitrary identity color.
     const AgentRow = ({rank,stat}) => {
-      const [h,setH]=React.useState(false);
       const {agent:a,aw,ac,wr,aWonBreakdown,color,initials}=stat;
+      const clr = successRateColor(wr);
       return (
-        <div onClick={()=>setDetailSC({title:`${a.name} — Won Deals`, items:aWonBreakdown, total:aw})}
-          onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}
-          style={{display:"flex",alignItems:"center",gap:10,padding:"7px 8px",borderRadius:6,cursor:"pointer",background:h?"#f8fafc":"transparent",transition:"background-color .16s ease"}}>
-          <span style={{fontSize:11,fontWeight:800,color:"#475569",width:16,textAlign:"right",fontVariantNumeric:"tabular-nums",flexShrink:0}}>{String(rank).padStart(2,"0")}</span>
-          <span style={{width:28,height:28,borderRadius:"50%",background:color,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,flexShrink:0}}>{initials}</span>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8}}>
-              <span style={{fontSize:12.5,fontWeight:700,color:"#0f172a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name.split(" ")[0]}</span>
-              <span style={{fontSize:12.5,fontWeight:800,color:"#0f172a",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>฿{fmtM(aw)}</span>
+        <TR onClick={()=>setDetailSC({title:`${a.name} — Won Deals`, items:aWonBreakdown, total:aw})}>
+          <TD style={{fontWeight:800,color:"#94a3b8",fontVariantNumeric:"tabular-nums"}}>{String(rank).padStart(2,"0")}</TD>
+          <TD>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{width:22,height:22,borderRadius:"50%",background:color,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9.5,fontWeight:800,flexShrink:0}}>{initials}</span>
+              <span style={{fontWeight:700,color:"#0f172a"}}>{a.name.split(" ")[0]}</span>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:7,marginTop:4}}>
-              <div style={{flex:1,height:5,background:"#f1f5f9",borderRadius:99,overflow:"hidden"}}>
-                <div style={{height:"100%",width:`${wr}%`,background:color,borderRadius:99,transition:"width .3s"}}/>
-              </div>
-              <span style={{fontSize:10,color:"#475569",fontWeight:600,whiteSpace:"nowrap"}}>{ac} active · {wr}%</span>
+          </TD>
+          <TD right style={{fontWeight:800,color:"#0f172a",fontVariantNumeric:"tabular-nums"}}>฿{fmtM(aw)}</TD>
+          <TD right style={{fontVariantNumeric:"tabular-nums"}}>{ac}</TD>
+          <TD>
+            <div style={{minWidth:72}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}><span style={{fontSize:11,fontWeight:800,color:clr}}>{wr}%</span></div>
+              <div style={{height:4,background:"#e2e8f0",borderRadius:99,overflow:"hidden"}}><div style={{height:"100%",width:`${wr}%`,background:clr,borderRadius:99}}/></div>
             </div>
-          </div>
-        </div>
+          </TD>
+        </TR>
       );
     };
 
@@ -1977,11 +1998,22 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
           </Card>
 
           <Card style={{padding:20}}>
-            <Span s={13} w={700} style={{display:"block",marginBottom:10}}>Agent Performance</Span>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <Span s={13} w={700}>Agent Performance</Span>
+              <SortReset sorts={agentSorts} onReset={resetAgentSort}/>
+            </div>
             {agentStats.length===0
               ? <Span s={12} c="#475569">No sales agents yet</Span>
-              : <div style={{display:"flex",flexDirection:"column",gap:2}}>
-                  {agentStats.map((stat,i)=><AgentRow key={stat.agent.id} rank={i+1} stat={stat}/>)}
+              : <div className="wb-opptbl" style={{overflowX:"auto"}}>
+                  <table style={{width:"100%",borderCollapse:"collapse"}}>
+                    <thead><tr style={{background:"#f8fafc"}}>
+                      <th style={{padding:"9px 12px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:12,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>#</th>
+                      {[{label:"Agent",col:"agent"},{label:"Won",col:"won"},{label:"Active",col:"active"},{label:"Win Rate",col:"winRate"}].map(({label,col})=>(
+                        <SortableTh key={col} col={col} label={label} sorts={agentSorts} onToggle={toggleAgentSort}/>
+                      ))}
+                    </tr></thead>
+                    <tbody>{sortedAgentStats.map((stat,i)=><AgentRow key={stat.agent.id} rank={i+1} stat={stat}/>)}</tbody>
+                  </table>
                 </div>}
           </Card>
         </div>
