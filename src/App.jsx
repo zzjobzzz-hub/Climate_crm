@@ -6063,7 +6063,128 @@ const SetupPage = () => (
   </div>
 );
 
-// 
+//
+// TEAM & RATES — admin-only: assign user roles + edit man-hour standard day-rates
+//
+const TeamRatesPage = ({user,toast,userList,setUserList,rates,setRates,ratesLog,setRatesLog}) => {
+  if(user.role!=="admin") return (
+    <Card style={{padding:40,textAlign:"center"}}>
+      <Span s={13} c="#94a3b8">This page is only available to Administrators.</Span>
+    </Card>
+  );
+
+  const ROLE_OPTIONS = ["admin","manager","sales","operation"];
+
+  // -- Team Roles --
+  // Own raw fetch (not the trimmed `userList` prop, which only carries id/email/name/role)
+  // so passwordHash is available to round-trip on save. handleSave in GS Script.txt does a
+  // full-row overwrite with no partial-update support — applyWhitelist fills any MISSING
+  // whitelisted key with "" — so a role-only payload would silently wipe passwordHash and
+  // lock the user out. Resending the full raw row sidesteps this without touching the backend.
+  const [rawRows,setRawRows] = React.useState(null);
+  const [savingId,setSavingId] = React.useState(null);
+  React.useEffect(()=>{ gsGet("users").then(setRawRows); },[]);
+
+  const saveRole = (raw,newRole) => {
+    if(newRole===raw.role) return;
+    setSavingId(raw.id);
+    gsSave("users", {...raw, role:newRole});
+    setRawRows(p=>p.map(r=>r.id===raw.id?{...r,role:newRole}:r));
+    const next = userList.map(u=>u.id===raw.id?{...u,role:newRole}:u);
+    rebuildUserIndexes(next);
+    setUserList(next);
+    toast("Role updated", `${raw.name} → ${newRole}`);
+    setSavingId(null);
+  };
+
+  // -- Man-Hour Standard Rates --
+  const [draft,setDraft] = React.useState(rates);
+  React.useEffect(()=>{ setDraft(rates); },[rates]);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(rates);
+  const setRate = (name,v) => setDraft(p=>({...p,[name]:v}));
+  const saveRates = () => {
+    const entry = {id:uid(), ts:nowTS(), author:user.id, note:`Man-hour rates updated — ${IH_LEVEL_DEFS.map(l=>`${l.abbr} ฿${fmt(draft[l.name])}`).join(", ")}`};
+    const newLog = [...ratesLog, entry];
+    // Mutate the live module-level rate source in place (same idiom as USERS/SALES_USERS) so
+    // the Cost Sheet task table and Timesheet's Plan/Actual ฿ columns reflect the change
+    // immediately, with no prop threading through their ~15 call sites.
+    IH_LEVEL_DEFS.forEach(l=>{ l.rate = +draft[l.name]||0; });
+    Object.assign(IH_LEVELS, Object.fromEntries(IH_LEVEL_DEFS.map(l=>[l.name,l.rate])));
+    setRates({...draft});
+    setRatesLog(newLog);
+    gsSave("settings", {key:"manHourRates", value:{rates:draft, saveLog:newLog}, description:"In-house man-hour day rates (THB) by level"});
+    toast("Rates saved","Man-hour standard prices updated");
+  };
+
+  return (
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:14}}>
+        <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Team & Rates</Span>
+        <CountPill n={userList.length} label="users"/>
+      </div>
+
+      <Card style={{padding:20,marginBottom:16}}>
+        <Span s={13} w={700} style={{display:"block",marginBottom:4}}>Team Roles</Span>
+        <Span s={11} c="#94a3b8" style={{display:"block",marginBottom:12}}>Administrator: full access · Manager/Sales: every operational page · Operation: Dashboard + Time Sheet only.</Span>
+        {rawRows===null
+          ? <Span s={12} c="#94a3b8">Loading…</Span>
+          : <div className="wb-opptbl" style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse"}}>
+                <TH cols={["Name","Email","Role"]}/>
+                <tbody>{userList.map(u=>{
+                  const raw = rawRows.find(r=>String(r.id)===u.id);
+                  return (
+                    <TR key={u.id}>
+                      <TD style={{fontWeight:700,color:"#0f172a"}}>{u.name}</TD>
+                      <TD style={{color:"#64748b"}}>{u.email}</TD>
+                      <TD>
+                        <Sel value={u.role} disabled={!raw||savingId===u.id} onChange={e=>raw&&saveRole(raw,e.target.value)} style={{width:130,padding:"4px 8px",fontSize:12}}>
+                          {ROLE_OPTIONS.map(r=><option key={r} value={r}>{r}</option>)}
+                        </Sel>
+                      </TD>
+                    </TR>
+                  );
+                })}</tbody>
+              </table>
+              {userList.length===0&&<div style={{padding:24,textAlign:"center",color:"#94a3b8",fontSize:12}}>No users loaded yet.</div>}
+            </div>}
+      </Card>
+
+      <Card style={{padding:20}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+          <Span s={13} w={700}>Man-Hour Standard Rates</Span>
+          <Btn size="sm" icon={<CheckIcon s={13}/>} onClick={saveRates} disabled={!dirty}>Save Rates</Btn>
+        </div>
+        <Span s={11} c="#94a3b8" style={{display:"block",marginBottom:12}}>Day rate (THB) used to cost out Cost Sheet tasks and Timesheet Plan/Actual ฿ — applies immediately on save.</Span>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+          {IH_LEVEL_DEFS.map(l=>(
+            <div key={l.name} style={{padding:"12px 14px",background:l.bg,borderRadius:8}}>
+              <Span s={11} w={700} c={l.c} style={{display:"block",marginBottom:6}}>{l.abbr} · {l.name}</Span>
+              <NumInp value={draft[l.name]??0} onChange={v=>setRate(l.name,v)} showZero style={{background:"#fff"}}/>
+              <Span s={10} c="#64748b" style={{display:"block",marginTop:4}}>THB / day</Span>
+            </div>
+          ))}
+        </div>
+        {ratesLog.length>0&&(
+          <div style={{marginTop:16,paddingTop:12,borderTop:"1px solid #f1f5f9"}}>
+            <Span s={12} w={700} style={{display:"block",marginBottom:8}}>Save Log</Span>
+            <div style={{maxHeight:120,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
+              {[...ratesLog].reverse().map(l=>(
+                <div key={l.id} style={{fontSize:10,padding:"4px 8px",background:"#f8fafc",borderRadius:4,border:"1px solid #e2e8f0",display:"flex",gap:10}}>
+                  <span style={{color:"#64748b",whiteSpace:"nowrap"}}>{l.ts}</span>
+                  <span style={{color:"#1e40af",fontWeight:700}}>{USERS.find(u=>u.id===l.author)?.name.split(" ")[0]||l.author}</span>
+                  <span style={{color:"#374151",flex:1}}>{l.note}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+};
+
+//
 // ROOT APP
 // 
 const NAV = [
@@ -6073,7 +6194,35 @@ const NAV = [
   {key:"opps",label:"Opportunities"},
   {key:"delivery",label:"Delivery"},
   {key:"timesheet",label:"Time Sheet"},
+  {key:"team",label:"Team & Rates"},
 ];
+
+// Page-level RBAC. Admin: everything. Manager/Sales: every operational page except the
+// admin-only Team & Rates page. Operation: Dashboard + Time Sheet only — those are the
+// pages that hold their own personal records; Customers/Opportunities/Cost Sheet carry
+// pricing and pipeline data out of scope for this role. Unknown/future roles default to
+// the narrowest (Operation-equivalent) set rather than silently getting broad access.
+// NOTE: this is a client-side UI restriction only — the GS backend authenticates writes
+// with one shared token (see AUTH_SECRET / isAuthorized in GS Script.txt) and has no
+// per-user/per-role check server-side.
+const ROLE_PAGE_ACCESS = {
+  admin:     ["dashboard","customers","costsheet","opps","delivery","timesheet","team"],
+  manager:   ["dashboard","customers","costsheet","opps","delivery","timesheet"],
+  sales:     ["dashboard","customers","costsheet","opps","delivery","timesheet"],
+  operation: ["dashboard","timesheet"],
+};
+const canAccessPage = (role,key) => (ROLE_PAGE_ACCESS[role]||ROLE_PAGE_ACCESS.operation).includes(key);
+
+// Rebuilds the module-level USERS/SALES_USERS/OP_USERS/MANAGER_USERS lookup arrays from a
+// {id,email,name,role} list — used both by the initial GS load and by the Team & Rates page
+// after an admin edits a user's role, so the rest of the app (dropdowns, agent filters) stays
+// in sync without a full reload.
+const rebuildUserIndexes = (safe) => {
+  USERS       = safe;
+  SALES_USERS = safe.filter(x=>x.role==="sales");
+  OP_USERS    = safe.filter(x=>x.role==="operation");
+  MANAGER_USERS = safe.filter(x=>x.role==="manager");
+};
 
 function App() {
   // S3: Restore session from localStorage — checks expiry timestamp
@@ -6084,14 +6233,22 @@ function App() {
   const parseHash = () => {
     const raw = location.hash.replace(/^#/, "");
     const [seg, rawParam] = raw.split("/");
+    const requested = NAV.find(n=>n.key===seg) ? seg : "dashboard";
+    const allowed = user ? canAccessPage(user.role, requested) : true;
     return {
-      page:  NAV.find(n=>n.key===seg) ? seg : "dashboard",
+      page:  allowed ? requested : "dashboard",
       param: rawParam ? decodeURIComponent(rawParam) : null,
     };
   };
   const getPageFromHash = () => parseHash().page;
   const [page,setPageState] = useState(getPageFromHash);
-  const sPage = (p) => { location.hash = p; setPageState(p); };
+  // Single choke point for all programmatic navigation (nav clicks, cross-page links like
+  // onGoToCust/onGoToOpp, the post-login redirect) — redirects to dashboard if the current
+  // user's role can't see the target page, so page state can never hold a disallowed value.
+  const sPage = (p) => {
+    const next = (user && !canAccessPage(user.role, p)) ? "dashboard" : p;
+    location.hash = next; setPageState(next);
+  };
   useEffect(()=>{
     const onHash = () => {
       const {page:hp, param} = parseHash();
@@ -6111,6 +6268,10 @@ function App() {
   const [initOppCode,sOppCode] = useState(null);
   const [kpiSplits,sKPI]     = useState({2569:DEFAULT_SPLIT.slice(),2570:DEFAULT_SPLIT.slice(),2571:DEFAULT_SPLIT.slice()});
   const [timesheets,sTS]     = useState([]);
+  // Admin-editable man-hour day rates (Team & Rates page) — defaults mirror the current
+  // hardcoded IH_LEVEL_DEFS rates until a "settings" row loads from GS, if any.
+  const [manHourRates,sManHourRates] = useState(()=>Object.fromEntries(IH_LEVEL_DEFS.map(l=>[l.name,l.rate])));
+  const [manHourRatesLog,sManHourRatesLog] = useState([]);
   const [notifications,sNotifs] = useState([]);
   const [bellOpen,sBellOpen] = useState(false);
   const [gsStatus,sGSStatus] = useState("idle"); // "idle"|"loading"|"synced"|"error"
@@ -6163,17 +6324,15 @@ const stripJsonSuffix = obj => {
       gsGet("users"),
       gsGet("costsheet_quotes"),
       gsGet("timesheet"),
-    ]).then(([c,o,d,cs,k,u,cq,ts])=>{
+      gsGet("settings"),
+    ]).then(([c,o,d,cs,k,u,cq,ts,st])=>{
       if(c.length) sCusts(c.map(x=>stripJsonSuffix({...x,id:String(x.id||"")})));
       if(o.length) sOpps(o.map(x=>stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")})));
       if(d.length) sDlv(d.map(x=>{const s=stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")});return {...s, totalContractValue: Number(s.totalContractValue)||0, installments: safeArr(s.installments)};}));
       // S2: Populate module-level USERS arrays for all dropdowns/lookups throughout app
       if(u.length){
         const safe = u.map(x=>({id:String(x.id||""),email:String(x.email||""),name:String(x.name||""),role:String(x.role||"")}));
-        USERS       = safe;
-        SALES_USERS = safe.filter(x=>x.role==="sales");
-        OP_USERS    = safe.filter(x=>x.role==="operation");
-        MANAGER_USERS = safe.filter(x=>x.role==="manager");
+        rebuildUserIndexes(safe);
         sUserList(safe);
       }
 
@@ -6283,6 +6442,20 @@ const stripJsonSuffix = obj => {
       }
       if(ts&&ts.length){
         sTS(ts.map(r=>stripJsonSuffix({...r})));
+      }
+      if(st && st.length){
+        const row = st.find(r=>String(r.key)==="manHourRates");
+        const val = row && row.value && typeof row.value==="object" ? row.value : null;
+        if(val && val.rates){
+          // Mutate the live module-level rate source in place (same idiom already used for
+          // USERS/SALES_USERS below) — every existing consumer (calcTask/ihLevelCost/
+          // rateForRole, the Cost Sheet task table, Timesheet's Plan/Actual ฿ columns) reads
+          // IH_LEVEL_DEFS/IH_LEVELS live on every call, so this needs no prop threading.
+          IH_LEVEL_DEFS.forEach(l=>{ if(val.rates[l.name]!=null) l.rate = +val.rates[l.name]; });
+          Object.assign(IH_LEVELS, Object.fromEntries(IH_LEVEL_DEFS.map(l=>[l.name,l.rate])));
+          sManHourRates(val.rates);
+        }
+        sManHourRatesLog(val && Array.isArray(val.saveLog) ? val.saveLog : []);
       }
       sGSStatus("synced");
     }).catch(()=>sGSStatus("error"));
@@ -6466,11 +6639,11 @@ const stripJsonSuffix = obj => {
             <div style={{fontSize:13,fontWeight:900,color:BRAND.navy,letterSpacing:"-0.04em",lineHeight:1.1}}>Climate<br/>CRM</div>
           </div>
           <nav style={{display:"flex",flex:1,overflow:"auto"}}>
-            {NAV.map(n=><button key={n.key} onClick={()=>sPage(n.key)} style={{padding:"15px 13px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:page===n.key?800:500,color:page===n.key?BRAND.navy:"#94a3b8",borderBottom:page===n.key?`2.5px solid ${BRAND.teal}`:"2.5px solid transparent",whiteSpace:"nowrap"}}>{n.label}</button>)}
+            {NAV.filter(n=>canAccessPage(user.role,n.key)).map(n=><button key={n.key} onClick={()=>sPage(n.key)} style={{padding:"15px 13px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:page===n.key?800:500,color:page===n.key?BRAND.navy:"#94a3b8",borderBottom:page===n.key?`2.5px solid ${BRAND.teal}`:"2.5px solid transparent",whiteSpace:"nowrap"}}>{n.label}</button>)}
           </nav>
-          <GlobalSearch customers={customers} opps={opps} page={page}
+          {canAccessPage(user.role,"customers") && <GlobalSearch customers={customers} opps={opps} page={page}
             onGoToCust={id=>{sCustId(id);sPage("customers");}}
-            onGoToOpp={code=>{sOppCode(code);sPage("opps");}}/>
+            onGoToOpp={code=>{sOppCode(code);sPage("opps");}}/>}
           <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0,marginLeft:10}}>
             <SyncBadge/>
             {/* Notification Bell */}
@@ -6526,6 +6699,7 @@ const stripJsonSuffix = obj => {
         {page==="delivery"  && <ErrorBoundary><DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveDlv} toast={toast} costSheets={costSheets} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}} userList={userList} onMentionNotify={handleMentionNotify}/></ErrorBoundary>}
         {page==="costsheet" && <ErrorBoundary><CostSheetPage costSheets={costSheets} onSave={saveCS} customers={customers} opps={opps} user={user} onSaveOpp={saveOpp} toast={toast} initSvcCode={initSvcCode} onSvcReady={()=>sSvcCode(null)} initCsCode={initCsCode} onCsReady={()=>sCsCode(null)}/></ErrorBoundary>}
         {page==="timesheet" && <ErrorBoundary><TimesheetPage user={user} opps={opps} customers={customers} costSheets={costSheets} timesheets={timesheets} onSaveTimesheet={saveTimesheet} toast={toast} userList={userList}/></ErrorBoundary>}
+        {page==="team"      && <ErrorBoundary><TeamRatesPage user={user} toast={toast} userList={userList} setUserList={sUserList} rates={manHourRates} setRates={sManHourRates} ratesLog={manHourRatesLog} setRatesLog={sManHourRatesLog}/></ErrorBoundary>}
       </div>
       <Toast toasts={toasts}/>
     </div>
