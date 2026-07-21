@@ -6808,9 +6808,9 @@ const stripJsonSuffix = obj => {
             {["opps","costsheet","delivery","timesheet"].includes(page) && (
               <Sel value={selectedYear} title="Filter by year"
                 onChange={e=>setSelectedYear(e.target.value==="all"?"all":+e.target.value)}
-                style={{width:104,padding:"6px 8px",fontSize:12,fontWeight:700}}>
-                <option value="all">All Years</option>
-                {availableYears.map(y=><option key={y}>{y}</option>)}
+                style={{width:72,padding:"4px 6px",fontSize:11.5,fontWeight:700}}>
+                <option value="all">All</option>
+                {availableYears.map(y=><option key={y} value={y}>{y-543}</option>)}
               </Sel>
             )}
             <SyncBadge/>
