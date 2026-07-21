@@ -1599,17 +1599,21 @@ const LoginPage = ({onLogin}) => {
 // 
 const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toast}) => {
   const [tab,sTab]   = useState("dash");
-  const [year,sYear] = useState(new Date().getFullYear() + 543); // BE year
+  // year: "all" or a BE number — drives the Dashboard tab's actuals (Revenue/Won/Received/PipelineAnalysis).
+  // kpiYear: always a concrete BE number (falls back to the current year) — drives everything that
+  // reads/writes kpiSplits, since a KPI target is inherently per-year and can't be "All Years."
+  const [year,sYear] = useState(new Date().getFullYear() + 543); // BE year, or "all"
+  const kpiYear = year==="all" ? YEAR : year;
   const [annual,sAnn] = useState(()=>kpiSplits[new Date().getFullYear()+543+"_annual"]||ANNUAL_KPI);
-  // Sync annual from kpiSplits when year changes or data loads from GS
+  // Sync annual from kpiSplits when kpiYear changes or data loads from GS
   useEffect(()=>{
-    const saved = kpiSplits[year+"_annual"];
+    const saved = kpiSplits[kpiYear+"_annual"];
     if(saved !== undefined && saved !== null && saved !== "") sAnn(+saved);
-  },[year,kpiSplits]);
+  },[kpiYear,kpiSplits]);
   // "Last Year POs Paid this year" — editable, persisted per year alongside the KPI row.
   const LAST_YEAR_PO_DEFAULT = 205000; // preserves current ฿2.05M until edited
   const [lastYearPO,sLYPO] = useState(()=>{const v=kpiSplits[(new Date().getFullYear()+543)+"_lastYearPO"];return (v===undefined||v===null||v==="")?LAST_YEAR_PO_DEFAULT:+v;});
-  useEffect(()=>{const v=kpiSplits[year+"_lastYearPO"];if(v!==undefined&&v!==null&&v!=="")sLYPO(+v);},[year,kpiSplits]);
+  useEffect(()=>{const v=kpiSplits[kpiYear+"_lastYearPO"];if(v!==undefined&&v!==null&&v!=="")sLYPO(+v);},[kpiYear,kpiSplits]);
   const [editingPO,setEditingPO]=useState(false);
   const [poInput,setPoInput]=useState("");
   // Req 14: multi-select dashboard filters
@@ -1626,41 +1630,63 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     (fAg.length===0||fAg.includes(o.assignedTo))
   ),[opps,fSt,fSvc,fAg]);
 
-  const wonOpps       = filteredOpps.filter(o=>o.status==="Won");
+  // Won opps only enter the Backlog once their linked Delivery's Contract Date is filled in —
+  // deliberately no fallback (no auto-inferred date) so Backlog reflects an actually signed/dated contract.
+  const getWonDate = opp => {
+    const dlv = deliveries.find(d => d.oppCode === opp.oppCode);
+    return dlv?.contractDate ? toBEDate(dlv.contractDate) : null;
+  };
+
+  // Years actually present in the data (plus the current year, even with none yet) — drives
+  // this page's own year picker option list. Independent of the header's global year picker.
+  const availableYears = useMemo(()=>{
+    const ys = new Set([YEAR]);
+    opps.forEach(o=>{ const be=toBEDate(o.createdDate); if(be) ys.add(+be.slice(0,4)); });
+    deliveries.forEach(d=>{ const be=toBEDate(d.contractDate); if(be) ys.add(+be.slice(0,4)); });
+    Object.keys(kpiSplits).forEach(k=>{ if(/^\d{4}$/.test(k)) ys.add(+k); });
+    return [...ys].sort((a,b)=>a-b);
+  },[opps,deliveries,kpiSplits]);
+
+  // Won YTD: filtered by the linked Delivery's Contract Date (same field Backlog uses) — deals
+  // not yet linked to a dated contract are omitted once a specific year is picked, matching
+  // Backlog's existing exclusion behavior. "all" = every Won deal, regardless of contract date.
+  const wonOpps       = filteredOpps.filter(o=>o.status==="Won" && (year==="all"||getWonDate(o)?.startsWith(String(year))));
   const totalWon      = wonOpps.reduce((s,o)=>s+o.salesPrice,0);
+  // Live/current open pipeline value — deliberately NOT year-filtered (an open deal isn't "in" any
+  // one year until it closes), so these two always reflect right-now, regardless of the picker.
   const pipeline      = filteredOpps.filter(o=>o.status!=="Lost").reduce((s,o)=>s+o.salesPrice,0);
   const oppsPipeline  = filteredOpps.filter(o=>o.status==="Proposal"||o.status==="Negotiation").reduce((s,o)=>s+o.salesPrice,0);
   const oppsPipelineCount = filteredOpps.filter(o=>o.status==="Proposal"||o.status==="Negotiation").length;
-  const splits      = kpiSplits[year]||DEFAULT_SPLIT.slice();
+  const splits      = kpiSplits[kpiYear]||DEFAULT_SPLIT.slice();
   const totalSplit  = splits.reduce((s,v)=>s+v,0);
 
-  // Revenue: sum of installment.amount where expected_date is in the current CE year (no status filter)
+  // Revenue: sum of installment.amount where expected_date is in the selected year (CE) — "all" = no filter.
   const revenue = useMemo(()=>{
-    const ceYear = new Date().getFullYear();
-    const prefix = String(ceYear);
+    const prefix = year==="all" ? "" : String(year-543);
     return deliveries.reduce((total,d)=>{
       return total + safeArr(d.installments).reduce((s,ins)=>{
         if(!ins.expected_date) return s;
         const dateStr = String(ins.expected_date);
-        if(dateStr.startsWith(prefix)) return s + (ins.amount||0);
-        return s;
+        if(prefix && !dateStr.startsWith(prefix)) return s;
+        return s + (ins.amount||0);
       },0);
     },0);
-  },[deliveries]);
+  },[deliveries,year]);
 
-  // Invoice Received: sum of installment.amount where receiptDate is in the current BE year AND status="Received"
-  // (receiptDate, not invoiceDate, so this matches the monthly bar chart's "Received" series below.)
+  // Invoice Received: sum of installment.amount where receiptDate is in the selected year (BE) AND
+  // status="Received" — "all" = no filter. (receiptDate, not invoiceDate, matches the monthly bar chart.)
   const invoiceReceived = useMemo(()=>{
-    const prefix = String(new Date().getFullYear()+543);
+    const prefix = year==="all" ? "" : String(year);
     return deliveries.reduce((total,d)=>{
       return total + safeArr(d.installments).reduce((s,ins)=>{
         if(ins.status!=="Received") return s;
         const be = toBEDate(ins.receiptDate);
-        if(be && be.startsWith(prefix)) return s + (ins.amount||0);
-        return s;
+        if(!be) return s;
+        if(prefix && !be.startsWith(prefix)) return s;
+        return s + (ins.amount||0);
       },0);
     },0);
-  },[deliveries]);
+  },[deliveries,year]);
 
   // Annual KPI Progress is measured against Received + Last Year POs Paid this year
   const kpiPct = annual>0 ? Math.min(((invoiceReceived+lastYearPO)/annual)*100,100) : 0;
@@ -1696,13 +1722,15 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   // Expected Revenue breaks down by month (Jan-Dec, calendar order, zeros included) rather than by company,
   // with a per-month company breakdown ([2]) for the modal's month→company drill-down.
   const revenueByMonth = useMemo(()=>{
-    const prefix = String(new Date().getFullYear());
+    const prefix = year==="all" ? "" : String(year-543);
     const perMonth = Array.from({length:12},()=>({})); // company name -> amount, per month
     deliveries.forEach(d=>{
       const name = custName(d.custId);
       safeArr(d.installments).forEach(ins=>{
-        if(!ins.expected_date || !String(ins.expected_date).startsWith(prefix)) return;
-        const m = parseInt(String(ins.expected_date).slice(5,7),10)-1;
+        if(!ins.expected_date) return;
+        const dateStr = String(ins.expected_date);
+        if(prefix && !dateStr.startsWith(prefix)) return;
+        const m = parseInt(dateStr.slice(5,7),10)-1;
         if(m<0||m>11) return;
         perMonth[m][name] = (perMonth[m][name]||0) + (ins.amount||0);
       });
@@ -1711,18 +1739,19 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
       const companies = Object.entries(perMonth[i]).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
       return [name, companies.reduce((s,[,v])=>s+v,0), companies];
     });
-  },[deliveries,customers]);
+  },[deliveries,customers,year]);
   // Received breaks down by month (mirrors revenueByMonth's shape), with a per-month
   // company breakdown ([2]) for the modal's month→company drill-down.
   const receivedByMonth = useMemo(()=>{
-    const prefix = String(new Date().getFullYear()+543);
+    const prefix = year==="all" ? "" : String(year);
     const perMonth = Array.from({length:12},()=>({})); // company name -> amount, per month
     deliveries.forEach(d=>{
       const name = custName(d.custId);
       safeArr(d.installments).forEach(ins=>{
         if(ins.status!=="Received") return;
         const be = toBEDate(ins.receiptDate);
-        if(!be || !be.startsWith(prefix)) return;
+        if(!be) return;
+        if(prefix && !be.startsWith(prefix)) return;
         const m = parseInt(be.slice(5,7),10)-1;
         if(m<0||m>11) return;
         perMonth[m][name] = (perMonth[m][name]||0) + (ins.amount||0);
@@ -1732,19 +1761,12 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
       const companies = Object.entries(perMonth[i]).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
       return [name, companies.reduce((s,[,v])=>s+v,0), companies];
     });
-  },[deliveries,customers]);
+  },[deliveries,customers,year]);
 
-  // Won opps only enter the Backlog once their linked Delivery's Contract Date is filled in —
-  // deliberately no fallback (no auto-inferred date) so Backlog reflects an actually signed/dated contract.
-  const getWonDate = opp => {
-    const dlv = deliveries.find(d => d.oppCode === opp.oppCode);
-    return dlv?.contractDate ? toBEDate(dlv.contractDate) : null;
-  };
-
-  // Won YTD breaks down by month using each Won opp's linked Delivery Contract Date
-  // (same date source Backlog uses via getWonDate) — deals not yet linked to a dated
-  // contract are omitted, matching Backlog's existing behavior. No year prefix: Won YTD's
-  // total is all-time, so months from every year are folded into the same 12 buckets.
+  // Won YTD breaks down by month using each Won opp's linked Delivery Contract Date (same date
+  // source Backlog uses via getWonDate, defined above). wonOpps is already year-scoped (or
+  // all-time if "all"), so this naturally becomes "that year's Jan–Dec" or "all years folded
+  // into 12 buckets" without any extra filtering here.
   const wonByMonth = useMemo(()=>{
     const perMonth = Array.from({length:12},()=>({})); // company name -> amount, per month
     wonOpps.forEach(o=>{
@@ -1759,10 +1781,10 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
       const companies = Object.entries(perMonth[i]).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
       return [name, companies.reduce((s,[,v])=>s+v,0), companies];
     });
-  },[filteredOpps,deliveries,customers]);
+  },[wonOpps,deliveries,customers]);
 
   const monthData = MONTHS.map((m,i) => {
-    const ms=`${year}-${String(i+1).padStart(2,"0")}`;
+    const ms=`${kpiYear}-${String(i+1).padStart(2,"0")}`;
     const fc=Math.round(annual*splits[i]/100);
     // Backlog = Won opps by Delivery's Contract Date (excluded until Contract Date is entered on the Delivery page)
     const blItems=filteredOpps.filter(o=>o.status==="Won"&&getWonDate(o)?.startsWith(ms)).map(o=>({company:customers.find(c=>c.id===o.custId)?.companyEN||o.custId,amount:o.salesPrice||0}));
@@ -1773,27 +1795,27 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     return{m,ms,fc,bl,rec,ach:fc>0?((bl/fc)*100).toFixed(0):"0",blItems,recItems};
   });
 
-  const upSplit=(i,v)=>setKpiSplits(p=>({...p,[year]:splits.map((x,j)=>j===i?+v:x)}));
+  const upSplit=(i,v)=>setKpiSplits(p=>({...p,[kpiYear]:splits.map((x,j)=>j===i?+v:x)}));
   const saveKpi=()=>{
-    const entry={id:uid(),ts:nowTS(),author:user.id,note:`KPI saved — ${year} · Annual ฿${fmtM(annual)} · Split total ${totalSplit.toFixed(1)}%`};
-    setKpiSplits(p=>({...p,[year]:splits,[year+"_annual"]:annual,[year+"_lastYearPO"]:lastYearPO,[year+"_log"]:[...(p[year+"_log"]||[]),entry]}));
+    const entry={id:uid(),ts:nowTS(),author:user.id,note:`KPI saved — ${kpiYear-543} · Annual ฿${fmtM(annual)} · Split total ${totalSplit.toFixed(1)}%`};
+    setKpiSplits(p=>({...p,[kpiYear]:splits,[kpiYear+"_annual"]:annual,[kpiYear+"_lastYearPO"]:lastYearPO,[kpiYear+"_log"]:[...(p[kpiYear+"_log"]||[]),entry]}));
     // Persist to Google Sheets — one row per year, primary key = year
     gsSave("kpi", {
-      year:   year,
+      year:   kpiYear,
       annual: annual,
       splits: splits,
       lastYearPO: lastYearPO,
       saveLog:[entry],
     });
-    toast("KPI & Forecast saved",`${year} splits saved by ${user.name}`);
+    toast("KPI & Forecast saved",`${kpiYear-543} splits saved by ${user.name}`);
   };
   // Inline-save the editable "Last Year POs Paid" figure (writes the full kpi row so the
   // GS upsert doesn't blank annual/splits).
   const saveLastYearPO=v=>{
     const n=Math.max(0,Math.round(v||0));
     sLYPO(n);
-    setKpiSplits(p=>({...p,[year+"_lastYearPO"]:n}));
-    gsSave("kpi",{year,annual,splits,lastYearPO:n,saveLog:[{id:uid(),ts:nowTS(),author:user.id,note:`Last Year POs Paid set to ฿${fmt(n)} for ${year}`}]});
+    setKpiSplits(p=>({...p,[kpiYear+"_lastYearPO"]:n}));
+    gsSave("kpi",{year:kpiYear,annual,splits,lastYearPO:n,saveLog:[{id:uid(),ts:nowTS(),author:user.id,note:`Last Year POs Paid set to ฿${fmt(n)} for ${kpiYear-543}`}]});
     toast("Saved",`Last Year POs Paid = ฿${fmt(n)}`);
   };
   const BAR_H=160;
@@ -1852,10 +1874,14 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   // Req 13: Pipeline analysis with monthly breakdown + sort + service count
   const PipelineAnalysis = () => {
     const [hoveredTag, setHoveredTag] = React.useState(null); // {stage, code, x, y}
-    const monthOpps = pMonth==="All"?filteredOpps:filteredOpps.filter(o=>{
-      const ms=`${year}-${String(MONTHS.indexOf(pMonth)+1).padStart(2,"0")}`;
-      return o.createdDate?.startsWith(ms);
-    });
+    // Year-scoped first (via createdDate, BE-converted — createdDate is stored CE), then an optional
+    // month sub-filter on top. "all" = every year; pMonth="All" = every month within that year.
+    const monthOpps = React.useMemo(()=>{
+      let base = year==="all" ? filteredOpps : filteredOpps.filter(o=>toBEDate(o.createdDate).startsWith(String(year)));
+      if(pMonth==="All") return base;
+      const mm = String(MONTHS.indexOf(pMonth)+1).padStart(2,"0");
+      return base.filter(o=>toBEDate(o.createdDate).slice(5,7)===mm);
+    },[filteredOpps,year,pMonth]);
     const PIPELINE_STAGE_ORDER = ["KYC","Proposal","Negotiation","Won","Lost"];
     const byStage = PIPELINE_STAGE_ORDER.map(st => {
       const items=monthOpps.filter(o=>o.status===st);
@@ -1910,10 +1936,13 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     // brand-aligned ramp as the "Won Value by Service" donut (CI_SERVICE_PALETTE), not the generic
     // SVC_PALETTE rainbow used for free-form tags elsewhere.
     const agentStats = SALES_USERS.map(a=>{
-      const wonForAgent = opps.filter(o=>o.assignedTo===a.id&&o.status==="Won");
+      // Same year scoping as monthOpps above (createdDate, BE-converted), so this table stays
+      // consistent with Pipeline by Stage / Won Value by Service for whatever year is selected.
+      const agentOpps = opps.filter(o=>o.assignedTo===a.id && (year==="all"||toBEDate(o.createdDate).startsWith(String(year))));
+      const wonForAgent = agentOpps.filter(o=>o.status==="Won");
       const aw = wonForAgent.reduce((s,o)=>s+o.salesPrice,0);
-      const ac = opps.filter(o=>o.assignedTo===a.id&&!["Won","Lost"].includes(o.status)).length;
-      const closed = opps.filter(o=>o.assignedTo===a.id&&["Won","Lost"].includes(o.status)).length;
+      const ac = agentOpps.filter(o=>!["Won","Lost"].includes(o.status)).length;
+      const closed = agentOpps.filter(o=>["Won","Lost"].includes(o.status)).length;
       const wr = closed>0?Math.round((wonForAgent.length/closed)*100):0;
       const aWonBreakdown = groupByCompany(wonForAgent.map(o=>({name:custName(o.custId),amount:o.salesPrice||0})));
       const color = CI_SERVICE_PALETTE[SALES_USERS.findIndex(u=>u.id===a.id)%CI_SERVICE_PALETTE.length];
@@ -2062,8 +2091,13 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
           ))}
         </div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+          <Sel value={year} title="Filter by year" onChange={e=>sYear(e.target.value==="all"?"all":+e.target.value)}
+            style={{width:72,padding:"4px 6px",fontSize:11.5,fontWeight:700}}>
+            <option value="all">All</option>
+            {availableYears.map(y=><option key={y} value={y}>{y-543}</option>)}
+          </Sel>
           {tab==="dash"&&<><FilterIcon/><MultiSelect label="Agents" options={SALES_USERS.map(u=>({value:u.id,label:u.name.split(" ")[0]}))} selected={fAg} onChange={setFAg} width={150}/></>}
-          {tab==="kpi"&&<><Sel value={year} onChange={e=>sYear(+e.target.value)} style={{width:88}}>{[2569,2570,2571].map(y=><option key={y}>{y}</option>)}</Sel><NumInp value={annual} onChange={v=>sAnn(v)} style={{width:160}}/></>}
+          {tab==="kpi"&&<NumInp value={annual} onChange={v=>sAnn(v)} style={{width:160}}/>}
         </div>
       </div>
 
@@ -2071,7 +2105,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
         <>
           <Card style={{padding:20,marginBottom:14}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-              <Span s={13} w={700}>Annual KPI Progress</Span>
+              <Span s={13} w={700}>Annual KPI Progress ({kpiYear-543})</Span>
               <Span s={14} w={600} c="#0f172a">฿{fmtM(invoiceReceived+lastYearPO)} / ฿{fmtM(annual)} ({kpiPct.toFixed(1)}%)</Span>
             </div>
             <div style={{background:"#f1f5f9",borderRadius:5,height:10}}><div style={{background:kpiPct>=75?"#16a34a":kpiPct>=50?"#f59e0b":"#0f172a",height:"100%",width:`${kpiPct}%`,borderRadius:5,transition:"width .5s"}}/></div>
@@ -2080,7 +2114,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:12,marginBottom:14}}>
             <SC label="Customers"        val={customers.length}/>
             <Card style={{padding:"14px 18px",position:"relative"}}>
-              <Span s={10} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:4,lineHeight:1.3,minHeight:"2.6em"}}>Last Year POs Paid this year</Span>
+              <Span s={10} w={700} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.07em",display:"block",marginBottom:4,lineHeight:1.3,minHeight:"2.6em"}}>Last Year POs Paid ({kpiYear-543})</Span>
               {editingPO
                 ? <input autoFocus value={poInput} inputMode="numeric"
                     onChange={e=>setPoInput(e.target.value.replace(/[^0-9.]/g,""))}
@@ -2092,27 +2126,27 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
                     ฿{fmtM(lastYearPO)}<span style={{color:"#cbd5e1"}}><EditIcon s={13}/></span>
                   </div>}
             </Card>
-            <SC label="This Year Expected Revenue" val={`฿${fmtM(revenue)}`} c="#d97706"
-              tip={{title:`Expected Revenue ${new Date().getFullYear()}`, items:revenueByMonth.map(([m,t])=>[m,t]), total:revenue,
+            <SC label={year==="all"?"Expected Revenue (All Years)":`Expected Revenue ${year-543}`} val={`฿${fmtM(revenue)}`} c="#d97706"
+              tip={{title:year==="all"?"Expected Revenue — All Years":`Expected Revenue ${year-543}`, items:revenueByMonth.map(([m,t])=>[m,t]), total:revenue,
                     unitLabel:"months", fmtAmt:amt=>`฿${fmt(amt)}`,
                     drillDown:(monthName,i)=>({
-                      title:`${monthName} ${new Date().getFullYear()} — Expected Revenue by Company`,
+                      title:`${monthName} — Expected Revenue by Company`,
                       items:revenueByMonth[i][2], total:revenueByMonth[i][1],
                       unitLabel:"companies", fmtAmt:amt=>`฿${fmt(amt)}`,
                     })}}/>
-            <SC label="Won YTD"          val={`฿${fmtM(totalWon)}`}      sub={`${wonOpps.length} deals closed`} c="#1e40af"
-              tip={{title:"Won YTD", items:wonByMonth.map(([m,t])=>[m,t]), total:wonByMonth.reduce((s,[,v])=>s+v,0),
+            <SC label={year==="all"?"Won (All Years)":`Won ${year-543}`} val={`฿${fmtM(totalWon)}`}      sub={`${wonOpps.length} deals closed`} c="#1e40af"
+              tip={{title:year==="all"?"Won — All Years":`Won ${year-543}`, items:wonByMonth.map(([m,t])=>[m,t]), total:wonByMonth.reduce((s,[,v])=>s+v,0),
                     unitLabel:"months", fmtAmt:amt=>`฿${fmt(amt)}`,
                     drillDown:(monthName,i)=>({
                       title:`${monthName} — Won by Company`,
                       items:wonByMonth[i][2], total:wonByMonth[i][1],
                       unitLabel:"companies", fmtAmt:amt=>`฿${fmt(amt)}`,
                     })}}/>
-            <SC label="Received" val={`฿${fmtM(invoiceReceived)}`} c="#22c55e"
-              tip={{title:`Received ${new Date().getFullYear()}`, items:receivedByMonth.map(([m,t])=>[m,t]), total:invoiceReceived,
+            <SC label={year==="all"?"Received (All Years)":`Received ${year-543}`} val={`฿${fmtM(invoiceReceived)}`} c="#22c55e"
+              tip={{title:year==="all"?"Received — All Years":`Received ${year-543}`, items:receivedByMonth.map(([m,t])=>[m,t]), total:invoiceReceived,
                     unitLabel:"months", fmtAmt:amt=>`฿${fmt(amt)}`,
                     drillDown:(monthName,i)=>({
-                      title:`${monthName} ${new Date().getFullYear()} — Received by Company`,
+                      title:`${monthName} — Received by Company`,
                       items:receivedByMonth[i][2], total:receivedByMonth[i][1],
                       unitLabel:"companies", fmtAmt:amt=>`฿${fmt(amt)}`,
                     })}}/>
@@ -2123,7 +2157,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
 
           {/* Req 12: Monthly bar chart with value labels on top */}
           <Card style={{padding:20,marginBottom:14}}>
-            <Span s={13} w={700} style={{display:"block",marginBottom:8}}>Monthly Forecast / Backlog / Received</Span>
+            <Span s={13} w={700} style={{display:"block",marginBottom:8}}>Monthly Forecast / Backlog / Received ({kpiYear-543})</Span>
             <div style={{display:"flex",gap:12,marginBottom:10,flexWrap:"wrap"}}>
               {[{c:"#cbd5e1",l:"Forecast"},{c:"#1e40af",l:"Backlog"},{c:"#22c55e",l:"Received"}].map(x=>(
                 <div key={x.l} style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:12,height:12,background:x.c,borderRadius:2}}/><Span s={11} c="#94a3b8">{x.l}</Span></div>
@@ -2214,11 +2248,11 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
               </TR>
             ))}</tbody>
           </table></div></Card>
-          {(kpiSplits[year+"_log"]||[]).length>0&&(
+          {(kpiSplits[kpiYear+"_log"]||[]).length>0&&(
             <Card style={{padding:14,marginTop:12}}>
               <Span s={12} w={700} style={{display:"block",marginBottom:8}}>Save Log</Span>
               <div style={{maxHeight:120,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
-                {[...(kpiSplits[year+"_log"]||[])].reverse().map(l=>(
+                {[...(kpiSplits[kpiYear+"_log"]||[])].reverse().map(l=>(
                   <div key={l.id} style={{fontSize:10,padding:"4px 8px",background:"#f8fafc",borderRadius:4,border:"1px solid #e2e8f0",display:"flex",gap:10}}>
                     <span style={{color:"#64748b",whiteSpace:"nowrap"}}>{l.ts}</span>
                     <span style={{color:"#1e40af",fontWeight:700}}>{USERS.find(u=>u.id===l.author)?.name.split(" ")[0]||l.author}</span>
