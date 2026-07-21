@@ -30,6 +30,12 @@ const loadSession = () => {
 };
 const clearSession = () => localStorage.removeItem(SESSION_KEY);
 
+// Global year filter (Opportunities/Cost Sheet/Delivery/Timesheet) — persisted like the
+// session, but with no expiry: either the string "all" or a BE year number.
+const YEAR_PREF_KEY = "crm_selected_year";
+const loadYearPref = () => { try { const v=localStorage.getItem(YEAR_PREF_KEY); return (!v||v==="all") ? "all" : +v; } catch(_) { return "all"; } };
+const saveYearPref = v => { try { localStorage.setItem(YEAR_PREF_KEY, String(v)); } catch(_) {} };
+
 // S2: USERS, SALES_USERS, OP_USERS are populated at runtime from GS "users" tab.
 // These start empty and are filled by the App() useEffect on mount.
 // All dropdown/lookup code uses these module-level arrays so they work once populated.
@@ -178,6 +184,13 @@ const uid   = () => `${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
 const today = () => new Date().toISOString().slice(0,10);
 const nowTS = () => { const d=new Date(); return `${d.getFullYear()+543}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
 const pad2  = n => String(n).padStart(2,"0");
+// Converts a CE or BE date string's leading 4-digit year to Buddhist Era; empty/unparseable in → "".
+const toBEDate = d => {
+  if (!d) return "";
+  const y = parseInt(String(d).slice(0, 4));
+  if (isNaN(y)) return "";
+  return y < 2500 ? `${y + 543}${String(d).slice(4)}` : String(d);
+};
 const safeArr = v => { if(Array.isArray(v)) return v; if(typeof v==="string"&&v.trim().startsWith("[")) { try{return JSON.parse(v);}catch(_){} } return []; };
 // Coerce a notes/deliverables value into [{id,item}]: arrays pass through; a legacy
 // multi-line string becomes one item per non-empty line; everything else → [].
@@ -1621,14 +1634,6 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
   const splits      = kpiSplits[year]||DEFAULT_SPLIT.slice();
   const totalSplit  = splits.reduce((s,v)=>s+v,0);
 
-  // Convert any date string to BE year format for consistent comparison
-  const toBEDate = d => {
-    if (!d) return "";
-    const y = parseInt(d.slice(0, 4));
-    if (y < 2500) return `${y + 543}${d.slice(4)}`; // CE → BE
-    return d; // already BE
-  };
-
   // Revenue: sum of installment.amount where expected_date is in the current CE year (no status filter)
   const revenue = useMemo(()=>{
     const ceYear = new Date().getFullYear();
@@ -1707,9 +1712,6 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
       return [name, companies.reduce((s,[,v])=>s+v,0), companies];
     });
   },[deliveries,customers]);
-  const wonBreakdown = useMemo(()=>
-    groupByCompany(wonOpps.map(o=>({name:custName(o.custId),amount:o.salesPrice||0})))
-  ,[filteredOpps,customers]);
   // Received breaks down by month (mirrors revenueByMonth's shape), with a per-month
   // company breakdown ([2]) for the modal's month→company drill-down.
   const receivedByMonth = useMemo(()=>{
@@ -1738,6 +1740,26 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     const dlv = deliveries.find(d => d.oppCode === opp.oppCode);
     return dlv?.contractDate ? toBEDate(dlv.contractDate) : null;
   };
+
+  // Won YTD breaks down by month using each Won opp's linked Delivery Contract Date
+  // (same date source Backlog uses via getWonDate) — deals not yet linked to a dated
+  // contract are omitted, matching Backlog's existing behavior. No year prefix: Won YTD's
+  // total is all-time, so months from every year are folded into the same 12 buckets.
+  const wonByMonth = useMemo(()=>{
+    const perMonth = Array.from({length:12},()=>({})); // company name -> amount, per month
+    wonOpps.forEach(o=>{
+      const wd = getWonDate(o);
+      if(!wd) return;
+      const m = parseInt(wd.slice(5,7),10)-1;
+      if(m<0||m>11) return;
+      const name = custName(o.custId);
+      perMonth[m][name] = (perMonth[m][name]||0) + (o.salesPrice||0);
+    });
+    return MONTHS.map((name,i)=>{
+      const companies = Object.entries(perMonth[i]).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+      return [name, companies.reduce((s,[,v])=>s+v,0), companies];
+    });
+  },[filteredOpps,deliveries,customers]);
 
   const monthData = MONTHS.map((m,i) => {
     const ms=`${year}-${String(i+1).padStart(2,"0")}`;
@@ -2079,7 +2101,13 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
                       unitLabel:"companies", fmtAmt:amt=>`฿${fmt(amt)}`,
                     })}}/>
             <SC label="Won YTD"          val={`฿${fmtM(totalWon)}`}      sub={`${wonOpps.length} deals closed`} c="#1e40af"
-              tip={{title:"Won YTD", items:wonBreakdown, total:totalWon}}/>
+              tip={{title:"Won YTD", items:wonByMonth.map(([m,t])=>[m,t]), total:wonByMonth.reduce((s,[,v])=>s+v,0),
+                    unitLabel:"months", fmtAmt:amt=>`฿${fmt(amt)}`,
+                    drillDown:(monthName,i)=>({
+                      title:`${monthName} — Won by Company`,
+                      items:wonByMonth[i][2], total:wonByMonth[i][1],
+                      unitLabel:"companies", fmtAmt:amt=>`฿${fmt(amt)}`,
+                    })}}/>
             <SC label="Received" val={`฿${fmtM(invoiceReceived)}`} c="#22c55e"
               tip={{title:`Received ${new Date().getFullYear()}`, items:receivedByMonth.map(([m,t])=>[m,t]), total:invoiceReceived,
                     unitLabel:"months", fmtAmt:amt=>`฿${fmt(amt)}`,
@@ -3488,7 +3516,7 @@ const OppForm =({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS,
 };
 
 const OPP_HDR = ["OPP Code","Quote No.","CS Code","Job Code","Company","Service Code","Service Type","Sales Price","Total Cost","Margin%","Margin ฿","Status","Agent","Created","Lost Reason"];
-const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSaveDelivery,onDeleteDelivery,toast,costSheets,onGoToCS,initOppCode,onOppReady,userList=[],onMentionNotify}) => {
+const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSaveDelivery,onDeleteDelivery,toast,costSheets,onGoToCS,initOppCode,onOppReady,userList=[],onMentionNotify,year="all"}) => {
   const [search,sS]=useState(""); const [fSt,setFSt]=useState([]); const [fAg,setFAg]=useState([]); const [fSvc,setFSvc]=useState([]);
   const [view,sView]=useState("kanban"); const [form,sF]=useState(false); const [edit,sE]=useState(null);
   const [kanbanSorts,setKanbanSorts]=useState([{col:"date",dir:"desc"}]); // SortChips: date (Latest) + ranking
@@ -3508,9 +3536,9 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
   // Pagination — table view only (kanban already shards by status into small columns).
   const PAGE_SIZE=50;
   const [pg,setPg]=useState(1);
-  useEffect(()=>{setPg(1);},[search,fSt,fAg,fSvc,sorts]);
+  useEffect(()=>{setPg(1);},[search,fSt,fAg,fSvc,sorts,year]);
   const list=useMemo(()=>{
-    const filtered=opps.filter(o=>{const c=customers.find(x=>x.id===o.custId);const q=search.toLowerCase();return(!search||o.oppCode.toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||o.quoteNo.toLowerCase().includes(q)||o.serviceCode.toLowerCase().includes(q))&&(fSt.length===0||fSt.includes(o.status))&&(fAg.length===0||fAg.includes(o.assignedTo))&&(fSvc.length===0||fSvc.includes(o.serviceCode));});
+    const filtered=opps.filter(o=>{const c=customers.find(x=>x.id===o.custId);const q=search.toLowerCase();return(!search||o.oppCode.toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||o.quoteNo.toLowerCase().includes(q)||o.serviceCode.toLowerCase().includes(q))&&(fSt.length===0||fSt.includes(o.status))&&(fAg.length===0||fAg.includes(o.assignedTo))&&(fSvc.length===0||fSvc.includes(o.serviceCode))&&(year==="all"||toBEDate(o.createdDate).startsWith(String(year)));});
     const getV=(o,col)=>{
       const c=customers.find(x=>x.id===o.custId);
       if(col==="oppCode")    return o.oppCode||"";
@@ -3531,7 +3559,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
       return "";
     };
     return [...filtered].sort((a,b)=>multiCmp(a,b,sorts,getV));
-  },[opps,customers,search,fSt,fAg,fSvc,sorts]);
+  },[opps,customers,search,fSt,fAg,fSvc,sorts,year]);
   useEffect(()=>{const maxPg=Math.max(1,Math.ceil(list.length/PAGE_SIZE));if(pg>maxPg)setPg(maxPg);},[list.length]);
   const pageList = list.slice((pg-1)*PAGE_SIZE, pg*PAGE_SIZE);
   const totalPipeline=list.filter(o=>o.status!=="Lost").reduce((s,o)=>s+o.salesPrice,0);
@@ -4340,7 +4368,7 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
 
 
 const DLV_HDR = ["Delivery ID","Customer","OPP Code","Quote No.","Job Code","Contract No.","Contract Date","Service Type","Contract Value","Status","Step","Delivery Date","Total Received","Balance"];
-const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,onGoToCS,onGoToCust,onGoToOpp,userList=[],onMentionNotify=()=>{}}) => {
+const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,onGoToCS,onGoToCust,onGoToOpp,userList=[],onMentionNotify=()=>{},year="all"}) => {
   const [search,sS]=useState(""); const [fDSvc,setFDSvc]=useState([]);
   const [form,sF]=useState(false); const [edit,sE]=useState(null); const [gs,sGS]=useState(false);
   const [initTab,sInitTab]=useState("detail"); // which tab to open in DeliveryForm
@@ -4357,7 +4385,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
   // Req 9: expandable sections per delivery card
 
   const list=deliveries
-    .filter(d=>{const c=customers.find(x=>x.id===d.custId);const q=search.toLowerCase();return(!search||(d.jobCode||"").toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||(d.contractNo||"").toLowerCase().includes(q)||(d.oppCode||"").toLowerCase().includes(q))&&(fDSvc.length===0||fDSvc.includes(d.serviceCode));})
+    .filter(d=>{const c=customers.find(x=>x.id===d.custId);const q=search.toLowerCase();return(!search||(d.jobCode||"").toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||(d.contractNo||"").toLowerCase().includes(q)||(d.oppCode||"").toLowerCase().includes(q))&&(fDSvc.length===0||fDSvc.includes(d.serviceCode))&&(year==="all"||toBEDate(d.contractDate).startsWith(String(year)));})
     .sort((a,b)=>multiCmp(a,b,sorts,getDV));
 
   const totContract = list.reduce((s,d)=>s+(Number(d.totalContractValue)||0),0);
@@ -4946,7 +4974,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
   );
 };
 
-const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,initSvcCode,onSvcReady,initCsCode,onCsReady}) => {
+const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,initSvcCode,onSvcReady,initCsCode,onCsReady,year="all"}) => {
   const [selCode,sCode] = useState(SERVICES[0].code);
   const [highlightCs,sHighlightCs] = useState(null);
   const csRefs = React.useRef({});
@@ -5226,10 +5254,10 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           </div>
           {(editCS.quoteOverrides||[]).length===0&&(
             <div>
-              {(editCS.saveLog||[]).filter(l=>l.quoteSnapshot).length>0&&(
+              {(editCS.saveLog||[]).filter(l=>l.quoteSnapshot&&(year==="all"||(l.ts||"").startsWith(String(year)))).length>0&&(
                 <div style={{marginBottom:12}}>
                   {Object.values(
-                    [...(editCS.saveLog||[])].filter(l=>l.quoteSnapshot).reduce((acc,l)=>{
+                    [...(editCS.saveLog||[])].filter(l=>l.quoteSnapshot&&(year==="all"||(l.ts||"").startsWith(String(year)))).reduce((acc,l)=>{
                       const key=l.quoteSnapshot.quoteNo;
                       if(!acc[key]||l.ts>acc[key].ts) acc[key]=l;
                       return acc;
@@ -5684,7 +5712,7 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
 };
 
 // ── TimesheetPage v2 ──────────────────────────────────────────────────────────
-const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimesheet,toast,userList}) => {
+const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimesheet,toast,userList,year="all"}) => {
   // Role routing
   const isManager  = user.role==="manager";
   const isOp       = user.role==="operation";
@@ -5703,10 +5731,11 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
           const c=customers.find(x=>x.id===o.custId);
           const matchSearch = !q||(o.jobCode||"").toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q);
           const matchSvc = fSvc.length===0||fSvc.includes(o.serviceCode);
-          return matchSearch&&matchSvc;
+          const matchYear = year==="all"||toBEDate(o.createdDate).startsWith(String(year));
+          return matchSearch&&matchSvc&&matchYear;
         })
         .sort((a,b)=>(b.createdDate||"").localeCompare(a.createdDate||""))
-  ,[opps,customers,search,fSvc]);
+  ,[opps,customers,search,fSvc,year]);
 
   const getQuoteSnapshot = opp => {
     const cs = costSheets.find(x=>x.serviceCode===opp.serviceCode);
@@ -6379,6 +6408,19 @@ function App() {
   const [initOppCode,sOppCode] = useState(null);
   const [kpiSplits,sKPI]     = useState({2569:DEFAULT_SPLIT.slice(),2570:DEFAULT_SPLIT.slice(),2571:DEFAULT_SPLIT.slice()});
   const [timesheets,sTS]     = useState([]);
+  // Global year filter — Opportunities/Cost Sheet/Delivery/Timesheet only (Dashboard's KPI
+  // year picker is a separate, independent concept). "all" = unfiltered (default).
+  const [selectedYear,setSelectedYear] = useState(loadYearPref);
+  useEffect(()=>{ saveYearPref(selectedYear); },[selectedYear]);
+  // Years actually present in the data (plus the current year, even with none yet) — drives
+  // the header year picker's option list so it grows on its own as new years' data arrives.
+  const availableYears = useMemo(()=>{
+    const ys = new Set([YEAR]);
+    opps.forEach(o=>{ const be=toBEDate(o.createdDate); if(be) ys.add(+be.slice(0,4)); });
+    deliveries.forEach(d=>{ const be=toBEDate(d.contractDate); if(be) ys.add(+be.slice(0,4)); });
+    costSheets.forEach(cs=>(cs.saveLog||[]).forEach(l=>{ if(l.quoteSnapshot&&l.ts) ys.add(+String(l.ts).slice(0,4)); }));
+    return [...ys].sort((a,b)=>a-b);
+  },[opps,deliveries,costSheets]);
   // Admin-editable man-hour day rates (Team & Rates page) — defaults mirror the current
   // hardcoded IH_LEVEL_DEFS rates until a "settings" row loads from GS, if any.
   const [manHourRates,sManHourRates] = useState(()=>Object.fromEntries(IH_LEVEL_DEFS.map(l=>[l.name,l.rate])));
@@ -6763,6 +6805,14 @@ const stripJsonSuffix = obj => {
               onGoToOpp={code=>{sOppCode(code);sPage("opps");}}/></div>}
           </div>
           <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+            {["opps","costsheet","delivery","timesheet"].includes(page) && (
+              <Sel value={selectedYear} title="Filter by year"
+                onChange={e=>setSelectedYear(e.target.value==="all"?"all":+e.target.value)}
+                style={{width:104,padding:"6px 8px",fontSize:12,fontWeight:700}}>
+                <option value="all">All Years</option>
+                {availableYears.map(y=><option key={y}>{y}</option>)}
+              </Sel>
+            )}
             <SyncBadge/>
             {/* Notification Bell */}
             <div ref={bellRef} style={{position:"relative"}}>
@@ -6819,10 +6869,10 @@ const stripJsonSuffix = obj => {
       <div style={{maxWidth:1440,margin:"0 auto",padding:24}}>
         {page==="dashboard" && <ErrorBoundary><DashboardKPI user={user} customers={customers} opps={opps} deliveries={deliveries} kpiSplits={kpiSplits} setKpiSplits={sKPI} toast={toast}/></ErrorBoundary>}
         {page==="customers" && <ErrorBoundary><CustomersPage user={user} customers={customers} opps={opps} onSave={saveCust} onDelete={deleteCust} toast={toast} deliveries={deliveries} initCustId={initCustId} onCustReady={()=>sCustId(null)} userList={userList}/></ErrorBoundary>}
-        {page==="opps"      && <ErrorBoundary><OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} onDelete={deleteOpp} onSaveCS={saveCS} deliveries={deliveries} onSaveDelivery={saveDlv} onDeleteDelivery={deleteDlv} toast={toast} costSheets={costSheets} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)} userList={userList} onMentionNotify={handleMentionNotify}/></ErrorBoundary>}
-        {page==="delivery"  && <ErrorBoundary><DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveDlv} toast={toast} costSheets={costSheets} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}} userList={userList} onMentionNotify={handleMentionNotify}/></ErrorBoundary>}
-        {page==="costsheet" && <ErrorBoundary><CostSheetPage costSheets={costSheets} onSave={saveCS} customers={customers} opps={opps} user={user} onSaveOpp={saveOpp} toast={toast} initSvcCode={initSvcCode} onSvcReady={()=>sSvcCode(null)} initCsCode={initCsCode} onCsReady={()=>sCsCode(null)}/></ErrorBoundary>}
-        {page==="timesheet" && <ErrorBoundary><TimesheetPage user={user} opps={opps} customers={customers} costSheets={costSheets} timesheets={timesheets} onSaveTimesheet={saveTimesheet} toast={toast} userList={userList}/></ErrorBoundary>}
+        {page==="opps"      && <ErrorBoundary><OppsPage user={user} customers={customers} opps={opps} onSave={saveOpp} onDelete={deleteOpp} onSaveCS={saveCS} deliveries={deliveries} onSaveDelivery={saveDlv} onDeleteDelivery={deleteDlv} toast={toast} costSheets={costSheets} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}} initOppCode={initOppCode} onOppReady={()=>sOppCode(null)} userList={userList} onMentionNotify={handleMentionNotify} year={selectedYear}/></ErrorBoundary>}
+        {page==="delivery"  && <ErrorBoundary><DeliveryPage user={user} customers={customers} opps={opps} deliveries={deliveries} onSave={saveDlv} toast={toast} costSheets={costSheets} onGoToCS={(code,csCode)=>{sSvcCode(code);if(csCode)sCsCode(csCode);sPage("costsheet");}} onGoToCust={id=>{sCustId(id);sPage("customers");}} onGoToOpp={code=>{sOppCode(code);sPage("opps");}} userList={userList} onMentionNotify={handleMentionNotify} year={selectedYear}/></ErrorBoundary>}
+        {page==="costsheet" && <ErrorBoundary><CostSheetPage costSheets={costSheets} onSave={saveCS} customers={customers} opps={opps} user={user} onSaveOpp={saveOpp} toast={toast} initSvcCode={initSvcCode} onSvcReady={()=>sSvcCode(null)} initCsCode={initCsCode} onCsReady={()=>sCsCode(null)} year={selectedYear}/></ErrorBoundary>}
+        {page==="timesheet" && <ErrorBoundary><TimesheetPage user={user} opps={opps} customers={customers} costSheets={costSheets} timesheets={timesheets} onSaveTimesheet={saveTimesheet} toast={toast} userList={userList} year={selectedYear}/></ErrorBoundary>}
         {page==="team"      && <ErrorBoundary><TeamRatesPage user={user} toast={toast} userList={userList} setUserList={sUserList} rates={manHourRates} setRates={sManHourRates} ratesLog={manHourRatesLog} setRatesLog={sManHourRatesLog}/></ErrorBoundary>}
       </div>
       <Toast toasts={toasts}/>
