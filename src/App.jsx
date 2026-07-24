@@ -6721,7 +6721,7 @@ const stripJsonSuffix = obj => {
 
   // "team" is deliberately excluded — admin-only settings live behind the gear icon in the
   // utility cluster instead of competing for space in the nav row / mobile menu.
-  const navItems = NAV.filter(n=>n.key!=="team" && canAccessPage(user.role,n.key));
+  const navItems = user ? NAV.filter(n=>n.key!=="team" && canAccessPage(user.role,n.key)) : [];
 
   // Mobile hamburger nav menu — mirrors the notification bell's dropdown pattern above
   const navMenuRef = useRef();
