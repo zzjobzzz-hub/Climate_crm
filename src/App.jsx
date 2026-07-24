@@ -1481,6 +1481,11 @@ const GearIcon = ({s=16}) => (
     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
   </svg>
 );
+const MenuIcon = ({s=18}) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+  </svg>
+);
 // Shared financial summary — used in DeliveryForm, DeliveryCard collapsed, DeliveryCard expanded
 const InstallmentSummary = ({contractValue, received, variant="form"}) => {
   const balance = (contractValue||0) - (received||0);
@@ -6382,15 +6387,18 @@ const rebuildUserIndexes = (safe) => {
 // for laptop-width squeezes. Nav keeps native horizontal scroll as the last-resort fallback —
 // no custom scrollbar styling, just `overflow-x:auto` with room to actually use it.
 const WB_HEADER_CSS = `
-.wb-header-inner{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:24px;}
+.wb-header-inner{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:24px;padding:0 24px;}
 .wb-header-center{display:flex;align-items:center;gap:16px;min-width:0;}
 .wb-header-nav{display:flex;min-width:0;overflow-x:auto;}
+.wb-header-navtoggle{display:none;}
 @media (max-width:900px){
   .wb-header-search{display:none;}
 }
 @media (max-width:720px){
   .wb-header-inner{gap:12px;padding:0 16px;}
   .wb-header-userinfo{display:none;}
+  .wb-header-nav{display:none;}
+  .wb-header-navtoggle{display:flex;align-items:center;}
 }
 `;
 if (typeof document !== "undefined" && !document.getElementById("wb-header-css")) {
@@ -6452,7 +6460,7 @@ function App() {
     const ys = new Set([YEAR]);
     opps.forEach(o=>{ const be=toBEDate(o.createdDate); if(be) ys.add(+be.slice(0,4)); });
     deliveries.forEach(d=>{ const be=toBEDate(d.contractDate); if(be) ys.add(+be.slice(0,4)); });
-    costSheets.forEach(cs=>(cs.saveLog||[]).forEach(l=>{ if(l.quoteSnapshot&&l.ts) ys.add(+String(l.ts).slice(0,4)); }));
+    costSheets.forEach(cs=>(cs.saveLog||[]).forEach(l=>{ if(l.quoteSnapshot&&l.ts){ const be=toBEDate(l.ts); if(be) ys.add(+be.slice(0,4)); } }));
     return [...ys].sort((a,b)=>a-b);
   },[opps,deliveries,costSheets]);
   // Admin-editable man-hour day rates (Team & Rates page) — defaults mirror the current
@@ -6461,6 +6469,7 @@ function App() {
   const [manHourRatesLog,sManHourRatesLog] = useState([]);
   const [notifications,sNotifs] = useState([]);
   const [bellOpen,sBellOpen] = useState(false);
+  const [navMenuOpen,sNavMenuOpen] = useState(false);
   const [gsStatus,sGSStatus] = useState("idle"); // "idle"|"loading"|"synced"|"error"
   const [userList,sUserList] = useState([]);      // S2: safe user list {id,name,role} loaded from GS
   const {toasts,show:toast}  = useToast();
@@ -6710,6 +6719,37 @@ const stripJsonSuffix = obj => {
     return()=>document.removeEventListener("mousedown",h);
   },[]);
 
+  // "team" is deliberately excluded — admin-only settings live behind the gear icon in the
+  // utility cluster instead of competing for space in the nav row / mobile menu.
+  const navItems = NAV.filter(n=>n.key!=="team" && canAccessPage(user.role,n.key));
+
+  // Mobile hamburger nav menu — mirrors the notification bell's dropdown pattern above
+  const navMenuRef = useRef();
+  const navMenuTriggerRef = useRef();
+  const navMenuListRef = useRef();
+  const navMenuIdRef = useRef(`navmenu-${uid()}`);
+  const goToNavItem = n => { sPage(n.key); sNavMenuOpen(false); };
+  const {hi:navMenuHi, setHi:setNavMenuHi, onKeyDown:navMenuNavKeyDown} = useListboxNav(navMenuOpen?navItems.length:0, {
+    onCommit: i => goToNavItem(navItems[i]),
+    onClose: () => { sNavMenuOpen(false); navMenuTriggerRef.current?.focus(); },
+  });
+  useScrollHiIntoView(navMenuListRef, navMenuHi);
+  const onNavMenuTriggerKeyDown = e => {
+    if(!navMenuOpen){
+      if(e.key==="ArrowDown"||e.key==="Enter"){ e.preventDefault(); sNavMenuOpen(true); setNavMenuHi(Math.max(0,navItems.findIndex(n=>n.key===page))); }
+      return;
+    }
+    navMenuNavKeyDown(e);
+  };
+  useEffect(()=>{
+    const h=e=>{ if(navMenuRef.current&&!navMenuRef.current.contains(e.target)) sNavMenuOpen(false); };
+    document.addEventListener("mousedown",h);
+    return()=>document.removeEventListener("mousedown",h);
+  },[]);
+  // Belt-and-suspenders close on any route change (back/forward, cross-page links, etc.) —
+  // Escape/outside-click above don't cover programmatic navigation.
+  useEffect(()=>{ sNavMenuOpen(false); },[page]);
+
   // Fields to never persist to the customers sheet
   const CUST_STRIP = ["status","createdDate","workLog_json"];
   const stripCust  = c => { const o={...c}; CUST_STRIP.forEach(k=>delete o[k]); return o; };
@@ -6821,7 +6861,7 @@ const stripJsonSuffix = obj => {
         </div>
       )}
       <div style={{background:"#fff",borderBottom:"1px solid #e2e8f0",position:"sticky",top:0,zIndex:100}}>
-        <div className="wb-header-inner" style={{maxWidth:1440,margin:"0 auto",padding:"0 24px"}}>
+        <div className="wb-header-inner" style={{maxWidth:1440,margin:"0 auto"}}>
           <div onClick={()=>sPage("dashboard")} title="Wave BCG · Climate CRM" style={{display:"flex",alignItems:"center",gap:9,paddingRight:18,borderRight:"1px solid #f1f5f9",flexShrink:0,cursor:"pointer"}}>
             <span style={{width:28,height:28,borderRadius:7,background:BRAND.teal,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
               <span style={{fontSize:14,fontWeight:900,color:"#fff",letterSpacing:"-0.04em"}}>W</span>
@@ -6830,10 +6870,37 @@ const stripJsonSuffix = obj => {
           </div>
           <div className="wb-header-center">
             <nav className="wb-header-nav" style={{flex:1}}>
-              {/* "team" is deliberately excluded here — admin-only settings live behind the gear icon
-                  in the utility cluster instead of competing for space in this scrolling tab row. */}
-              {NAV.filter(n=>n.key!=="team" && canAccessPage(user.role,n.key)).map(n=><button key={n.key} onClick={()=>sPage(n.key)} style={{padding:"15px 10px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:page===n.key?700:500,color:page===n.key?BRAND.navy:"#94a3b8",borderBottom:page===n.key?`2.5px solid ${BRAND.teal}`:"2.5px solid transparent",whiteSpace:"nowrap"}}>{n.label}</button>)}
+              {navItems.map(n=><button key={n.key} onClick={()=>sPage(n.key)} style={{padding:"15px 10px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:page===n.key?700:500,color:page===n.key?BRAND.navy:"#94a3b8",borderBottom:page===n.key?`2.5px solid ${BRAND.teal}`:"2.5px solid transparent",whiteSpace:"nowrap"}}>{n.label}</button>)}
             </nav>
+            <div ref={navMenuRef} className="wb-header-navtoggle" style={{position:"relative"}}>
+              <button ref={navMenuTriggerRef}
+                onClick={()=>{ sNavMenuOpen(p=>!p); setNavMenuHi(Math.max(0,navItems.findIndex(n=>n.key===page))); }}
+                onKeyDown={onNavMenuTriggerKeyDown}
+                aria-haspopup="listbox" aria-expanded={navMenuOpen} aria-controls={navMenuIdRef.current}
+                aria-activedescendant={navMenuOpen?`${navMenuIdRef.current}-opt-${navMenuHi}`:undefined}
+                aria-label="Open navigation menu"
+                style={{border:"none",borderRadius:6,background:navMenuOpen?"#eff6ff":"none",padding:"6px 8px",cursor:"pointer",display:"flex",alignItems:"center",color:"#0f172a"}}>
+                <MenuIcon s={18}/>
+              </button>
+              {navMenuOpen&&(
+                <div style={{position:"absolute",left:0,top:"calc(100% + 6px)",zIndex:900,background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,boxShadow:"0 16px 48px rgba(0,0,0,.18)",minWidth:200,overflow:"hidden"}}>
+                  <div ref={navMenuListRef} id={navMenuIdRef.current} role="listbox" aria-label="Navigate to page" style={{padding:"6px 0"}}>
+                    {navItems.map((n,i)=>(
+                      <div key={n.key} id={`${navMenuIdRef.current}-opt-${i}`} role="option" aria-selected={n.key===page}
+                        data-hi={i===navMenuHi?"true":undefined}
+                        onClick={()=>goToNavItem(n)} onMouseEnter={()=>setNavMenuHi(i)}
+                        style={{padding:"10px 16px",cursor:"pointer",fontSize:13,
+                          fontWeight:n.key===page?700:500,
+                          color:n.key===page?BRAND.navy:"#374151",
+                          background:n.key===page?"#eff6ff":(i===navMenuHi?"#f8fafc":"#fff"),
+                          borderLeft:n.key===page?`3px solid ${BRAND.teal}`:"3px solid transparent"}}>
+                        {n.label}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
             {canAccessPage(user.role,"customers") && <div className="wb-header-search"><GlobalSearch customers={customers} opps={opps} page={page}
               onGoToCust={id=>{sCustId(id);sPage("customers");}}
               onGoToOpp={code=>{sOppCode(code);sPage("opps");}}/></div>}
