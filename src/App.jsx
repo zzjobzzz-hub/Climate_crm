@@ -1616,29 +1616,9 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     if(saved !== undefined && saved !== null && saved !== "") sAnn(+saved);
   },[kpiYear,kpiSplits]);
   // "Last Year POs Paid this year" — editable, persisted per year alongside the KPI row.
-  // localStorage key so the value survives page refresh even when the GS kpi sheet
-  // doesn't have a lastYearPO column yet (same pattern as crm_selected_year).
-  const lypoKey = y => `crm_lypo_${y}`;
-  const LAST_YEAR_PO_DEFAULT = 0;
-  const [lastYearPO,sLYPO] = useState(()=>{
-    const currentYear = new Date().getFullYear()+543;
-    // Try localStorage first — GS hasn't loaded yet at this point
-    const ls = localStorage.getItem(lypoKey(currentYear));
-    if(ls !== null && ls !== "") return +ls;
-    return LAST_YEAR_PO_DEFAULT;
-  });
-  useEffect(()=>{
-    const v = kpiSplits[kpiYear+"_lastYearPO"];
-    if(v !== undefined && v !== null && v !== "") {
-      // GS has the value — use it and sync to localStorage
-      sLYPO(+v);
-      try { localStorage.setItem(lypoKey(kpiYear), String(+v)); } catch(_) {}
-    } else {
-      // GS doesn't have the value — restore from localStorage
-      const ls = localStorage.getItem(lypoKey(kpiYear));
-      if(ls !== null && ls !== "") sLYPO(+ls);
-    }
-  },[kpiYear,kpiSplits]);
+  const LAST_YEAR_PO_DEFAULT = 205000; // preserves current ฿2.05M until edited
+  const [lastYearPO,sLYPO] = useState(()=>{const v=kpiSplits[(new Date().getFullYear()+543)+"_lastYearPO"];return (v===undefined||v===null||v==="")?LAST_YEAR_PO_DEFAULT:+v;});
+  useEffect(()=>{const v=kpiSplits[kpiYear+"_lastYearPO"];if(v!==undefined&&v!==null&&v!=="")sLYPO(+v);},[kpiYear,kpiSplits]);
   const [editingPO,setEditingPO]=useState(false);
   const [poInput,setPoInput]=useState("");
   // Req 14: multi-select dashboard filters
@@ -1835,13 +1815,11 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     toast("KPI & Forecast saved",`${kpiYear-543} splits saved by ${user.name}`);
   };
   // Inline-save the editable "Last Year POs Paid" figure (writes the full kpi row so the
-  // GS upsert doesn't blank annual/splits). Also mirrors to localStorage so the value
-  // survives page refresh regardless of whether the GS column exists yet.
+  // GS upsert doesn't blank annual/splits).
   const saveLastYearPO=v=>{
     const n=Math.max(0,Math.round(v||0));
     sLYPO(n);
     setKpiSplits(p=>({...p,[kpiYear+"_lastYearPO"]:n}));
-    try { localStorage.setItem(lypoKey(kpiYear), String(n)); } catch(_) {}
     gsSave("kpi",{year:kpiYear,annual,splits,lastYearPO:n,saveLog:[{id:uid(),ts:nowTS(),author:user.id,note:`Last Year POs Paid set to ฿${fmt(n)} for ${kpiYear-543}`}]});
     toast("Saved",`Last Year POs Paid = ฿${fmt(n)}`);
   };
