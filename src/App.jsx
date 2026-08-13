@@ -1616,7 +1616,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     if(saved !== undefined && saved !== null && saved !== "") sAnn(+saved);
   },[kpiYear,kpiSplits]);
   // "Last Year POs Paid this year" — editable, persisted per year alongside the KPI row.
-  const LAST_YEAR_PO_DEFAULT = 205000; // preserves current ฿2.05M until edited
+  const LAST_YEAR_PO_DEFAULT = 0;
   const [lastYearPO,sLYPO] = useState(()=>{const v=kpiSplits[(new Date().getFullYear()+543)+"_lastYearPO"];return (v===undefined||v===null||v==="")?LAST_YEAR_PO_DEFAULT:+v;});
   useEffect(()=>{const v=kpiSplits[kpiYear+"_lastYearPO"];if(v!==undefined&&v!==null&&v!=="")sLYPO(+v);},[kpiYear,kpiSplits]);
   const [editingPO,setEditingPO]=useState(false);
