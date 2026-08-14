@@ -58,22 +58,32 @@ const LOST_REASONS = ["Price Too High","Budget Frozen","Selected Competitor","Sc
                       "Project Postponed","No Response","Internal Policy","Inactive","Other"];
 // In-House levels — ordered Manager > Section Manager > Senior > Junior.
 // This order drives table column order and the "highest level wins" role-priority checks below.
-// Section Manager rate is a placeholder (0) — fill in the real standard cost later.
+// Rates updated — old standard (used automatically as the fallback for any already-saved
+// Cost Sheet / Timesheet record that predates rate-history tracking, so historical records
+// don't silently get recalculated at the new rate): Manager 1441, Senior 948, Junior 600,
+// Section Manager was a placeholder (0).
+const LEGACY_IH_RATES = {"Manager":1441, "Section Manager":0, "Senior":948, "Junior":600};
 const IH_LEVEL_DEFS = [
-  {name:"Manager",         field:"manager",        abbr:"Mgr",     rate:1441, c:"#1e40af", bg:"#dbeafe"},
-  {name:"Section Manager", field:"sectionManager",  abbr:"Sec Mgr", rate:0,    c:"#4f46e5", bg:"#e0e7ff"},
-  {name:"Senior",          field:"senior",          abbr:"Sr",      rate:948,  c:"#7c3aed", bg:"#ede9fe"},
-  {name:"Junior",          field:"junior",          abbr:"Jr",      rate:600,  c:"#16a34a", bg:"#dcfce7"},
+  {name:"Manager",         field:"manager",        abbr:"Mgr",     rate:1511.66, c:"#1e40af", bg:"#dbeafe"},
+  {name:"Section Manager", field:"sectionManager",  abbr:"Sec Mgr", rate:1141.70, c:"#4f46e5", bg:"#e0e7ff"},
+  {name:"Senior",          field:"senior",          abbr:"Sr",      rate:779.86,  c:"#7c3aed", bg:"#ede9fe"},
+  {name:"Junior",          field:"junior",          abbr:"Jr",      rate:508.49,  c:"#16a34a", bg:"#dcfce7"},
 ];
-const IH_LEVELS       = Object.fromEntries(IH_LEVEL_DEFS.map(l=>[l.name,l.rate]));  // {Manager:1441, "Section Manager":0, Senior:948, Junior:600}
+const IH_LEVELS       = Object.fromEntries(IH_LEVEL_DEFS.map(l=>[l.name,l.rate]));  // current live standard rates
 const IH_LEVEL_NAMES  = IH_LEVEL_DEFS.map(l=>l.name);
 const IH_LEVEL_FIELDS = IH_LEVEL_DEFS.map(l=>l.field);                              // ["manager","sectionManager","senior","junior"]
 const ROLE_META       = Object.fromEntries(IH_LEVEL_DEFS.map(l=>[l.name,l]));       // name -> {abbr,c,bg,rate,field}
-// Sum an object's per-level hour fields against IH_LEVEL_DEFS rates (a task, or a summed-agents totals object).
-const ihLevelCost = obj => IH_LEVEL_DEFS.reduce((s,l)=>s+(obj[l.field]||0)*l.rate, 0);
+// Sum an object's per-level hour fields against a given rate set (defaults to the live standard).
+// Pass a saved record's own rateSnapshot/legacy rates here to price historical data at the
+// rate that was standard when it was saved, instead of today's live rate.
+const ihLevelCost = (obj, rates) => {
+  const rs = rates || IH_LEVELS;
+  return IH_LEVEL_DEFS.reduce((s,l)=>s+(obj[l.field]||0)*(rs[l.name]??0), 0);
+};
 // Highest-priority level (in IH_LEVEL_DEFS order) with hours > 0; defaults to the lowest level.
 const roleOfAgent = agent => (IH_LEVEL_DEFS.find(l=>(agent[l.field]||0)>0) || IH_LEVEL_DEFS[IH_LEVEL_DEFS.length-1]).name;
-const rateForRole = role => IH_LEVELS[role] ?? 948; // unknown/blank role still falls back to Senior's rate, as before
+// rateForRole(role, rates?) — rates defaults to live standard; pass a frozen rate set to price historically.
+const rateForRole = (role, rates) => (rates||IH_LEVELS)[role] ?? (rates||IH_LEVELS).Senior ?? 948;
 // OPEX task table column count: #, Task/Activity, one column per level, Total Cost, Pay Month, Agent/Cancel
 const TASK_TABLE_COLS = 5 + IH_LEVEL_DEFS.length;
 // Sales agent mobile numbers
@@ -288,7 +298,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // S4: All requests include GS_AUTH_TOKEN verified server-side
 // 
-const GS_URL = "https://script.google.com/macros/s/AKfycbwTlNjJrBCnHcJD_-yQLiFFkyEvViUgNSBStA_R4gTmWpmwggYHspuK8jiHJ9db8FgZaA/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbytfs0jvOCMoZEvP4fUDoL94EWQw-7Ez0ih0xKM6Kqnp5htY6WYzpTfWNw9H6rxq_cacQ/exec";
 
 // S1: Server-side login — credentials validated in GAS, never in browser
 const gsLogin = async (email, password) => {
@@ -1616,7 +1626,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     if(saved !== undefined && saved !== null && saved !== "") sAnn(+saved);
   },[kpiYear,kpiSplits]);
   // "Last Year POs Paid this year" — editable, persisted per year alongside the KPI row.
-  const LAST_YEAR_PO_DEFAULT = 0;
+  const LAST_YEAR_PO_DEFAULT = 0; // preserves current ฿2.05M until edited
   const [lastYearPO,sLYPO] = useState(()=>{const v=kpiSplits[(new Date().getFullYear()+543)+"_lastYearPO"];return (v===undefined||v===null||v==="")?LAST_YEAR_PO_DEFAULT:+v;});
   useEffect(()=>{const v=kpiSplits[kpiYear+"_lastYearPO"];if(v!==undefined&&v!==null&&v!=="")sLYPO(+v);},[kpiYear,kpiSplits]);
   const [editingPO,setEditingPO]=useState(false);
@@ -5188,6 +5198,9 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           installments_json: q.installments||[],
           lineItems_json:    q.lineItems||[],
           deliverables_json: q.deliverables||[],
+          // Freeze the man-hour standard rates in effect right now onto this quote, so
+          // future Team & Rates changes don't retroactively alter this quote's cost/margin.
+          rateSnapshot_json: {...IH_LEVELS},
           savedTs:     nowTS(),
           savedBy:     user.id,
         });
@@ -5478,6 +5491,7 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
     const now = nowTS();
     tasks.forEach(task => {
       getAgents(task).forEach(agent => {
+        const agentRate = rateForRole(roleOfAgent(agent)); // freeze current standard rate onto this row
         weekCols.forEach(col => {
           const planH   = getAgentWeekPlan(task, agent, col);
           const actualH = getWeekActual(task.id, agent.uid, col.year, col.month, col.week);
@@ -5489,6 +5503,7 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
             agentUid:    agent.uid,    year: col.year,
             month:       col.month,    week: col.week,
             planHours:   planH,        actualHours: actualH,
+            rate:        agentRate,
             savedTs:     now,          savedBy: user.id,
           });
         });
@@ -5822,9 +5837,13 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
             const role = roleOfAgent(agent);
             agentMap[agent.uid] = {uid:agent.uid, name:u?.name||agent.uid, role, months:{}};
           }
-          const actual   = tsRows.filter(r=>r.taskId===task.id && r.agentUid===agent.uid && +r.week>0)
-                                  .reduce((s,r)=>s + +(r.actualHours||0), 0);
-          agentMap[agent.uid].months[mKey] = (agentMap[agent.uid].months[mKey]||0) + actual;
+          const rows = tsRows.filter(r=>r.taskId===task.id && r.agentUid===agent.uid && +r.week>0);
+          const actual = rows.reduce((s,r)=>s + +(r.actualHours||0), 0);
+          // Price each row at its own frozen rate (falls back to the pre-history legacy
+          // rate for rows saved before rate freezing was added), not today's live rate.
+          const amount = rows.reduce((s,r)=>s + +(r.actualHours||0)*(r.rate ?? rateForRole(role, LEGACY_IH_RATES)), 0);
+          const m = agentMap[agent.uid].months[mKey] || {hours:0, amount:0};
+          agentMap[agent.uid].months[mKey] = {hours:m.hours+actual, amount:m.amount+amount};
         });
       });
       const months = [...new Set(opexMonths.map(m=>`${m.year}-${pad2(m.month)}`))].sort();
@@ -5842,7 +5861,10 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
     monthlySummaryByProject.forEach(proj=>{
       proj.agents.forEach(a=>{
         if(!map[a.uid]) map[a.uid]={uid:a.uid,name:a.name,role:a.role,months:{}};
-        Object.entries(a.months).forEach(([m,h])=>{ map[a.uid].months[m]=(map[a.uid].months[m]||0)+h; });
+        Object.entries(a.months).forEach(([m,v])=>{
+          const cur = map[a.uid].months[m] || {hours:0, amount:0};
+          map[a.uid].months[m] = {hours:cur.hours+v.hours, amount:cur.amount+v.amount};
+        });
       });
     });
     return Object.values(map);
@@ -5858,10 +5880,15 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
         if(!k) return;
         if(!map[k]){
           const u = (userList||[]).find(x=>x.id===k)||USERS.find(x=>x.id===k)||{name:k,id:k,role:""};
-          map[k]={uid:k,name:u.name,role:"",planHours:0,actualHours:0};
+          map[k]={uid:k,name:u.name,role:"",planHours:0,actualHours:0,planAmount:0,actualAmount:0};
         }
-        map[k].planHours  += r.planHours||0;
-        map[k].actualHours+= r.actualHours||0;
+        // Each row prices at its own frozen rate (or the legacy pre-history rate as fallback),
+        // so past months aren't retroactively recalculated when the standard rate changes.
+        const rowRate = r.rate ?? rateForRole(map[k].role, LEGACY_IH_RATES);
+        map[k].planHours   += r.planHours||0;
+        map[k].actualHours += r.actualHours||0;
+        map[k].planAmount  += (r.planHours||0)*rowRate;
+        map[k].actualAmount+= (r.actualHours||0)*rowRate;
       });
     });
     return Object.values(map);
@@ -5965,8 +5992,8 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                     </thead>
                     <tbody>
                       {agents.map(a=>{
-                        const rate     = rateForRole(a.role);
-                        const totalHrs = Object.values(a.months).reduce((s,h)=>s+h,0);
+                        const totalHrs = Object.values(a.months).reduce((s,v)=>s+v.hours,0);
+                        const totalAmt = Object.values(a.months).reduce((s,v)=>s+v.amount,0);
                         return (
                           <tr key={a.uid} style={{borderBottom:"1px solid #f1f5f9"}}>
                             <td style={{padding:"8px 12px",fontWeight:600,color:"#0f172a",whiteSpace:"nowrap"}}>{a.name}</td>
@@ -5974,15 +6001,15 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                               <span style={{fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:3,background:roleBg(a.role),color:roleC(a.role)}}>{a.role}</span>
                             </td>
                             {months.map(m=>{
-                              const h=a.months[m]||0;
+                              const v=a.months[m]||{hours:0,amount:0};
                               return (
                                 <td key={m} style={{padding:"8px 12px",textAlign:"right",borderLeft:"1px solid #f1f5f9",verticalAlign:"top"}}>
-                                  {h>0?<><span style={{fontWeight:600,color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#94a3b8"}}>฿{fmt(h*rate)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>}
+                                  {v.hours>0?<><span style={{fontWeight:600,color:"#0f172a"}}>{v.hours}h</span><br/><span style={{fontSize:10,color:"#94a3b8"}}>฿{fmt(v.amount)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>}
                                 </td>
                               );
                             })}
                             <td style={{padding:"8px 12px",textAlign:"right",borderLeft:"2px solid #cbd5e1",verticalAlign:"top"}}>
-                              {totalHrs>0?<><span style={{fontWeight:700,color:"#0f172a"}}>{totalHrs}h</span><br/><span style={{fontSize:10,color:"#94a3b8"}}>฿{fmt(totalHrs*rate)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>}
+                              {totalHrs>0?<><span style={{fontWeight:700,color:"#0f172a"}}>{totalHrs}h</span><br/><span style={{fontSize:10,color:"#94a3b8"}}>฿{fmt(totalAmt)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>}
                             </td>
                           </tr>
                         );
@@ -5992,8 +6019,8 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                       <tr style={{background:"#f8fafc",borderTop:"2px solid #e2e8f0"}}>
                         <td colSpan={2} style={{padding:"7px 12px",fontWeight:800,fontSize:12,color:"#0f172a"}}>Total</td>
                         {months.map(m=>{
-                          const h=agents.reduce((s,a)=>s+(a.months[m]||0),0);
-                          const b=agents.reduce((s,a)=>s+(a.months[m]||0)*rateForRole(a.role),0);
+                          const h=agents.reduce((s,a)=>s+(a.months[m]?.hours||0),0);
+                          const b=agents.reduce((s,a)=>s+(a.months[m]?.amount||0),0);
                           return (
                             <td key={m} style={{padding:"7px 12px",textAlign:"right",borderLeft:"1px solid #e2e8f0",fontWeight:700,verticalAlign:"top"}}>
                               {h>0?<><span style={{color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#64748b"}}>฿{fmt(b)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>}
@@ -6001,7 +6028,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                           );
                         })}
                         <td style={{padding:"7px 12px",textAlign:"right",borderLeft:"2px solid #cbd5e1",fontWeight:800,verticalAlign:"top"}}>
-                          {(()=>{const h=agents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v,0),0);const b=agents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v,0)*rateForRole(a.role),0);return h>0?<><span style={{color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#64748b"}}>฿{fmt(b)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>;})()}
+                          {(()=>{const h=agents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v.hours,0),0);const b=agents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v.amount,0),0);return h>0?<><span style={{color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#64748b"}}>฿{fmt(b)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>;})()}
                         </td>
                       </tr>
                     </tfoot>
@@ -6033,8 +6060,8 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                   </thead>
                   <tbody>
                     {grandTotalAgents.map(a=>{
-                      const rate=rateForRole(a.role);
-                      const totalHrs=Object.values(a.months).reduce((s,h)=>s+h,0);
+                      const totalHrs=Object.values(a.months).reduce((s,v)=>s+v.hours,0);
+                      const totalAmt=Object.values(a.months).reduce((s,v)=>s+v.amount,0);
                       const roleC=ROLE_META[a.role]?.c || "#16a34a";
                       const roleBg=ROLE_META[a.role]?.bg || "#dcfce7";
                       return (
@@ -6044,16 +6071,16 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                             <span style={{fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:3,background:roleBg,color:roleC}}>{a.role}</span>
                           </td>
                           {allSummaryMonths.map(m=>{
-                            const h=a.months[m]||0;
+                            const v=a.months[m]||{hours:0,amount:0};
                             return (
                               <td key={m} style={{padding:"8px 12px",textAlign:"right",borderLeft:"1px solid #f1f5f9",verticalAlign:"top"}}>
-                                {h>0?<><span style={{fontWeight:600,color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#94a3b8"}}>฿{fmt(h*rate)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>}
+                                {v.hours>0?<><span style={{fontWeight:600,color:"#0f172a"}}>{v.hours}h</span><br/><span style={{fontSize:10,color:"#94a3b8"}}>฿{fmt(v.amount)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>}
                               </td>
                             );
                           })}
                           <td style={{padding:"8px 12px",textAlign:"right",borderLeft:"2px solid #cbd5e1",verticalAlign:"top"}}>
                             <span style={{fontWeight:700,color:"#0f172a"}}>{totalHrs}h</span><br/>
-                            <span style={{fontSize:10,color:"#94a3b8"}}>฿{fmt(totalHrs*rate)}</span>
+                            <span style={{fontSize:10,color:"#94a3b8"}}>฿{fmt(totalAmt)}</span>
                           </td>
                         </tr>
                       );
@@ -6063,8 +6090,8 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                     <tr style={{background:"#f8fafc",borderTop:"2px solid #e2e8f0"}}>
                       <td colSpan={2} style={{padding:"7px 12px",fontWeight:800,fontSize:12,color:"#0f172a"}}>Grand Total</td>
                       {allSummaryMonths.map(m=>{
-                        const h=grandTotalAgents.reduce((s,a)=>s+(a.months[m]||0),0);
-                        const b=grandTotalAgents.reduce((s,a)=>s+(a.months[m]||0)*rateForRole(a.role),0);
+                        const h=grandTotalAgents.reduce((s,a)=>s+(a.months[m]?.hours||0),0);
+                        const b=grandTotalAgents.reduce((s,a)=>s+(a.months[m]?.amount||0),0);
                         return (
                           <td key={m} style={{padding:"7px 12px",textAlign:"right",borderLeft:"1px solid #e2e8f0",fontWeight:700,verticalAlign:"top"}}>
                             {h>0?<><span style={{color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#64748b"}}>฿{fmt(b)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>}
@@ -6072,7 +6099,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                         );
                       })}
                       <td style={{padding:"7px 12px",textAlign:"right",borderLeft:"2px solid #cbd5e1",fontWeight:800,verticalAlign:"top"}}>
-                        {(()=>{const h=grandTotalAgents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v,0),0);const b=grandTotalAgents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v,0)*rateForRole(a.role),0);return<><span style={{color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#64748b"}}>฿{fmt(b)}</span></>;})()}
+                        {(()=>{const h=grandTotalAgents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v.hours,0),0);const b=grandTotalAgents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v.amount,0),0);return<><span style={{color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#64748b"}}>฿{fmt(b)}</span></>;})()}
                       </td>
                     </tr>
                   </tfoot>
@@ -6097,8 +6124,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
             </thead>
             <tbody>
               {allAgentSummary.map(r=>{
-                const rate=rateForRole(r.role);
-                const pB=r.planHours*rate,aB=r.actualHours*rate;
+                const pB=r.planAmount, aB=r.actualAmount;
                 const vH=r.actualHours-r.planHours;
                 const vc=vH<0?"#16a34a":vH>0?"#dc2626":"#64748b";
                 return (
