@@ -4490,7 +4490,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
 
 //  TaskRow: isolated component so taskName input retains focus on keystroke
 //  agents is an array of {uid, ...one hour field per IH_LEVEL_DEFS entry} objects
-const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
+const TaskRow = React.memo(({t, rowNum, onSet, onDel, months, rates}) => {
   const [name, setName] = useState(t.taskName);
   const [agentOpen, setAO] = useState(false);
   useEffect(() => { setName(t.taskName); }, [t.taskName]);
@@ -4502,7 +4502,8 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
 
   // Totals per level, summed across all agent rows (or from task-level if no agents)
   const fieldTotals = Object.fromEntries(IH_LEVEL_FIELDS.map(f=>[f, agents.length>0?agents.reduce((s,a)=>s+(a[f]||0),0):(t[f]||0)]));
-  const tc = ihLevelCost(fieldTotals);
+  // Use frozen/live rates passed from parent (QuoteCard → TaskTableWidget → TaskRow)
+  const tc = ihLevelCost(fieldTotals, rates);
 
   const eligibleUsers = USERS.filter(u => ["sales","operation","manager"].includes(u.role));
   const assignedUids  = agents.map(a => a.uid);
@@ -4565,7 +4566,7 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
         <>
           {agents.map(a => {
             const u = USERS.find(x=>x.id===a.uid);
-            const agentCost = ihLevelCost(a);
+            const agentCost = ihLevelCost(a, rates);
             return (
               <tr key={a.uid} style={{background:"#f0fdf4",borderBottom:"1px solid #dcfce7"}}>
                 <td colSpan={2} style={{padding:"4px 8px 4px 28px"}}>
@@ -4621,8 +4622,8 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
 //  TaskTableWidget: standalone table, uses TaskRow to prevent focus loss
 //  Header sizing/weight matches the sibling COGS/Installments tables in the same card (App.jsx ~4665-4721) —
 //  this table used to run its own smaller, untracked 9.5px header and was the visible outlier of the three.
-const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
-  const totalOPEX = calcTask(tasks);
+const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months, rates}) => {
+  const totalOPEX = calcTask(tasks, rates);
   const thStyle = {padding:"6px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:11,whiteSpace:"nowrap",borderBottom:"1px solid #e2e8f0"};
   return (
     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
@@ -4649,7 +4650,7 @@ const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
         {(tasks||[]).length===0&&(
           <tr><td colSpan={TASK_TABLE_COLS} style={{padding:"9px 6px",fontSize:11.5,color:"#94a3b8",fontStyle:"italic"}}>No tasks yet — add man-hour tasks and assign agents.</td></tr>
         )}
-        {(tasks||[]).map((t,idx)=><TaskRow key={t.id} t={t} rowNum={idx+1} onSet={onSet} onDel={onDel} months={months}/>)}
+        {(tasks||[]).map((t,idx)=><TaskRow key={t.id} t={t} rowNum={idx+1} onSet={onSet} onDel={onDel} months={months} rates={rates}/>)}
         <tr style={{borderTop:"1px solid #e2e8f0"}}>
           <td colSpan={2+IH_LEVEL_DEFS.length} style={{padding:"6px 5px"}}>
             <button onClick={onAdd} className="wb-addrow">+ Task</button>
@@ -4863,7 +4864,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                   </div>
                   <div>
                     <Span s={12} w={700} style={{display:"block",marginBottom:6}}>OPEX — Man-hour Tasks</Span>
-                    <TaskTableWidget tasks={q.tasks||[]} onSet={(tid,k,v)=>setQTK(q.id,tid,k,v)} onAdd={()=>addQTK(q.id)} onDel={tid=>delQTK(q.id,tid)} months={months}/>
+                    <TaskTableWidget tasks={q.tasks||[]} onSet={(tid,k,v)=>setQTK(q.id,tid,k,v)} onAdd={()=>addQTK(q.id)} onDel={tid=>delQTK(q.id,tid)} months={months} rates={effectiveRates}/>
 
                   </div>
                 </div>
@@ -4915,7 +4916,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                     const cfM=q.projectMonths||editCS.projectMonths||3;
                     const allM=Array.from({length:cfM+1},(_,i)=>i+1);
                     const cByM={};
-                    (q.tasks||[]).forEach(t=>{const m=t.payMonth||1;const ag=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];const totals=Object.fromEntries(IH_LEVEL_FIELDS.map(f=>[f, ag.length>0?ag.reduce((s,a)=>s+(a[f]||0),0):(t[f]||0)]));const tc=ihLevelCost(totals);cByM[m]=(cByM[m]||0)+tc;});
+                    (q.tasks||[]).forEach(t=>{const m=t.payMonth||1;const ag=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];const totals=Object.fromEntries(IH_LEVEL_FIELDS.map(f=>[f, ag.length>0?ag.reduce((s,a)=>s+(a[f]||0),0):(t[f]||0)]));const tc=ihLevelCost(totals,effectiveRates);cByM[m]=(cByM[m]||0)+tc;});
                     (q.costs||[]).forEach(r=>{const m=r.payMonth||1;const amt=(r.qty||0)*(r.rate||0);cByM[m]=(cByM[m]||0)+amt;});
                     const rByM={};
                     (q.installments||[]).forEach(ins=>{const m=ins.recvMonth||1;rByM[m]=(rByM[m]||0)+Math.round(qNetPrice*(ins.pct||0)/100);});
@@ -5199,7 +5200,10 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
     (editCS.quoteOverrides||[]).forEach(q=>{
       // Commit any QO that has custId + oppCode (new OR re-opened re-edit)
       if(q.custId&&q.oppCode){
-        const qIC=calcIC(q.costs||[]),qOPEX=calcTask(q.tasks||[]);
+        // Resolve the same rate set QuoteCard used for display — ensures cost/margin on the
+        // saved Opportunity exactly matches what the user saw on screen.
+        const saveRates = q._isNew ? {...IH_LEVELS} : (q.rateSnapshot || LEGACY_IH_RATES);
+        const qIC=calcIC(q.costs||[]),qOPEX=calcTask(q.tasks||[], saveRates);
         const qCost=qIC+qOPEX;
         const csCode=q.csCode||genCSCode(q.quoteNo||"");
         // Net (post-discount) price drives the Opportunity sales price + margin; gross stays in the quote.
