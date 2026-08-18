@@ -58,10 +58,11 @@ const LOST_REASONS = ["Price Too High","Budget Frozen","Selected Competitor","Sc
                       "Project Postponed","No Response","Internal Policy","Inactive","Other"];
 // In-House levels — ordered Manager > Section Manager > Senior > Junior.
 // This order drives table column order and the "highest level wins" role-priority checks below.
-// Rates updated — old standard (used automatically as the fallback for any already-saved
-// Cost Sheet / Timesheet record that predates rate-history tracking, so historical records
-// don't silently get recalculated at the new rate): Manager 1441, Senior 948, Junior 600,
-// Section Manager was a placeholder (0).
+// Section Manager rate is a placeholder (0) — fill in the real standard cost later.
+// Rates updated — new standard effective now.
+// LEGACY_IH_RATES: the old standard used for any saved CS quote that has no rateSnapshot
+// (i.e. saved before rate-history tracking was added), so those quotes never silently
+// reprice when the standard changes.
 const LEGACY_IH_RATES = {"Manager":1441, "Section Manager":0, "Senior":948, "Junior":600};
 const IH_LEVEL_DEFS = [
   {name:"Manager",         field:"manager",        abbr:"Mgr",     rate:1511.66, c:"#1e40af", bg:"#dbeafe"},
@@ -69,20 +70,19 @@ const IH_LEVEL_DEFS = [
   {name:"Senior",          field:"senior",          abbr:"Sr",      rate:779.86,  c:"#7c3aed", bg:"#ede9fe"},
   {name:"Junior",          field:"junior",          abbr:"Jr",      rate:508.49,  c:"#16a34a", bg:"#dcfce7"},
 ];
-const IH_LEVELS       = Object.fromEntries(IH_LEVEL_DEFS.map(l=>[l.name,l.rate]));  // current live standard rates
+const IH_LEVELS       = Object.fromEntries(IH_LEVEL_DEFS.map(l=>[l.name,l.rate]));  // live standard rates
 const IH_LEVEL_NAMES  = IH_LEVEL_DEFS.map(l=>l.name);
 const IH_LEVEL_FIELDS = IH_LEVEL_DEFS.map(l=>l.field);                              // ["manager","sectionManager","senior","junior"]
 const ROLE_META       = Object.fromEntries(IH_LEVEL_DEFS.map(l=>[l.name,l]));       // name -> {abbr,c,bg,rate,field}
-// Sum an object's per-level hour fields against a given rate set (defaults to the live standard).
-// Pass a saved record's own rateSnapshot/legacy rates here to price historical data at the
-// rate that was standard when it was saved, instead of today's live rate.
+// ihLevelCost(obj, rates?) — rates defaults to live standard. Pass a frozen rateSnapshot
+// to price historical data at the rate that was standard when it was saved.
 const ihLevelCost = (obj, rates) => {
   const rs = rates || IH_LEVELS;
   return IH_LEVEL_DEFS.reduce((s,l)=>s+(obj[l.field]||0)*(rs[l.name]??0), 0);
 };
 // Highest-priority level (in IH_LEVEL_DEFS order) with hours > 0; defaults to the lowest level.
 const roleOfAgent = agent => (IH_LEVEL_DEFS.find(l=>(agent[l.field]||0)>0) || IH_LEVEL_DEFS[IH_LEVEL_DEFS.length-1]).name;
-// rateForRole(role, rates?) — rates defaults to live standard; pass a frozen rate set to price historically.
+// rateForRole(role, rates?) — rates defaults to live standard.
 const rateForRole = (role, rates) => (rates||IH_LEVELS)[role] ?? (rates||IH_LEVELS).Senior ?? 948;
 // OPEX task table column count: #, Task/Activity, one column per level, Total Cost, Pay Month, Agent/Cancel
 const TASK_TABLE_COLS = 5 + IH_LEVEL_DEFS.length;
@@ -226,7 +226,8 @@ const successRateColor = pct => pct >= 70 ? "#16a34a" : pct >= 40 ? "#d97706" : 
 
 const calcIC   = rows => (rows||[]).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
 const calcEC   = (rows,coOnly) => (rows||[]).filter(r=>coOnly?!r.clientBorne:true).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
-const calcTask = tasks => (tasks||[]).reduce((s,t)=>{const ag=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];const totals=Object.fromEntries(IH_LEVEL_FIELDS.map(f=>[f, ag.length>0?ag.reduce((a,x)=>a+(x[f]||0),0):(t[f]||0)]));return s+ihLevelCost(totals);},0);
+// calcTask(tasks, rates?) — pass a frozen rateSnapshot to price at historical rates.
+const calcTask = (tasks, rates) => (tasks||[]).reduce((s,t)=>{const ag=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];const totals=Object.fromEntries(IH_LEVEL_FIELDS.map(f=>[f, ag.length>0?ag.reduce((a,x)=>a+(x[f]||0),0):(t[f]||0)]));return s+ihLevelCost(totals,rates);},0);
 const calcTotalCS = cs => calcIC(cs.costs||[]) + calcTask(cs.tasks||[]);
 // Legacy helpers kept for per-quotation overrides
 const calcIH  = rows => (rows||[]).reduce((s,r)=>s+(r.days||0)*(r.rate||IH_LEVELS[r.level]||0),0);
@@ -298,7 +299,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // S4: All requests include GS_AUTH_TOKEN verified server-side
 // 
-const GS_URL = "https://script.google.com/macros/s/AKfycbytfs0jvOCMoZEvP4fUDoL94EWQw-7Ez0ih0xKM6Kqnp5htY6WYzpTfWNw9H6rxq_cacQ/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbwkof6VYnT6WTjQPaPW-aczdi9SBNIsXVhKlnj71qwWz84ZU7RuJ6KpeCEiTvI7O7vjVQ/exec";
 
 // S1: Server-side login — credentials validated in GAS, never in browser
 const gsLogin = async (email, password) => {
@@ -1626,7 +1627,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     if(saved !== undefined && saved !== null && saved !== "") sAnn(+saved);
   },[kpiYear,kpiSplits]);
   // "Last Year POs Paid this year" — editable, persisted per year alongside the KPI row.
-  const LAST_YEAR_PO_DEFAULT = 0; // preserves current ฿2.05M until edited
+  const LAST_YEAR_PO_DEFAULT = 205000; // preserves current ฿2.05M until edited
   const [lastYearPO,sLYPO] = useState(()=>{const v=kpiSplits[(new Date().getFullYear()+543)+"_lastYearPO"];return (v===undefined||v===null||v==="")?LAST_YEAR_PO_DEFAULT:+v;});
   useEffect(()=>{const v=kpiSplits[kpiYear+"_lastYearPO"];if(v!==undefined&&v!==null&&v!=="")sLYPO(+v);},[kpiYear,kpiSplits]);
   const [editingPO,setEditingPO]=useState(false);
@@ -4670,12 +4671,28 @@ const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
 // COST SHEET (COGS + OPEX + Cashflow)
 // 
 const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,setQDlv,setQNote,addQIC,addQTK,addQInst,addQDlv,addQNote,delQIC,delQTK,delQInst,delQO,delQDlv,delQNote,updQO,handleSave,highlight,cardRef}) => {
-  const qIC=calcIC(q.costs||[]),qOPEX=calcTask(q.tasks||[]);
+  // ── Rate resolution ──────────────────────────────────────────────────────
+  // Which rate set prices this quote's OPEX (man-hour tasks)?
+  //   _isNew=true  → brand-new, never-saved quote → live current standard (IH_LEVELS)
+  //   rateSnapshot → previously-saved quote with frozen rates → use those frozen rates
+  //   neither      → pre-history quote (saved before rate-freezing was added) → LEGACY fallback
+  const effectiveRates = q._isNew ? IH_LEVELS : (q.rateSnapshot || LEGACY_IH_RATES);
+  const isCurrentRate  = q._isNew || (q.rateSnapshot && JSON.stringify(q.rateSnapshot)===JSON.stringify(IH_LEVELS));
+  const rateBasisLabel = q._isNew
+    ? "Current standard rate"
+    : q.rateSnapshot
+      ? `Frozen rate · saved ${fmtDate(q.createdDate||q._savedTs||"")}`
+      : `Legacy rate · pre-history`;
+  const rateBasisColor = q._isNew ? "#15803d" : "#d97706";
+  const rateBasisBg    = q._isNew ? "#dcfce7"  : "#fef3c7";
+
+  const qIC=calcIC(q.costs||[]),qOPEX=calcTask(q.tasks||[], effectiveRates);
   const qTC=qIC+qOPEX;
   // Discount: gross price stays in q.salesPrice; margin & opp price use the net (post-discount) figure.
   const qDiscPct=q.discountEnabled?(q.discountPct||0):0;
   const qNetPrice=Math.round((q.salesPrice||0)*(1-qDiscPct/100));
   const qMg=margin(qNetPrice,qTC);
+  const qMgAmt=marginAmt(qNetPrice,qTC);
   const months=q.projectMonths||editCS.projectMonths||3;
   const instSum=(q.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
   const [page,setPage]=useState("costs");      // "costs" (COGS/OPEX/Installments/Cashflow) | "content" (Service/Deliverables/Notes)
@@ -4722,6 +4739,18 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                   <div style={{flex:"0 0 108px"}}>
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>Quote No.</Span>
                     <div style={{fontFamily:"monospace",fontWeight:800,fontSize:14,color:"#334155",letterSpacing:"-0.01em",padding:"5px 0"}}>{q.quoteNo||"—"}</div>
+                  </div>
+                  {/* Created date — stamped once at addQO/duplicateQO, never overwritten */}
+                  <div style={{flex:"0 0 108px"}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>Created</Span>
+                    <div style={{fontSize:12,fontWeight:600,color:"#374151",padding:"5px 0"}}>{q.createdDate?fmtDate(q.createdDate):"—"}</div>
+                  </div>
+                  {/* Rate basis badge */}
+                  <div style={{flex:"0 0 auto",alignSelf:"flex-end",paddingBottom:5}}>
+                    <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:10,fontWeight:700,color:rateBasisColor,background:rateBasisBg,padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap",border:`1px solid ${rateBasisColor}44`}}>
+                      <span style={{width:6,height:6,borderRadius:"50%",background:rateBasisColor,flexShrink:0}}/>
+                      {rateBasisLabel}
+                    </span>
                   </div>
                   <div style={{flex:"0 0 100px"}}>
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>Memo No.</Span>
@@ -4777,10 +4806,16 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                     <div style={{flex:"0 0 150px",display:"flex",flexDirection:"column"}}>
                       <div style={{height:16,marginBottom:4,textAlign:"right"}}><Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Price after Discount</Span></div>
                       <div style={{height:30,display:"flex",alignItems:"center",justifyContent:"flex-end"}}><span style={{fontWeight:900,fontSize:20,color:"#0f172a",letterSpacing:"-0.015em"}}>฿{fmt(qNetPrice)}</span></div>                    </div>
-                    {/* Margin — the health metric */}
+                    {/* Margin % */}
                     <div style={{flex:"0 0 96px",display:"flex",flexDirection:"column"}}>
-                      <div style={{height:16,marginBottom:4,textAlign:"right"}}><Span s={9} c={+qMg>=30?"#15803d":"#dc2626"} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Margin</Span></div>
-                      <div style={{height:30,display:"flex",alignItems:"center",justifyContent:"flex-end"}}><span style={{fontWeight:900,fontSize:20,color:+qMg>=30?"#15803d":"#dc2626"}}>{qMg}%</span></div>                    </div>
+                      <div style={{height:16,marginBottom:4,textAlign:"right"}}><Span s={9} c={+qMg>=30?"#15803d":"#dc2626"} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Margin %</Span></div>
+                      <div style={{height:30,display:"flex",alignItems:"center",justifyContent:"flex-end"}}><span style={{fontWeight:900,fontSize:20,color:+qMg>=30?"#15803d":"#dc2626"}}>{qMg}%</span></div>
+                    </div>
+                    {/* Margin ฿ amount */}
+                    <div style={{flex:"0 0 120px",display:"flex",flexDirection:"column"}}>
+                      <div style={{height:16,marginBottom:4,textAlign:"right"}}><Span s={9} c={+qMg>=30?"#15803d":"#dc2626"} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Margin ฿</Span></div>
+                      <div style={{height:30,display:"flex",alignItems:"center",justifyContent:"flex-end"}}><span style={{fontWeight:900,fontSize:16,color:+qMg>=30?"#15803d":"#dc2626",letterSpacing:"-0.01em"}}>฿{fmt(qMgAmt)}</span></div>
+                    </div>
                   </div>
                 </div>
 
@@ -5000,6 +5035,11 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
 
                 {/* Cost + margin + Save/Cancel footer (pinned on both pages) */}
                 <div style={{borderTop:"1px solid #e2e8f0",padding:"12px 20px",background:"#f8fafc",display:"flex",justifyContent:"flex-end",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+                  {/* Rate basis badge — small, so it doesn't dominate the footer */}
+                  <span style={{marginRight:"auto",display:"inline-flex",alignItems:"center",gap:5,fontSize:10,fontWeight:700,color:rateBasisColor,background:rateBasisBg,padding:"3px 9px",borderRadius:20,border:`1px solid ${rateBasisColor}44`,whiteSpace:"nowrap"}}>
+                    <span style={{width:6,height:6,borderRadius:"50%",background:rateBasisColor,flexShrink:0}}/>
+                    {rateBasisLabel}
+                  </span>
                   {[{l:"COGS",v:qIC},{l:"OPEX",v:qOPEX},{l:"Total Cost",v:qTC,bold:true}].map(x=>(
                     <div key={x.l} style={{textAlign:"center"}}>
                       <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>{x.l}</Span>
@@ -5010,9 +5050,12 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                     <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>Price after Discount</Span>
                     <Span s={13} w={900} c="#0f172a">฿{fmt(qNetPrice)}{qDiscPct>0&&<span style={{fontSize:10,fontWeight:700,color:"#dc2626",marginLeft:4}}>−{qDiscPct}%</span>}</Span>
                   </div>
-                  <div style={{padding:"5px 12px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center"}}>
+                  <div style={{padding:"5px 14px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center",minWidth:120}}>
                     <Span s={9} c={+qMg>=30?"#15803d":"#dc2626"} style={{display:"block"}}>Margin</Span>
-                    <Span s={15} w={900} c={+qMg>=30?"#15803d":"#dc2626"}>{qMg}%</Span>
+                    <div style={{display:"flex",alignItems:"baseline",justifyContent:"center",gap:8}}>
+                      <Span s={15} w={900} c={+qMg>=30?"#15803d":"#dc2626"}>{qMg}%</Span>
+                      <Span s={12} w={700} c={+qMg>=30?"#15803d":"#dc2626"}>฿{fmt(qMgAmt)}</Span>
+                    </div>
                   </div>
                   <div style={{width:1,height:32,background:"#e2e8f0",flexShrink:0}}/>
                   <Btn variant="ghost" onClick={()=>delQO(q.id)}>Cancel</Btn>
@@ -5125,6 +5168,8 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
       projectTitle:"",
       projectScope:"",
       projectMonths:editCS.projectMonths||3,
+      createdDate: today(),   // stamped once — never overwritten on subsequent saves
+      _isNew: true,           // signals QuoteCard to price at live current rate (not LEGACY)
       costs:[],
       tasks:[],
       installments:[
@@ -5176,7 +5221,13 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           remark:existingOpp?.remark||"",
         };
         onSaveOpp(opp);
-        // Bug 3 fix: write updated quote data to costsheet_quotes tab so edits persist on refresh
+        // Freeze the effective rate set at save time:
+        // - new quotes (_isNew) get the current live standard
+        // - re-edited old quotes keep whatever rateSnapshot they already had
+        // This is the source of truth for pricing when this quote is reopened later.
+        const frozenRates = q.rateSnapshot || (q._isNew ? {...IH_LEVELS} : {...LEGACY_IH_RATES});
+        // createdDate: preserve original if present; stamp today for brand-new quotes
+        const createdDate = q.createdDate || today();
         gsSave("costsheet_quotes", {
           csCode,
           serviceCode: editCS.serviceCode,
@@ -5198,9 +5249,8 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           installments_json: q.installments||[],
           lineItems_json:    q.lineItems||[],
           deliverables_json: q.deliverables||[],
-          // Freeze the man-hour standard rates in effect right now onto this quote, so
-          // future Team & Rates changes don't retroactively alter this quote's cost/margin.
-          rateSnapshot_json: {...IH_LEVELS},
+          rateSnapshot_json: frozenRates,
+          createdDate,
           savedTs:     nowTS(),
           savedBy:     user.id,
         });
@@ -5208,7 +5258,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
         newSaveEntries.push({
           id:uid(),ts:nowTS(),author:user.id,
           note:`Quotation ${existingOpp?"updated":"saved"} → ${csCode} · ${q.quoteNo} · ${cust?.companyEN||q.custId} · Price ฿${fmt(qNet)}${qDiscPct>0?` (−${qDiscPct}%)`:""} · Cost ฿${fmt(qCost)} · Margin ${qMg}%`,
-          quoteSnapshot:{...q,csCode,_savedTs:nowTS(),_savedBy:user.id},  // stored for re-edit
+          quoteSnapshot:{...q,csCode,rateSnapshot:frozenRates,createdDate,_savedTs:nowTS(),_savedBy:user.id},
         });
       }
     });
@@ -5259,6 +5309,10 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
       id:uid(), csCode, quoteNo, oppCode, memoNo:"",
       custId:"", salesAgent:"", contactPersonId:"",
       notes: toItemList(snapshot.notes),
+      // Brand-new quote: fresh createdDate + live rate (_isNew=true)
+      createdDate: today(),
+      _isNew: true,
+      rateSnapshot: null,   // clear old snapshot so live rate is used
     }]}));
     toast("Duplicated","Fill in Customer, Agent, and Contact Person then save.");
   };
@@ -5491,7 +5545,6 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
     const now = nowTS();
     tasks.forEach(task => {
       getAgents(task).forEach(agent => {
-        const agentRate = rateForRole(roleOfAgent(agent)); // freeze current standard rate onto this row
         weekCols.forEach(col => {
           const planH   = getAgentWeekPlan(task, agent, col);
           const actualH = getWeekActual(task.id, agent.uid, col.year, col.month, col.week);
@@ -5503,7 +5556,6 @@ const TSTaskGrid = ({opp, cust, snapshot, tsRows, onSave, toast, user, canEdit})
             agentUid:    agent.uid,    year: col.year,
             month:       col.month,    week: col.week,
             planHours:   planH,        actualHours: actualH,
-            rate:        agentRate,
             savedTs:     now,          savedBy: user.id,
           });
         });
@@ -5837,13 +5889,9 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
             const role = roleOfAgent(agent);
             agentMap[agent.uid] = {uid:agent.uid, name:u?.name||agent.uid, role, months:{}};
           }
-          const rows = tsRows.filter(r=>r.taskId===task.id && r.agentUid===agent.uid && +r.week>0);
-          const actual = rows.reduce((s,r)=>s + +(r.actualHours||0), 0);
-          // Price each row at its own frozen rate (falls back to the pre-history legacy
-          // rate for rows saved before rate freezing was added), not today's live rate.
-          const amount = rows.reduce((s,r)=>s + +(r.actualHours||0)*(r.rate ?? rateForRole(role, LEGACY_IH_RATES)), 0);
-          const m = agentMap[agent.uid].months[mKey] || {hours:0, amount:0};
-          agentMap[agent.uid].months[mKey] = {hours:m.hours+actual, amount:m.amount+amount};
+          const actual   = tsRows.filter(r=>r.taskId===task.id && r.agentUid===agent.uid && +r.week>0)
+                                  .reduce((s,r)=>s + +(r.actualHours||0), 0);
+          agentMap[agent.uid].months[mKey] = (agentMap[agent.uid].months[mKey]||0) + actual;
         });
       });
       const months = [...new Set(opexMonths.map(m=>`${m.year}-${pad2(m.month)}`))].sort();
@@ -5861,10 +5909,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
     monthlySummaryByProject.forEach(proj=>{
       proj.agents.forEach(a=>{
         if(!map[a.uid]) map[a.uid]={uid:a.uid,name:a.name,role:a.role,months:{}};
-        Object.entries(a.months).forEach(([m,v])=>{
-          const cur = map[a.uid].months[m] || {hours:0, amount:0};
-          map[a.uid].months[m] = {hours:cur.hours+v.hours, amount:cur.amount+v.amount};
-        });
+        Object.entries(a.months).forEach(([m,h])=>{ map[a.uid].months[m]=(map[a.uid].months[m]||0)+h; });
       });
     });
     return Object.values(map);
@@ -5880,15 +5925,10 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
         if(!k) return;
         if(!map[k]){
           const u = (userList||[]).find(x=>x.id===k)||USERS.find(x=>x.id===k)||{name:k,id:k,role:""};
-          map[k]={uid:k,name:u.name,role:"",planHours:0,actualHours:0,planAmount:0,actualAmount:0};
+          map[k]={uid:k,name:u.name,role:"",planHours:0,actualHours:0};
         }
-        // Each row prices at its own frozen rate (or the legacy pre-history rate as fallback),
-        // so past months aren't retroactively recalculated when the standard rate changes.
-        const rowRate = r.rate ?? rateForRole(map[k].role, LEGACY_IH_RATES);
-        map[k].planHours   += r.planHours||0;
-        map[k].actualHours += r.actualHours||0;
-        map[k].planAmount  += (r.planHours||0)*rowRate;
-        map[k].actualAmount+= (r.actualHours||0)*rowRate;
+        map[k].planHours  += r.planHours||0;
+        map[k].actualHours+= r.actualHours||0;
       });
     });
     return Object.values(map);
@@ -5992,8 +6032,8 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                     </thead>
                     <tbody>
                       {agents.map(a=>{
-                        const totalHrs = Object.values(a.months).reduce((s,v)=>s+v.hours,0);
-                        const totalAmt = Object.values(a.months).reduce((s,v)=>s+v.amount,0);
+                        const rate     = rateForRole(a.role);
+                        const totalHrs = Object.values(a.months).reduce((s,h)=>s+h,0);
                         return (
                           <tr key={a.uid} style={{borderBottom:"1px solid #f1f5f9"}}>
                             <td style={{padding:"8px 12px",fontWeight:600,color:"#0f172a",whiteSpace:"nowrap"}}>{a.name}</td>
@@ -6001,15 +6041,15 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                               <span style={{fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:3,background:roleBg(a.role),color:roleC(a.role)}}>{a.role}</span>
                             </td>
                             {months.map(m=>{
-                              const v=a.months[m]||{hours:0,amount:0};
+                              const h=a.months[m]||0;
                               return (
                                 <td key={m} style={{padding:"8px 12px",textAlign:"right",borderLeft:"1px solid #f1f5f9",verticalAlign:"top"}}>
-                                  {v.hours>0?<><span style={{fontWeight:600,color:"#0f172a"}}>{v.hours}h</span><br/><span style={{fontSize:10,color:"#94a3b8"}}>฿{fmt(v.amount)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>}
+                                  {h>0?<><span style={{fontWeight:600,color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#94a3b8"}}>฿{fmt(h*rate)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>}
                                 </td>
                               );
                             })}
                             <td style={{padding:"8px 12px",textAlign:"right",borderLeft:"2px solid #cbd5e1",verticalAlign:"top"}}>
-                              {totalHrs>0?<><span style={{fontWeight:700,color:"#0f172a"}}>{totalHrs}h</span><br/><span style={{fontSize:10,color:"#94a3b8"}}>฿{fmt(totalAmt)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>}
+                              {totalHrs>0?<><span style={{fontWeight:700,color:"#0f172a"}}>{totalHrs}h</span><br/><span style={{fontSize:10,color:"#94a3b8"}}>฿{fmt(totalHrs*rate)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>}
                             </td>
                           </tr>
                         );
@@ -6019,8 +6059,8 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                       <tr style={{background:"#f8fafc",borderTop:"2px solid #e2e8f0"}}>
                         <td colSpan={2} style={{padding:"7px 12px",fontWeight:800,fontSize:12,color:"#0f172a"}}>Total</td>
                         {months.map(m=>{
-                          const h=agents.reduce((s,a)=>s+(a.months[m]?.hours||0),0);
-                          const b=agents.reduce((s,a)=>s+(a.months[m]?.amount||0),0);
+                          const h=agents.reduce((s,a)=>s+(a.months[m]||0),0);
+                          const b=agents.reduce((s,a)=>s+(a.months[m]||0)*rateForRole(a.role),0);
                           return (
                             <td key={m} style={{padding:"7px 12px",textAlign:"right",borderLeft:"1px solid #e2e8f0",fontWeight:700,verticalAlign:"top"}}>
                               {h>0?<><span style={{color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#64748b"}}>฿{fmt(b)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>}
@@ -6028,7 +6068,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                           );
                         })}
                         <td style={{padding:"7px 12px",textAlign:"right",borderLeft:"2px solid #cbd5e1",fontWeight:800,verticalAlign:"top"}}>
-                          {(()=>{const h=agents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v.hours,0),0);const b=agents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v.amount,0),0);return h>0?<><span style={{color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#64748b"}}>฿{fmt(b)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>;})()}
+                          {(()=>{const h=agents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v,0),0);const b=agents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v,0)*rateForRole(a.role),0);return h>0?<><span style={{color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#64748b"}}>฿{fmt(b)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>;})()}
                         </td>
                       </tr>
                     </tfoot>
@@ -6060,8 +6100,8 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                   </thead>
                   <tbody>
                     {grandTotalAgents.map(a=>{
-                      const totalHrs=Object.values(a.months).reduce((s,v)=>s+v.hours,0);
-                      const totalAmt=Object.values(a.months).reduce((s,v)=>s+v.amount,0);
+                      const rate=rateForRole(a.role);
+                      const totalHrs=Object.values(a.months).reduce((s,h)=>s+h,0);
                       const roleC=ROLE_META[a.role]?.c || "#16a34a";
                       const roleBg=ROLE_META[a.role]?.bg || "#dcfce7";
                       return (
@@ -6071,16 +6111,16 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                             <span style={{fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:3,background:roleBg,color:roleC}}>{a.role}</span>
                           </td>
                           {allSummaryMonths.map(m=>{
-                            const v=a.months[m]||{hours:0,amount:0};
+                            const h=a.months[m]||0;
                             return (
                               <td key={m} style={{padding:"8px 12px",textAlign:"right",borderLeft:"1px solid #f1f5f9",verticalAlign:"top"}}>
-                                {v.hours>0?<><span style={{fontWeight:600,color:"#0f172a"}}>{v.hours}h</span><br/><span style={{fontSize:10,color:"#94a3b8"}}>฿{fmt(v.amount)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>}
+                                {h>0?<><span style={{fontWeight:600,color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#94a3b8"}}>฿{fmt(h*rate)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>}
                               </td>
                             );
                           })}
                           <td style={{padding:"8px 12px",textAlign:"right",borderLeft:"2px solid #cbd5e1",verticalAlign:"top"}}>
                             <span style={{fontWeight:700,color:"#0f172a"}}>{totalHrs}h</span><br/>
-                            <span style={{fontSize:10,color:"#94a3b8"}}>฿{fmt(totalAmt)}</span>
+                            <span style={{fontSize:10,color:"#94a3b8"}}>฿{fmt(totalHrs*rate)}</span>
                           </td>
                         </tr>
                       );
@@ -6090,8 +6130,8 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                     <tr style={{background:"#f8fafc",borderTop:"2px solid #e2e8f0"}}>
                       <td colSpan={2} style={{padding:"7px 12px",fontWeight:800,fontSize:12,color:"#0f172a"}}>Grand Total</td>
                       {allSummaryMonths.map(m=>{
-                        const h=grandTotalAgents.reduce((s,a)=>s+(a.months[m]?.hours||0),0);
-                        const b=grandTotalAgents.reduce((s,a)=>s+(a.months[m]?.amount||0),0);
+                        const h=grandTotalAgents.reduce((s,a)=>s+(a.months[m]||0),0);
+                        const b=grandTotalAgents.reduce((s,a)=>s+(a.months[m]||0)*rateForRole(a.role),0);
                         return (
                           <td key={m} style={{padding:"7px 12px",textAlign:"right",borderLeft:"1px solid #e2e8f0",fontWeight:700,verticalAlign:"top"}}>
                             {h>0?<><span style={{color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#64748b"}}>฿{fmt(b)}</span></>:<span style={{color:"#e2e8f0"}}>—</span>}
@@ -6099,7 +6139,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
                         );
                       })}
                       <td style={{padding:"7px 12px",textAlign:"right",borderLeft:"2px solid #cbd5e1",fontWeight:800,verticalAlign:"top"}}>
-                        {(()=>{const h=grandTotalAgents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v.hours,0),0);const b=grandTotalAgents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v.amount,0),0);return<><span style={{color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#64748b"}}>฿{fmt(b)}</span></>;})()}
+                        {(()=>{const h=grandTotalAgents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v,0),0);const b=grandTotalAgents.reduce((s,a)=>s+Object.values(a.months).reduce((x,v)=>x+v,0)*rateForRole(a.role),0);return<><span style={{color:"#0f172a"}}>{h}h</span><br/><span style={{fontSize:10,color:"#64748b"}}>฿{fmt(b)}</span></>;})()}
                       </td>
                     </tr>
                   </tfoot>
@@ -6124,7 +6164,8 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
             </thead>
             <tbody>
               {allAgentSummary.map(r=>{
-                const pB=r.planAmount, aB=r.actualAmount;
+                const rate=rateForRole(r.role);
+                const pB=r.planHours*rate,aB=r.actualHours*rate;
                 const vH=r.actualHours-r.planHours;
                 const vc=vH<0?"#16a34a":vH>0?"#dc2626":"#64748b";
                 return (
@@ -6591,6 +6632,9 @@ const stripJsonSuffix = obj => {
           installments:    safeArr(parsed.installments),
           lineItems:       safeArr(parsed.lineItems),
           deliverables:    safeArr(parsed.deliverables),
+          // Rate history: rateSnapshot = frozen rates at save time; null = pre-history quote
+          rateSnapshot:    parsed.rateSnapshot && typeof parsed.rateSnapshot==="object" ? parsed.rateSnapshot : null,
+          createdDate:     String(parsed.createdDate||parsed.savedTs||""),
           _savedTs:        String(parsed.savedTs||""),
           _savedBy:        String(parsed.savedBy||""),
         });
