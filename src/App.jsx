@@ -1616,7 +1616,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     if(saved !== undefined && saved !== null && saved !== "") sAnn(+saved);
   },[kpiYear,kpiSplits]);
   // "Last Year POs Paid this year" — editable, persisted per year alongside the KPI row.
-  const LAST_YEAR_PO_DEFAULT =0; // preserves current ฿2.05M until edited
+  const LAST_YEAR_PO_DEFAULT = 0;
   const [lastYearPO,sLYPO] = useState(()=>{const v=kpiSplits[(new Date().getFullYear()+543)+"_lastYearPO"];return (v===undefined||v===null||v==="")?LAST_YEAR_PO_DEFAULT:+v;});
   useEffect(()=>{const v=kpiSplits[kpiYear+"_lastYearPO"];if(v!==undefined&&v!==null&&v!=="")sLYPO(+v);},[kpiYear,kpiSplits]);
   const [editingPO,setEditingPO]=useState(false);
@@ -4575,40 +4575,47 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
   const totReceived = list.reduce((s,d)=>s+safeArr(d.installments).filter(i=>i.status==="Received"&&i.receiptDate).reduce((x,i)=>x+(i.amount||0),0),0);
 
   // ── Cost Report CSV export ─────────────────────────────────────────────
-  // Groups deliveries by customer, inserts a company header row between groups,
-  // then flattens COGS cost rows + OPEX task rows for each delivery.
   const exportCostReport = () => {
-    const e = v => `"${String(v==null?"":v).replace(/"/g,'""')}"`;
-    const lines = [COST_RPT_HDR.map(e).join(",")];
+    try {
+      if(!list.length){ toast("No data","No deliveries match the current filters","error"); return; }
+      const e = v => `"${String(v==null?"":v).replace(/"/g,'""')}"`;
+      const lines = [COST_RPT_HDR.map(e).join(",")];
 
-    // Group list by custId, preserving sort order
-    const groups = [];
-    const seen = {};
-    list.forEach(d => {
-      if(!seen[d.custId]) { seen[d.custId] = []; groups.push({custId:d.custId, deliveries:seen[d.custId]}); }
-      seen[d.custId].push(d);
-    });
-
-    groups.forEach(({custId, deliveries:dlvs}) => {
-      const cust = customers.find(c=>c.id===custId);
-      const custName = cust?.companyEN || custId;
-
-      // Company header row (matches your example format)
-      lines.push(""); // blank separator
-      lines.push(e(custName) + Array(COST_RPT_HDR.length-1).fill("").map(()=>",").join(""));
-
-      dlvs.forEach(d => {
-        const opp = opps.find(o=>o.oppCode===d.oppCode);
-        const costRows = buildCostRows(d, opp, custName, costSheets);
-        costRows.forEach(row => lines.push(row.map(e).join(",")));
+      // Group list by custId, preserving sort order
+      const groups = [];
+      const seen = {};
+      list.forEach(d => {
+        if(!seen[d.custId]) { seen[d.custId] = []; groups.push({custId:d.custId, deliveries:seen[d.custId]}); }
+        seen[d.custId].push(d);
       });
-    });
 
-    const blob = new Blob([lines.join("\n")], {type:"text/csv"});
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `cost_report_${today()}.csv`;
-    a.click();
+      groups.forEach(({custId, deliveries:dlvs}) => {
+        const cust = customers.find(c=>c.id===custId);
+        const custName = cust?.companyEN || custId;
+        // Company header row (blank line + company name, matching your example format)
+        lines.push("");
+        lines.push(e(custName) + ",".repeat(COST_RPT_HDR.length - 1));
+        dlvs.forEach(d => {
+          const opp = opps.find(o=>o.oppCode===d.oppCode);
+          const costRows = buildCostRows(d, opp, custName, costSheets);
+          costRows.forEach(row => lines.push(row.map(e).join(",")));
+        });
+      });
+
+      const blob = new Blob(["\uFEFF" + lines.join("\r\n")], {type:"text/csv;charset=utf-8;"});
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `cost_report_${today()}.csv`;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+      toast("Cost Report downloaded", `${list.length} deliveries · ${groups.length} companies`);
+    } catch(err) {
+      console.error("Cost Report CSV error:", err);
+      toast("Export failed", err.message || "Unknown error", "error");
+    }
   };
 
   return (
