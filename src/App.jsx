@@ -59,31 +59,21 @@ const LOST_REASONS = ["Price Too High","Budget Frozen","Selected Competitor","Sc
 // In-House levels — ordered Manager > Section Manager > Senior > Junior.
 // This order drives table column order and the "highest level wins" role-priority checks below.
 // Section Manager rate is a placeholder (0) — fill in the real standard cost later.
-// Rates updated — new standard effective now.
-// LEGACY_IH_RATES: the old standard used for any saved CS quote that has no rateSnapshot
-// (i.e. saved before rate-history tracking was added), so those quotes never silently
-// reprice when the standard changes.
-const LEGACY_IH_RATES = {"Manager":1441, "Section Manager":0, "Senior":948, "Junior":600};
 const IH_LEVEL_DEFS = [
-  {name:"Manager",         field:"manager",        abbr:"Mgr",     rate:1511.66, c:"#1e40af", bg:"#dbeafe"},
-  {name:"Section Manager", field:"sectionManager",  abbr:"Sec Mgr", rate:1141.70, c:"#4f46e5", bg:"#e0e7ff"},
-  {name:"Senior",          field:"senior",          abbr:"Sr",      rate:779.86,  c:"#7c3aed", bg:"#ede9fe"},
-  {name:"Junior",          field:"junior",          abbr:"Jr",      rate:508.49,  c:"#16a34a", bg:"#dcfce7"},
+  {name:"Manager",         field:"manager",        abbr:"Mgr",     rate:1441, c:"#1e40af", bg:"#dbeafe"},
+  {name:"Section Manager", field:"sectionManager",  abbr:"Sec Mgr", rate:0,    c:"#4f46e5", bg:"#e0e7ff"},
+  {name:"Senior",          field:"senior",          abbr:"Sr",      rate:948,  c:"#7c3aed", bg:"#ede9fe"},
+  {name:"Junior",          field:"junior",          abbr:"Jr",      rate:600,  c:"#16a34a", bg:"#dcfce7"},
 ];
-const IH_LEVELS       = Object.fromEntries(IH_LEVEL_DEFS.map(l=>[l.name,l.rate]));  // live standard rates
+const IH_LEVELS       = Object.fromEntries(IH_LEVEL_DEFS.map(l=>[l.name,l.rate]));  // {Manager:1441, "Section Manager":0, Senior:948, Junior:600}
 const IH_LEVEL_NAMES  = IH_LEVEL_DEFS.map(l=>l.name);
 const IH_LEVEL_FIELDS = IH_LEVEL_DEFS.map(l=>l.field);                              // ["manager","sectionManager","senior","junior"]
 const ROLE_META       = Object.fromEntries(IH_LEVEL_DEFS.map(l=>[l.name,l]));       // name -> {abbr,c,bg,rate,field}
-// ihLevelCost(obj, rates?) — rates defaults to live standard. Pass a frozen rateSnapshot
-// to price historical data at the rate that was standard when it was saved.
-const ihLevelCost = (obj, rates) => {
-  const rs = rates || IH_LEVELS;
-  return IH_LEVEL_DEFS.reduce((s,l)=>s+(obj[l.field]||0)*(rs[l.name]??0), 0);
-};
+// Sum an object's per-level hour fields against IH_LEVEL_DEFS rates (a task, or a summed-agents totals object).
+const ihLevelCost = obj => IH_LEVEL_DEFS.reduce((s,l)=>s+(obj[l.field]||0)*l.rate, 0);
 // Highest-priority level (in IH_LEVEL_DEFS order) with hours > 0; defaults to the lowest level.
 const roleOfAgent = agent => (IH_LEVEL_DEFS.find(l=>(agent[l.field]||0)>0) || IH_LEVEL_DEFS[IH_LEVEL_DEFS.length-1]).name;
-// rateForRole(role, rates?) — rates defaults to live standard.
-const rateForRole = (role, rates) => (rates||IH_LEVELS)[role] ?? (rates||IH_LEVELS).Senior ?? 948;
+const rateForRole = role => IH_LEVELS[role] ?? 948; // unknown/blank role still falls back to Senior's rate, as before
 // OPEX task table column count: #, Task/Activity, one column per level, Total Cost, Pay Month, Agent/Cancel
 const TASK_TABLE_COLS = 5 + IH_LEVEL_DEFS.length;
 // Sales agent mobile numbers
@@ -226,8 +216,7 @@ const successRateColor = pct => pct >= 70 ? "#16a34a" : pct >= 40 ? "#d97706" : 
 
 const calcIC   = rows => (rows||[]).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
 const calcEC   = (rows,coOnly) => (rows||[]).filter(r=>coOnly?!r.clientBorne:true).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
-// calcTask(tasks, rates?) — pass a frozen rateSnapshot to price at historical rates.
-const calcTask = (tasks, rates) => (tasks||[]).reduce((s,t)=>{const ag=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];const totals=Object.fromEntries(IH_LEVEL_FIELDS.map(f=>[f, ag.length>0?ag.reduce((a,x)=>a+(x[f]||0),0):(t[f]||0)]));return s+ihLevelCost(totals,rates);},0);
+const calcTask = tasks => (tasks||[]).reduce((s,t)=>{const ag=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];const totals=Object.fromEntries(IH_LEVEL_FIELDS.map(f=>[f, ag.length>0?ag.reduce((a,x)=>a+(x[f]||0),0):(t[f]||0)]));return s+ihLevelCost(totals);},0);
 const calcTotalCS = cs => calcIC(cs.costs||[]) + calcTask(cs.tasks||[]);
 // Legacy helpers kept for per-quotation overrides
 const calcIH  = rows => (rows||[]).reduce((s,r)=>s+(r.days||0)*(r.rate||IH_LEVELS[r.level]||0),0);
@@ -4417,6 +4406,150 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
 
 
 
+const COST_RPT_HDR = [
+  "Job Code","Vendor","Cost Category","Description","Cost Segment",
+  "Plan Payment Month","Planned Cost (THB)",
+  "PO No.","Invoice No.","Invoice Date","Paid Date",
+  "Actual Cost (THB)","Status","Remark",
+  "Variance (THB)","Variance (%)",
+];
+
+// Resolve payMonth number → "Jan-26" style label using the delivery's contractDate.
+// Falls back to "M{n}" if contractDate is missing.
+const resolvePayMonth = (payMonth, contractDate) => {
+  const m = Math.max(1, +payMonth||1);
+  if(!contractDate) return `M${m}`;
+  // contractDate is CE (yyyy-mm-dd); shift by payMonth-1 months
+  const d = new Date(contractDate);
+  if(isNaN(d)) return `M${m}`;
+  d.setMonth(d.getMonth() + m - 1);
+  return `${MONTHS[d.getMonth()]}-${String(d.getFullYear()).slice(-2)}`;
+};
+
+// Build the per-delivery cost rows for the cost report CSV.
+// Returns an array of 16-cell arrays (one per COGS cost row + one per OPEX task level with hours).
+const buildCostRows = (delivery, opp, custName, costSheets) => {
+  // ── Find the quote snapshot for this delivery ──────────────────────────
+  // Chain: delivery.oppCode → opp.csCode → costsheet (saveLog[].quoteSnapshot)
+  const csCode = opp?.csCode;
+  let snapshot = null;
+  if(csCode) {
+    for(const cs of costSheets) {
+      // Check saveLog snapshots (primary after v6 migration)
+      const entry = [...(cs.saveLog||[])].reverse()
+        .find(l => l.quoteSnapshot && (l.quoteSnapshot.csCode === csCode || l.quoteSnapshot.oppCode === delivery.oppCode));
+      if(entry?.quoteSnapshot) { snapshot = entry.quoteSnapshot; break; }
+      // Fallback: live quoteOverrides (open card not yet saved)
+      const qo = (cs.quoteOverrides||[]).find(q => q.csCode === csCode || q.oppCode === delivery.oppCode);
+      if(qo) { snapshot = qo; break; }
+    }
+  }
+
+  const rows = [];
+  const jobCode    = delivery.jobCode || delivery.id;
+  const contractDt = delivery.contractDate || "";
+
+  // Use frozen rate snapshot for OPEX pricing (same logic as QuoteCard)
+  const effectiveRates = snapshot?.rateSnapshot
+    ? snapshot.rateSnapshot
+    : LEGACY_IH_RATES;
+
+  if(!snapshot) {
+    // No CS found — emit one placeholder row so the job still appears in the report
+    rows.push([jobCode,"—","—","No Cost Sheet linked","—","—","","","","","","","—","","",""]);
+    return rows;
+  }
+
+  // ── COGS rows ──────────────────────────────────────────────────────────
+  (snapshot.costs||[]).forEach(r => {
+    const planned = Math.round((r.qty||0)*(r.rate||0));
+    const payMo   = resolvePayMonth(r.payMonth||1, contractDt);
+    rows.push([
+      jobCode,
+      r.vendorName||"—",
+      "Expense",
+      r.label||"",
+      "COGS",
+      payMo,
+      planned,
+      "",  // PO No.
+      "",  // Invoice No.
+      "",  // Invoice Date
+      "",  // Paid Date
+      "",  // Actual Cost
+      "",  // Status
+      "",  // Remark
+      "",  // Variance (THB)
+      "",  // Variance (%)
+    ]);
+  });
+
+  // ── OPEX rows — one row per task, broken out by level ─────────────────
+  (snapshot.tasks||[]).forEach(task => {
+    const payMo  = resolvePayMonth(task.payMonth||1, contractDt);
+    const agents = Array.isArray(task.agents) && task.agents.length > 0 && typeof task.agents[0]==="object"
+      ? task.agents : [];
+
+    // Sum hours per level across all agents (or from task-level if no agents)
+    const levelTotals = Object.fromEntries(
+      IH_LEVEL_DEFS.map(l => [l.name, agents.length > 0
+        ? agents.reduce((s,a) => s + (a[l.field]||0), 0)
+        : (task[l.field]||0)
+      ])
+    );
+
+    // Emit one row per level that has hours — keeps the report readable
+    let hasAnyLevel = false;
+    IH_LEVEL_DEFS.forEach(l => {
+      const hrs = levelTotals[l.name];
+      if(!hrs) return;
+      hasAnyLevel = true;
+      const rate    = (effectiveRates[l.name]??0);
+      const planned = Math.round(hrs * rate);
+      rows.push([
+        jobCode,
+        "In-house",
+        "Man-hour",
+        `${task.taskName||"(Unnamed task)"} · ${l.name}`,
+        "OPEX",
+        payMo,
+        planned,
+        "",  // PO No.
+        "",  // Invoice No.
+        "",  // Invoice Date
+        "",  // Paid Date
+        "",  // Actual Cost
+        "",  // Status
+        "",  // Remark
+        "",  // Variance (THB)
+        "",  // Variance (%)
+      ]);
+    });
+
+    // If task has hours but all on task-level fields (no agent breakdown), emit one total row
+    if(!hasAnyLevel) {
+      const totalPlanned = Math.round(ihLevelCost(
+        Object.fromEntries(IH_LEVEL_DEFS.map(l=>[l.field, task[l.field]||0])),
+        effectiveRates
+      ));
+      if(totalPlanned > 0) {
+        rows.push([
+          jobCode,
+          "In-house",
+          "Man-hour",
+          task.taskName||"(Unnamed task)",
+          "OPEX",
+          payMo,
+          totalPlanned,
+          "","","","","","","","","",
+        ]);
+      }
+    }
+  });
+
+  return rows;
+};
+
 const DLV_HDR = ["Delivery ID","Customer","OPP Code","Quote No.","Job Code","Contract No.","Contract Date","Service Type","Contract Value","Status","Step","Delivery Date","Total Received","Balance"];
 const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,onGoToCS,onGoToCust,onGoToOpp,userList=[],onMentionNotify=()=>{},year="all"}) => {
   const [search,sS]=useState(""); const [fDSvc,setFDSvc]=useState([]);
@@ -4441,6 +4574,43 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
   const totContract = list.reduce((s,d)=>s+(Number(d.totalContractValue)||0),0);
   const totReceived = list.reduce((s,d)=>s+safeArr(d.installments).filter(i=>i.status==="Received"&&i.receiptDate).reduce((x,i)=>x+(i.amount||0),0),0);
 
+  // ── Cost Report CSV export ─────────────────────────────────────────────
+  // Groups deliveries by customer, inserts a company header row between groups,
+  // then flattens COGS cost rows + OPEX task rows for each delivery.
+  const exportCostReport = () => {
+    const e = v => `"${String(v==null?"":v).replace(/"/g,'""')}"`;
+    const lines = [COST_RPT_HDR.map(e).join(",")];
+
+    // Group list by custId, preserving sort order
+    const groups = [];
+    const seen = {};
+    list.forEach(d => {
+      if(!seen[d.custId]) { seen[d.custId] = []; groups.push({custId:d.custId, deliveries:seen[d.custId]}); }
+      seen[d.custId].push(d);
+    });
+
+    groups.forEach(({custId, deliveries:dlvs}) => {
+      const cust = customers.find(c=>c.id===custId);
+      const custName = cust?.companyEN || custId;
+
+      // Company header row (matches your example format)
+      lines.push(""); // blank separator
+      lines.push(e(custName) + Array(COST_RPT_HDR.length-1).fill("").map(()=>",").join(""));
+
+      dlvs.forEach(d => {
+        const opp = opps.find(o=>o.oppCode===d.oppCode);
+        const costRows = buildCostRows(d, opp, custName, costSheets);
+        costRows.forEach(row => lines.push(row.map(e).join(",")));
+      });
+    });
+
+    const blob = new Blob([lines.join("\n")], {type:"text/csv"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `cost_report_${today()}.csv`;
+    a.click();
+  };
+
   return (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -4450,6 +4620,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=safeArr(d.installments).filter(i=>i.status==="Received"&&i.receiptDate).reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}>CSV</Btn>
+          <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={exportCostReport}>Cost Report CSV</Btn>
         </div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
@@ -4490,7 +4661,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
 
 //  TaskRow: isolated component so taskName input retains focus on keystroke
 //  agents is an array of {uid, ...one hour field per IH_LEVEL_DEFS entry} objects
-const TaskRow = React.memo(({t, rowNum, onSet, onDel, months, rates}) => {
+const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
   const [name, setName] = useState(t.taskName);
   const [agentOpen, setAO] = useState(false);
   useEffect(() => { setName(t.taskName); }, [t.taskName]);
@@ -4502,8 +4673,7 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months, rates}) => {
 
   // Totals per level, summed across all agent rows (or from task-level if no agents)
   const fieldTotals = Object.fromEntries(IH_LEVEL_FIELDS.map(f=>[f, agents.length>0?agents.reduce((s,a)=>s+(a[f]||0),0):(t[f]||0)]));
-  // Use frozen/live rates passed from parent (QuoteCard → TaskTableWidget → TaskRow)
-  const tc = ihLevelCost(fieldTotals, rates);
+  const tc = ihLevelCost(fieldTotals);
 
   const eligibleUsers = USERS.filter(u => ["sales","operation","manager"].includes(u.role));
   const assignedUids  = agents.map(a => a.uid);
@@ -4566,7 +4736,7 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months, rates}) => {
         <>
           {agents.map(a => {
             const u = USERS.find(x=>x.id===a.uid);
-            const agentCost = ihLevelCost(a, rates);
+            const agentCost = ihLevelCost(a);
             return (
               <tr key={a.uid} style={{background:"#f0fdf4",borderBottom:"1px solid #dcfce7"}}>
                 <td colSpan={2} style={{padding:"4px 8px 4px 28px"}}>
@@ -4622,8 +4792,8 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months, rates}) => {
 //  TaskTableWidget: standalone table, uses TaskRow to prevent focus loss
 //  Header sizing/weight matches the sibling COGS/Installments tables in the same card (App.jsx ~4665-4721) —
 //  this table used to run its own smaller, untracked 9.5px header and was the visible outlier of the three.
-const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months, rates}) => {
-  const totalOPEX = calcTask(tasks, rates);
+const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
+  const totalOPEX = calcTask(tasks);
   const thStyle = {padding:"6px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:11,whiteSpace:"nowrap",borderBottom:"1px solid #e2e8f0"};
   return (
     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
@@ -4650,7 +4820,7 @@ const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months, rates}) => {
         {(tasks||[]).length===0&&(
           <tr><td colSpan={TASK_TABLE_COLS} style={{padding:"9px 6px",fontSize:11.5,color:"#94a3b8",fontStyle:"italic"}}>No tasks yet — add man-hour tasks and assign agents.</td></tr>
         )}
-        {(tasks||[]).map((t,idx)=><TaskRow key={t.id} t={t} rowNum={idx+1} onSet={onSet} onDel={onDel} months={months} rates={rates}/>)}
+        {(tasks||[]).map((t,idx)=><TaskRow key={t.id} t={t} rowNum={idx+1} onSet={onSet} onDel={onDel} months={months}/>)}
         <tr style={{borderTop:"1px solid #e2e8f0"}}>
           <td colSpan={2+IH_LEVEL_DEFS.length} style={{padding:"6px 5px"}}>
             <button onClick={onAdd} className="wb-addrow">+ Task</button>
@@ -4672,28 +4842,12 @@ const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months, rates}) => {
 // COST SHEET (COGS + OPEX + Cashflow)
 // 
 const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,setQDlv,setQNote,addQIC,addQTK,addQInst,addQDlv,addQNote,delQIC,delQTK,delQInst,delQO,delQDlv,delQNote,updQO,handleSave,highlight,cardRef}) => {
-  // ── Rate resolution ──────────────────────────────────────────────────────
-  // Which rate set prices this quote's OPEX (man-hour tasks)?
-  //   _isNew=true  → brand-new, never-saved quote → live current standard (IH_LEVELS)
-  //   rateSnapshot → previously-saved quote with frozen rates → use those frozen rates
-  //   neither      → pre-history quote (saved before rate-freezing was added) → LEGACY fallback
-  const effectiveRates = q._isNew ? IH_LEVELS : (q.rateSnapshot || LEGACY_IH_RATES);
-  const isCurrentRate  = q._isNew || (q.rateSnapshot && JSON.stringify(q.rateSnapshot)===JSON.stringify(IH_LEVELS));
-  const rateBasisLabel = q._isNew
-    ? "Current standard rate"
-    : q.rateSnapshot
-      ? `Frozen rate · saved ${fmtDate(q.createdDate||q._savedTs||"")}`
-      : `Legacy rate · pre-history`;
-  const rateBasisColor = q._isNew ? "#15803d" : "#d97706";
-  const rateBasisBg    = q._isNew ? "#dcfce7"  : "#fef3c7";
-
-  const qIC=calcIC(q.costs||[]),qOPEX=calcTask(q.tasks||[], effectiveRates);
+  const qIC=calcIC(q.costs||[]),qOPEX=calcTask(q.tasks||[]);
   const qTC=qIC+qOPEX;
   // Discount: gross price stays in q.salesPrice; margin & opp price use the net (post-discount) figure.
   const qDiscPct=q.discountEnabled?(q.discountPct||0):0;
   const qNetPrice=Math.round((q.salesPrice||0)*(1-qDiscPct/100));
   const qMg=margin(qNetPrice,qTC);
-  const qMgAmt=marginAmt(qNetPrice,qTC);
   const months=q.projectMonths||editCS.projectMonths||3;
   const instSum=(q.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
   const [page,setPage]=useState("costs");      // "costs" (COGS/OPEX/Installments/Cashflow) | "content" (Service/Deliverables/Notes)
@@ -4740,18 +4894,6 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                   <div style={{flex:"0 0 108px"}}>
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>Quote No.</Span>
                     <div style={{fontFamily:"monospace",fontWeight:800,fontSize:14,color:"#334155",letterSpacing:"-0.01em",padding:"5px 0"}}>{q.quoteNo||"—"}</div>
-                  </div>
-                  {/* Created date — stamped once at addQO/duplicateQO, never overwritten */}
-                  <div style={{flex:"0 0 108px"}}>
-                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>Created</Span>
-                    <div style={{fontSize:12,fontWeight:600,color:"#374151",padding:"5px 0"}}>{q.createdDate?fmtDate(q.createdDate):"—"}</div>
-                  </div>
-                  {/* Rate basis badge */}
-                  <div style={{flex:"0 0 auto",alignSelf:"flex-end",paddingBottom:5}}>
-                    <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:10,fontWeight:700,color:rateBasisColor,background:rateBasisBg,padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap",border:`1px solid ${rateBasisColor}44`}}>
-                      <span style={{width:6,height:6,borderRadius:"50%",background:rateBasisColor,flexShrink:0}}/>
-                      {rateBasisLabel}
-                    </span>
                   </div>
                   <div style={{flex:"0 0 100px"}}>
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>Memo No.</Span>
@@ -4807,16 +4949,10 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                     <div style={{flex:"0 0 150px",display:"flex",flexDirection:"column"}}>
                       <div style={{height:16,marginBottom:4,textAlign:"right"}}><Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Price after Discount</Span></div>
                       <div style={{height:30,display:"flex",alignItems:"center",justifyContent:"flex-end"}}><span style={{fontWeight:900,fontSize:20,color:"#0f172a",letterSpacing:"-0.015em"}}>฿{fmt(qNetPrice)}</span></div>                    </div>
-                    {/* Margin % */}
+                    {/* Margin — the health metric */}
                     <div style={{flex:"0 0 96px",display:"flex",flexDirection:"column"}}>
-                      <div style={{height:16,marginBottom:4,textAlign:"right"}}><Span s={9} c={+qMg>=30?"#15803d":"#dc2626"} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Margin %</Span></div>
-                      <div style={{height:30,display:"flex",alignItems:"center",justifyContent:"flex-end"}}><span style={{fontWeight:900,fontSize:20,color:+qMg>=30?"#15803d":"#dc2626"}}>{qMg}%</span></div>
-                    </div>
-                    {/* Margin ฿ amount */}
-                    <div style={{flex:"0 0 120px",display:"flex",flexDirection:"column"}}>
-                      <div style={{height:16,marginBottom:4,textAlign:"right"}}><Span s={9} c={+qMg>=30?"#15803d":"#dc2626"} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Margin ฿</Span></div>
-                      <div style={{height:30,display:"flex",alignItems:"center",justifyContent:"flex-end"}}><span style={{fontWeight:900,fontSize:16,color:+qMg>=30?"#15803d":"#dc2626",letterSpacing:"-0.01em"}}>฿{fmt(qMgAmt)}</span></div>
-                    </div>
+                      <div style={{height:16,marginBottom:4,textAlign:"right"}}><Span s={9} c={+qMg>=30?"#15803d":"#dc2626"} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Margin</Span></div>
+                      <div style={{height:30,display:"flex",alignItems:"center",justifyContent:"flex-end"}}><span style={{fontWeight:900,fontSize:20,color:+qMg>=30?"#15803d":"#dc2626"}}>{qMg}%</span></div>                    </div>
                   </div>
                 </div>
 
@@ -4864,7 +5000,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                   </div>
                   <div>
                     <Span s={12} w={700} style={{display:"block",marginBottom:6}}>OPEX — Man-hour Tasks</Span>
-                    <TaskTableWidget tasks={q.tasks||[]} onSet={(tid,k,v)=>setQTK(q.id,tid,k,v)} onAdd={()=>addQTK(q.id)} onDel={tid=>delQTK(q.id,tid)} months={months} rates={effectiveRates}/>
+                    <TaskTableWidget tasks={q.tasks||[]} onSet={(tid,k,v)=>setQTK(q.id,tid,k,v)} onAdd={()=>addQTK(q.id)} onDel={tid=>delQTK(q.id,tid)} months={months}/>
 
                   </div>
                 </div>
@@ -4916,7 +5052,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                     const cfM=q.projectMonths||editCS.projectMonths||3;
                     const allM=Array.from({length:cfM+1},(_,i)=>i+1);
                     const cByM={};
-                    (q.tasks||[]).forEach(t=>{const m=t.payMonth||1;const ag=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];const totals=Object.fromEntries(IH_LEVEL_FIELDS.map(f=>[f, ag.length>0?ag.reduce((s,a)=>s+(a[f]||0),0):(t[f]||0)]));const tc=ihLevelCost(totals,effectiveRates);cByM[m]=(cByM[m]||0)+tc;});
+                    (q.tasks||[]).forEach(t=>{const m=t.payMonth||1;const ag=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];const totals=Object.fromEntries(IH_LEVEL_FIELDS.map(f=>[f, ag.length>0?ag.reduce((s,a)=>s+(a[f]||0),0):(t[f]||0)]));const tc=ihLevelCost(totals);cByM[m]=(cByM[m]||0)+tc;});
                     (q.costs||[]).forEach(r=>{const m=r.payMonth||1;const amt=(r.qty||0)*(r.rate||0);cByM[m]=(cByM[m]||0)+amt;});
                     const rByM={};
                     (q.installments||[]).forEach(ins=>{const m=ins.recvMonth||1;rByM[m]=(rByM[m]||0)+Math.round(qNetPrice*(ins.pct||0)/100);});
@@ -5036,11 +5172,6 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
 
                 {/* Cost + margin + Save/Cancel footer (pinned on both pages) */}
                 <div style={{borderTop:"1px solid #e2e8f0",padding:"12px 20px",background:"#f8fafc",display:"flex",justifyContent:"flex-end",alignItems:"center",gap:16,flexWrap:"wrap"}}>
-                  {/* Rate basis badge — small, so it doesn't dominate the footer */}
-                  <span style={{marginRight:"auto",display:"inline-flex",alignItems:"center",gap:5,fontSize:10,fontWeight:700,color:rateBasisColor,background:rateBasisBg,padding:"3px 9px",borderRadius:20,border:`1px solid ${rateBasisColor}44`,whiteSpace:"nowrap"}}>
-                    <span style={{width:6,height:6,borderRadius:"50%",background:rateBasisColor,flexShrink:0}}/>
-                    {rateBasisLabel}
-                  </span>
                   {[{l:"COGS",v:qIC},{l:"OPEX",v:qOPEX},{l:"Total Cost",v:qTC,bold:true}].map(x=>(
                     <div key={x.l} style={{textAlign:"center"}}>
                       <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>{x.l}</Span>
@@ -5051,12 +5182,9 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                     <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>Price after Discount</Span>
                     <Span s={13} w={900} c="#0f172a">฿{fmt(qNetPrice)}{qDiscPct>0&&<span style={{fontSize:10,fontWeight:700,color:"#dc2626",marginLeft:4}}>−{qDiscPct}%</span>}</Span>
                   </div>
-                  <div style={{padding:"5px 14px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center",minWidth:120}}>
+                  <div style={{padding:"5px 12px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center"}}>
                     <Span s={9} c={+qMg>=30?"#15803d":"#dc2626"} style={{display:"block"}}>Margin</Span>
-                    <div style={{display:"flex",alignItems:"baseline",justifyContent:"center",gap:8}}>
-                      <Span s={15} w={900} c={+qMg>=30?"#15803d":"#dc2626"}>{qMg}%</Span>
-                      <Span s={12} w={700} c={+qMg>=30?"#15803d":"#dc2626"}>฿{fmt(qMgAmt)}</Span>
-                    </div>
+                    <Span s={15} w={900} c={+qMg>=30?"#15803d":"#dc2626"}>{qMg}%</Span>
                   </div>
                   <div style={{width:1,height:32,background:"#e2e8f0",flexShrink:0}}/>
                   <Btn variant="ghost" onClick={()=>delQO(q.id)}>Cancel</Btn>
@@ -5169,8 +5297,6 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
       projectTitle:"",
       projectScope:"",
       projectMonths:editCS.projectMonths||3,
-      createdDate: today(),   // stamped once — never overwritten on subsequent saves
-      _isNew: true,           // signals QuoteCard to price at live current rate (not LEGACY)
       costs:[],
       tasks:[],
       installments:[
@@ -5200,10 +5326,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
     (editCS.quoteOverrides||[]).forEach(q=>{
       // Commit any QO that has custId + oppCode (new OR re-opened re-edit)
       if(q.custId&&q.oppCode){
-        // Resolve the same rate set QuoteCard used for display — ensures cost/margin on the
-        // saved Opportunity exactly matches what the user saw on screen.
-        const saveRates = q._isNew ? {...IH_LEVELS} : (q.rateSnapshot || LEGACY_IH_RATES);
-        const qIC=calcIC(q.costs||[]),qOPEX=calcTask(q.tasks||[], saveRates);
+        const qIC=calcIC(q.costs||[]),qOPEX=calcTask(q.tasks||[]);
         const qCost=qIC+qOPEX;
         const csCode=q.csCode||genCSCode(q.quoteNo||"");
         // Net (post-discount) price drives the Opportunity sales price + margin; gross stays in the quote.
@@ -5225,13 +5348,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           remark:existingOpp?.remark||"",
         };
         onSaveOpp(opp);
-        // Freeze the effective rate set at save time:
-        // - new quotes (_isNew) get the current live standard
-        // - re-edited old quotes keep whatever rateSnapshot they already had
-        // This is the source of truth for pricing when this quote is reopened later.
-        const frozenRates = q.rateSnapshot || (q._isNew ? {...IH_LEVELS} : {...LEGACY_IH_RATES});
-        // createdDate: preserve original if present; stamp today for brand-new quotes
-        const createdDate = q.createdDate || today();
+        // Bug 3 fix: write updated quote data to costsheet_quotes tab so edits persist on refresh
         gsSave("costsheet_quotes", {
           csCode,
           serviceCode: editCS.serviceCode,
@@ -5253,8 +5370,6 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           installments_json: q.installments||[],
           lineItems_json:    q.lineItems||[],
           deliverables_json: q.deliverables||[],
-          rateSnapshot_json: frozenRates,
-          createdDate,
           savedTs:     nowTS(),
           savedBy:     user.id,
         });
@@ -5262,7 +5377,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
         newSaveEntries.push({
           id:uid(),ts:nowTS(),author:user.id,
           note:`Quotation ${existingOpp?"updated":"saved"} → ${csCode} · ${q.quoteNo} · ${cust?.companyEN||q.custId} · Price ฿${fmt(qNet)}${qDiscPct>0?` (−${qDiscPct}%)`:""} · Cost ฿${fmt(qCost)} · Margin ${qMg}%`,
-          quoteSnapshot:{...q,csCode,rateSnapshot:frozenRates,createdDate,_savedTs:nowTS(),_savedBy:user.id},
+          quoteSnapshot:{...q,csCode,_savedTs:nowTS(),_savedBy:user.id},  // stored for re-edit
         });
       }
     });
@@ -5313,10 +5428,6 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
       id:uid(), csCode, quoteNo, oppCode, memoNo:"",
       custId:"", salesAgent:"", contactPersonId:"",
       notes: toItemList(snapshot.notes),
-      // Brand-new quote: fresh createdDate + live rate (_isNew=true)
-      createdDate: today(),
-      _isNew: true,
-      rateSnapshot: null,   // clear old snapshot so live rate is used
     }]}));
     toast("Duplicated","Fill in Customer, Agent, and Contact Person then save.");
   };
@@ -6636,9 +6747,6 @@ const stripJsonSuffix = obj => {
           installments:    safeArr(parsed.installments),
           lineItems:       safeArr(parsed.lineItems),
           deliverables:    safeArr(parsed.deliverables),
-          // Rate history: rateSnapshot = frozen rates at save time; null = pre-history quote
-          rateSnapshot:    parsed.rateSnapshot && typeof parsed.rateSnapshot==="object" ? parsed.rateSnapshot : null,
-          createdDate:     String(parsed.createdDate||parsed.savedTs||""),
           _savedTs:        String(parsed.savedTs||""),
           _savedBy:        String(parsed.savedBy||""),
         });
