@@ -59,21 +59,25 @@ const LOST_REASONS = ["Price Too High","Budget Frozen","Selected Competitor","Sc
 // In-House levels — ordered Manager > Section Manager > Senior > Junior.
 // This order drives table column order and the "highest level wins" role-priority checks below.
 // Section Manager rate is a placeholder (0) — fill in the real standard cost later.
+// Old standard rates — used as fallback for CS quotes saved before rate-history tracking.
+const LEGACY_IH_RATES = {"Manager":1441, "Section Manager":0, "Senior":948, "Junior":600};
 const IH_LEVEL_DEFS = [
-  {name:"Manager",         field:"manager",        abbr:"Mgr",     rate:1441, c:"#1e40af", bg:"#dbeafe"},
-  {name:"Section Manager", field:"sectionManager",  abbr:"Sec Mgr", rate:0,    c:"#4f46e5", bg:"#e0e7ff"},
-  {name:"Senior",          field:"senior",          abbr:"Sr",      rate:948,  c:"#7c3aed", bg:"#ede9fe"},
-  {name:"Junior",          field:"junior",          abbr:"Jr",      rate:600,  c:"#16a34a", bg:"#dcfce7"},
+  {name:"Manager",         field:"manager",        abbr:"Mgr",     rate:1511.66, c:"#1e40af", bg:"#dbeafe"},
+  {name:"Section Manager", field:"sectionManager",  abbr:"Sec Mgr", rate:1141.70, c:"#4f46e5", bg:"#e0e7ff"},
+  {name:"Senior",          field:"senior",          abbr:"Sr",      rate:779.86,  c:"#7c3aed", bg:"#ede9fe"},
+  {name:"Junior",          field:"junior",          abbr:"Jr",      rate:508.49,  c:"#16a34a", bg:"#dcfce7"},
 ];
-const IH_LEVELS       = Object.fromEntries(IH_LEVEL_DEFS.map(l=>[l.name,l.rate]));  // {Manager:1441, "Section Manager":0, Senior:948, Junior:600}
+const IH_LEVELS       = Object.fromEntries(IH_LEVEL_DEFS.map(l=>[l.name,l.rate]));  // live standard rates
 const IH_LEVEL_NAMES  = IH_LEVEL_DEFS.map(l=>l.name);
 const IH_LEVEL_FIELDS = IH_LEVEL_DEFS.map(l=>l.field);                              // ["manager","sectionManager","senior","junior"]
 const ROLE_META       = Object.fromEntries(IH_LEVEL_DEFS.map(l=>[l.name,l]));       // name -> {abbr,c,bg,rate,field}
-// Sum an object's per-level hour fields against IH_LEVEL_DEFS rates (a task, or a summed-agents totals object).
-const ihLevelCost = obj => IH_LEVEL_DEFS.reduce((s,l)=>s+(obj[l.field]||0)*l.rate, 0);
-// Highest-priority level (in IH_LEVEL_DEFS order) with hours > 0; defaults to the lowest level.
+// ihLevelCost(obj, rates?) — pass a frozen rateSnapshot to price at historical rates.
+const ihLevelCost = (obj, rates) => {
+  const rs = rates || IH_LEVELS;
+  return IH_LEVEL_DEFS.reduce((s,l)=>s+(obj[l.field]||0)*(rs[l.name]??0), 0);
+};
 const roleOfAgent = agent => (IH_LEVEL_DEFS.find(l=>(agent[l.field]||0)>0) || IH_LEVEL_DEFS[IH_LEVEL_DEFS.length-1]).name;
-const rateForRole = role => IH_LEVELS[role] ?? 948; // unknown/blank role still falls back to Senior's rate, as before
+const rateForRole = (role, rates) => (rates||IH_LEVELS)[role] ?? (rates||IH_LEVELS).Senior ?? 948;
 // OPEX task table column count: #, Task/Activity, one column per level, Total Cost, Pay Month, Agent/Cancel
 const TASK_TABLE_COLS = 5 + IH_LEVEL_DEFS.length;
 // Sales agent mobile numbers
@@ -216,7 +220,8 @@ const successRateColor = pct => pct >= 70 ? "#16a34a" : pct >= 40 ? "#d97706" : 
 
 const calcIC   = rows => (rows||[]).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
 const calcEC   = (rows,coOnly) => (rows||[]).filter(r=>coOnly?!r.clientBorne:true).reduce((s,r)=>s+(r.qty||0)*(r.rate||0),0);
-const calcTask = tasks => (tasks||[]).reduce((s,t)=>{const ag=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];const totals=Object.fromEntries(IH_LEVEL_FIELDS.map(f=>[f, ag.length>0?ag.reduce((a,x)=>a+(x[f]||0),0):(t[f]||0)]));return s+ihLevelCost(totals);},0);
+// calcTask(tasks, rates?) — pass a frozen rateSnapshot to price at historical rates.
+const calcTask = (tasks, rates) => (tasks||[]).reduce((s,t)=>{const ag=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];const totals=Object.fromEntries(IH_LEVEL_FIELDS.map(f=>[f, ag.length>0?ag.reduce((a,x)=>a+(x[f]||0),0):(t[f]||0)]));return s+ihLevelCost(totals,rates);},0);
 const calcTotalCS = cs => calcIC(cs.costs||[]) + calcTask(cs.tasks||[]);
 // Legacy helpers kept for per-quotation overrides
 const calcIH  = rows => (rows||[]).reduce((s,r)=>s+(r.days||0)*(r.rate||IH_LEVELS[r.level]||0),0);
