@@ -288,7 +288,7 @@ const SEED_COST_SHEETS = SERVICES.map(buildDefaultCS);
 // GOOGLE SHEETS BACKEND — Wave BCG Live Database
 // S4: All requests include GS_AUTH_TOKEN verified server-side
 // 
-const GS_URL = "https://script.google.com/macros/s/AKfycbwkof6VYnT6WTjQPaPW-aczdi9SBNIsXVhKlnj71qwWz84ZU7RuJ6KpeCEiTvI7O7vjVQ/exec";
+const GS_URL = "https://script.google.com/macros/s/AKfycbwPQ7mEGKL-r-IEyspkS2kdzQCNFlpAO6KzPV4sXuSqd2ltKHXGP0a5oLYVcuChXUwwpg/exec";
 
 // S1: Server-side login — credentials validated in GAS, never in browser
 const gsLogin = async (email, password) => {
@@ -1616,7 +1616,7 @@ const DashboardKPI = ({user,customers,opps,deliveries,kpiSplits,setKpiSplits,toa
     if(saved !== undefined && saved !== null && saved !== "") sAnn(+saved);
   },[kpiYear,kpiSplits]);
   // "Last Year POs Paid this year" — editable, persisted per year alongside the KPI row.
-  const LAST_YEAR_PO_DEFAULT = 205000; // preserves current ฿2.05M until edited
+  const LAST_YEAR_PO_DEFAULT =0; // preserves current ฿2.05M until edited
   const [lastYearPO,sLYPO] = useState(()=>{const v=kpiSplits[(new Date().getFullYear()+543)+"_lastYearPO"];return (v===undefined||v===null||v==="")?LAST_YEAR_PO_DEFAULT:+v;});
   useEffect(()=>{const v=kpiSplits[kpiYear+"_lastYearPO"];if(v!==undefined&&v!==null&&v!=="")sLYPO(+v);},[kpiYear,kpiSplits]);
   const [editingPO,setEditingPO]=useState(false);
