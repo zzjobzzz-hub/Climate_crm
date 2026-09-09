@@ -5195,23 +5195,23 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
 
                 {/* Financial summary + actions — unified footer (pinned on both pages) */}
                 <div style={{borderTop:"1px solid #e2e8f0",padding:"16px 20px",background:"#f8fafc"}}>
-                  <div style={{position:"relative",border:"1px solid #e2e8f0",borderRadius:10,background:"#fff",padding:"14px 18px",maxWidth:340}}>
+                  <div style={{position:"relative",border:"1px solid #e2e8f0",borderRadius:10,background:"#fff",padding:"14px 20px"}}>
                     <IconBtn title="Copy financial summary for email" onClick={copyMarginSummary} style={{position:"absolute",top:8,right:8}}>
                       <CopyIcon s={13}/>
                     </IconBtn>
-                    <Span s={10} w={800} c="#94a3b8" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10}}>Financial Summary</Span>
-                    <div style={{display:"flex",flexDirection:"column"}}>
+                    <Span s={10} w={800} c="#94a3b8" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:12}}>Financial Summary</Span>
+                    <div style={{display:"flex",alignItems:"stretch"}}>
                       {[
                         {l:"COGS",     v:`฿${fmt(qIC)}`},
                         {l:"OPEX",     v:`฿${fmt(qOPEX)}`},
                         {l:"Total Cost", v:`฿${fmt(qTC)}`, bold:true},
                         {l:"Price after Discount", v:`฿${fmt(qNetPrice)}${qDiscPct>0?` (−${qDiscPct}%)`:""}`, bold:true},
-                        {l:"Margin ฿", v:`฿${fmt(qMgAmt)}`, c:+qMg>=30?"#15803d":"#dc2626", bold:true},
-                        {l:"Margin",   v:`${qMg}%`, c:+qMg>=30?"#15803d":"#dc2626", bold:true},
+                        {l:"Margin",   v:`฿${fmt(qMgAmt)}`, c:+qMg>=30?"#15803d":"#dc2626", bold:true},
+                        {l:"Margin %", v:`${qMg}%`, c:+qMg>=30?"#15803d":"#dc2626", bold:true},
                       ].map((row,i,arr)=>(
-                        <div key={row.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:i<arr.length-1?"1px solid #f1f5f9":"none"}}>
-                          <Span s={12} c="#64748b">{row.l}</Span>
-                          <Span s={14} w={row.bold?800:600} c={row.c||"#0f172a"}>{row.v}</Span>
+                        <div key={row.l} style={{flex:1,textAlign:"center",padding:"0 6px",borderRight:i<arr.length-1?"1px solid #f1f5f9":"none"}}>
+                          <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.04em"}}>{row.l}</Span>
+                          <Span s={16} w={row.bold?800:700} c={row.c||"#0f172a"} style={{whiteSpace:"nowrap"}}>{row.v}</Span>
                         </div>
                       ))}
                     </div>
