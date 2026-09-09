@@ -1455,6 +1455,11 @@ const XIcon = ({s=14}) => (
     <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
   </svg>
 );
+const CopyIcon = ({s=14}) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>
+  </svg>
+);
 const SendIcon = ({s=13}) => (
   <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
     <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
@@ -4853,13 +4858,31 @@ const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
 // 
 // COST SHEET (COGS + OPEX + Cashflow)
 // 
-const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,setQDlv,setQNote,addQIC,addQTK,addQInst,addQDlv,addQNote,delQIC,delQTK,delQInst,delQO,delQDlv,delQNote,updQO,handleSave,highlight,cardRef}) => {
+const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,setQDlv,setQNote,addQIC,addQTK,addQInst,addQDlv,addQNote,delQIC,delQTK,delQInst,delQO,delQDlv,delQNote,updQO,handleSave,highlight,cardRef,toast}) => {
   const qIC=calcIC(q.costs||[]),qOPEX=calcTask(q.tasks||[]);
   const qTC=qIC+qOPEX;
   // Discount: gross price stays in q.salesPrice; margin & opp price use the net (post-discount) figure.
   const qDiscPct=q.discountEnabled?(q.discountPct||0):0;
   const qNetPrice=Math.round((q.salesPrice||0)*(1-qDiscPct/100));
   const qMg=margin(qNetPrice,qTC);
+  const qMgAmt=marginAmt(qNetPrice,qTC);
+  // Copies the cost/margin summary as plain text, formatted for pasting into an approval email.
+  const copyMarginSummary=()=>{
+    const lines=[
+      `COGS: ฿${fmt(qIC)}`,
+      `OPEX: ฿${fmt(qOPEX)}`,
+      `Total Cost: ฿${fmt(qTC)}`,
+      `Price after Discount: ฿${fmt(qNetPrice)}${qDiscPct>0?` (−${qDiscPct}%)`:""}`,
+      `Margin : ฿${fmt(qMgAmt)}`,
+      `Margin: ${qMg}%`,
+    ];
+    const text=lines.join("\n");
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text)
+        .then(()=>{if(toast)toast("Copied","Cost & margin summary copied — ready to paste into email.");})
+        .catch(()=>{if(toast)toast("Copy failed","Could not access clipboard.","error");});
+    }
+  };
   const months=q.projectMonths||editCS.projectMonths||3;
   const instSum=(q.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
   const [page,setPage]=useState("costs");      // "costs" (COGS/OPEX/Installments/Cashflow) | "content" (Service/Deliverables/Notes)
@@ -5184,6 +5207,9 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
 
                 {/* Cost + margin + Save/Cancel footer (pinned on both pages) */}
                 <div style={{borderTop:"1px solid #e2e8f0",padding:"12px 20px",background:"#f8fafc",display:"flex",justifyContent:"flex-end",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+                  <IconBtn title="Copy cost & margin summary for email" onClick={copyMarginSummary} style={{marginRight:"auto"}}>
+                    <CopyIcon s={14}/>
+                  </IconBtn>
                   {[{l:"COGS",v:qIC},{l:"OPEX",v:qOPEX},{l:"Total Cost",v:qTC,bold:true}].map(x=>(
                     <div key={x.l} style={{textAlign:"center"}}>
                       <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>{x.l}</Span>
@@ -5193,6 +5219,10 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                   <div style={{textAlign:"center"}}>
                     <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>Price after Discount</Span>
                     <Span s={13} w={900} c="#0f172a">฿{fmt(qNetPrice)}{qDiscPct>0&&<span style={{fontSize:10,fontWeight:700,color:"#dc2626",marginLeft:4}}>−{qDiscPct}%</span>}</Span>
+                  </div>
+                  <div style={{textAlign:"center"}}>
+                    <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>Margin ฿</Span>
+                    <Span s={13} w={900} c="#0f172a">฿{fmt(qMgAmt)}</Span>
                   </div>
                   <div style={{padding:"5px 12px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center"}}>
                     <Span s={9} c={+qMg>=30?"#15803d":"#dc2626"} style={{display:"block"}}>Margin</Span>
@@ -5524,7 +5554,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
               setQF={setQF} setQIC={setQIC} setQTK={setQTK} setQInst={setQInst} setQDlv={setQDlv} setQNote={setQNote}
               addQIC={addQIC} addQTK={addQTK} addQInst={addQInst} addQDlv={addQDlv} addQNote={addQNote}
               delQIC={delQIC} delQTK={delQTK} delQInst={delQInst} delQO={delQO} delQDlv={delQDlv} delQNote={delQNote}
-              updQO={updQO} handleSave={handleSave}
+              updQO={updQO} handleSave={handleSave} toast={toast}
             />
           ))}
         </div>
