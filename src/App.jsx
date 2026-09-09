@@ -4810,7 +4810,6 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
 //  Header sizing/weight matches the sibling COGS/Installments tables in the same card (App.jsx ~4665-4721) —
 //  this table used to run its own smaller, untracked 9.5px header and was the visible outlier of the three.
 const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
-  const totalOPEX = calcTask(tasks);
   const thStyle = {padding:"6px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:11,whiteSpace:"nowrap",borderBottom:"1px solid #e2e8f0"};
   return (
     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
@@ -4839,11 +4838,9 @@ const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
         )}
         {(tasks||[]).map((t,idx)=><TaskRow key={t.id} t={t} rowNum={idx+1} onSet={onSet} onDel={onDel} months={months}/>)}
         <tr style={{borderTop:"1px solid #e2e8f0"}}>
-          <td colSpan={2+IH_LEVEL_DEFS.length} style={{padding:"6px 5px"}}>
+          <td colSpan={TASK_TABLE_COLS} style={{padding:"6px 5px"}}>
             <button onClick={onAdd} className="wb-addrow">+ Task</button>
           </td>
-          <td colSpan={2} style={{padding:"6px 5px",textAlign:"right",whiteSpace:"nowrap",color:"#94a3b8",fontSize:11,fontWeight:600}}>Total OPEX</td>
-          <td style={{padding:"6px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a",fontVariantNumeric:"tabular-nums"}}>฿{fmt(totalOPEX)}</td>
         </tr>
       </tbody>
     </table>
@@ -4984,9 +4981,13 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                     <div style={{flex:"0 0 150px",display:"flex",flexDirection:"column"}}>
                       <div style={{height:16,marginBottom:4,textAlign:"right"}}><Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Price after Discount</Span></div>
                       <div style={{height:30,display:"flex",alignItems:"center",justifyContent:"flex-end"}}><span style={{fontWeight:900,fontSize:20,color:"#0f172a",letterSpacing:"-0.015em"}}>฿{fmt(qNetPrice)}</span></div>                    </div>
-                    {/* Margin — the health metric */}
-                    <div style={{flex:"0 0 96px",display:"flex",flexDirection:"column"}}>
+                    {/* Margin ฿ — the amount, beside the percentage */}
+                    <div style={{flex:"0 0 110px",display:"flex",flexDirection:"column"}}>
                       <div style={{height:16,marginBottom:4,textAlign:"right"}}><Span s={9} c={+qMg>=30?"#15803d":"#dc2626"} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Margin</Span></div>
+                      <div style={{height:30,display:"flex",alignItems:"center",justifyContent:"flex-end"}}><span style={{fontWeight:900,fontSize:20,color:+qMg>=30?"#15803d":"#dc2626"}}>฿{fmt(qMgAmt)}</span></div>                    </div>
+                    {/* Margin % — the health metric */}
+                    <div style={{flex:"0 0 96px",display:"flex",flexDirection:"column"}}>
+                      <div style={{height:16,marginBottom:4,textAlign:"right"}}><Span s={9} c={+qMg>=30?"#15803d":"#dc2626"} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Margin %</Span></div>
                       <div style={{height:30,display:"flex",alignItems:"center",justifyContent:"flex-end"}}><span style={{fontWeight:900,fontSize:20,color:+qMg>=30?"#15803d":"#dc2626"}}>{qMg}%</span></div>                    </div>
                   </div>
                 </div>
@@ -5024,11 +5025,9 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                           </tr>
                         ))}
                         <tr style={{borderTop:"1px solid #e2e8f0"}}>
-                          <td colSpan={5} style={{padding:"5px 4px"}}>
+                          <td colSpan={9} style={{padding:"5px 4px"}}>
                             <button onClick={()=>addQIC(q.id)} className="wb-addrow">+ Add</button>
                           </td>
-                          <td colSpan={2} style={{padding:"5px 4px",textAlign:"right",whiteSpace:"nowrap",color:"#94a3b8",fontSize:11,fontWeight:600}}>Total COGS</td>
-                          <td colSpan={2} style={{padding:"5px 8px",textAlign:"right",whiteSpace:"nowrap",fontWeight:700,fontSize:13,color:"#0f172a"}}>฿{fmt(qIC)}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -5192,45 +5191,37 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                     );})()}
                   </div>
                 </div>
-                {/* Export bar — pinned at the bottom of the quotation content */}
-                <div style={{padding:"14px 20px 18px",borderTop:"1px solid #f1f5f9",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-                  <div style={{minWidth:0}}>
-                    <Span s={12} w={800} c="#0f172a" style={{display:"block"}}>Export Quotation</Span>
-                    <Span s={11} c="#94a3b8">Generates the A4 quotation PDF{q.quoteNo?` · ${q.quoteNo}`:""} from the content above.</Span>
-                  </div>
-                  <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
-                    <Btn variant="export" size="sm" icon={<DlIcon/>} disabled={!q.custId} title={q.custId?`Export quotation ${q.quoteNo} (EN)`:"Select a customer first"} onClick={()=>doExportPDF("en")}>PDF · EN</Btn>
-                    <Btn variant="export" size="sm" icon={<DlIcon/>} disabled={!q.custId} title={q.custId?`Export quotation ${q.quoteNo} (TH)`:"Select a customer first"} onClick={()=>doExportPDF("th")}>PDF · TH</Btn>
-                  </div>
-                </div>
                 </>)}
 
-                {/* Cost + margin + Save/Cancel footer (pinned on both pages) */}
-                <div style={{borderTop:"1px solid #e2e8f0",padding:"12px 20px",background:"#f8fafc",display:"flex",justifyContent:"flex-end",alignItems:"center",gap:16,flexWrap:"wrap"}}>
-                  <IconBtn title="Copy cost & margin summary for email" onClick={copyMarginSummary} style={{marginRight:"auto"}}>
-                    <CopyIcon s={14}/>
-                  </IconBtn>
-                  {[{l:"COGS",v:qIC},{l:"OPEX",v:qOPEX},{l:"Total Cost",v:qTC,bold:true}].map(x=>(
-                    <div key={x.l} style={{textAlign:"center"}}>
-                      <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>{x.l}</Span>
-                      <Span s={13} w={x.bold?900:700}>฿{fmt(x.v)}</Span>
+                {/* Financial summary + actions — unified footer (pinned on both pages) */}
+                <div style={{borderTop:"1px solid #e2e8f0",padding:"16px 20px",background:"#f8fafc"}}>
+                  <div style={{position:"relative",border:"1px solid #e2e8f0",borderRadius:10,background:"#fff",padding:"14px 18px",maxWidth:340}}>
+                    <IconBtn title="Copy financial summary for email" onClick={copyMarginSummary} style={{position:"absolute",top:8,right:8}}>
+                      <CopyIcon s={13}/>
+                    </IconBtn>
+                    <Span s={10} w={800} c="#94a3b8" style={{display:"block",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10}}>Financial Summary</Span>
+                    <div style={{display:"flex",flexDirection:"column"}}>
+                      {[
+                        {l:"COGS",     v:`฿${fmt(qIC)}`},
+                        {l:"OPEX",     v:`฿${fmt(qOPEX)}`},
+                        {l:"Total Cost", v:`฿${fmt(qTC)}`, bold:true},
+                        {l:"Price after Discount", v:`฿${fmt(qNetPrice)}${qDiscPct>0?` (−${qDiscPct}%)`:""}`, bold:true},
+                        {l:"Margin ฿", v:`฿${fmt(qMgAmt)}`, c:+qMg>=30?"#15803d":"#dc2626", bold:true},
+                        {l:"Margin",   v:`${qMg}%`, c:+qMg>=30?"#15803d":"#dc2626", bold:true},
+                      ].map((row,i,arr)=>(
+                        <div key={row.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:i<arr.length-1?"1px solid #f1f5f9":"none"}}>
+                          <Span s={12} c="#64748b">{row.l}</Span>
+                          <Span s={14} w={row.bold?800:600} c={row.c||"#0f172a"}>{row.v}</Span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                  <div style={{textAlign:"center"}}>
-                    <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>Price after Discount</Span>
-                    <Span s={13} w={900} c="#0f172a">฿{fmt(qNetPrice)}{qDiscPct>0&&<span style={{fontSize:10,fontWeight:700,color:"#dc2626",marginLeft:4}}>−{qDiscPct}%</span>}</Span>
                   </div>
-                  <div style={{textAlign:"center"}}>
-                    <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:1,textTransform:"uppercase"}}>Margin ฿</Span>
-                    <Span s={13} w={900} c="#0f172a">฿{fmt(qMgAmt)}</Span>
+                  <div style={{display:"flex",justifyContent:"center",gap:8,marginTop:14,flexWrap:"wrap"}}>
+                    <Btn variant="export" icon={<DlIcon/>} disabled={!q.custId} title={q.custId?`Export quotation ${q.quoteNo} (EN)`:"Select a customer first"} onClick={()=>doExportPDF("en")}>Export PDF EN</Btn>
+                    <Btn variant="export" icon={<DlIcon/>} disabled={!q.custId} title={q.custId?`Export quotation ${q.quoteNo} (TH)`:"Select a customer first"} onClick={()=>doExportPDF("th")}>Export PDF TH</Btn>
+                    <Btn variant="ghost" onClick={()=>delQO(q.id)}>Cancel</Btn>
+                    <Btn icon={<CheckIcon/>} onClick={handleSave} style={{padding:"8px 24px"}}>Save</Btn>
                   </div>
-                  <div style={{padding:"5px 12px",borderRadius:6,background:+qMg>=30?"#dcfce7":"#fee2e2",textAlign:"center"}}>
-                    <Span s={9} c={+qMg>=30?"#15803d":"#dc2626"} style={{display:"block"}}>Margin</Span>
-                    <Span s={15} w={900} c={+qMg>=30?"#15803d":"#dc2626"}>{qMg}%</Span>
-                  </div>
-                  <div style={{width:1,height:32,background:"#e2e8f0",flexShrink:0}}/>
-                  <Btn variant="ghost" onClick={()=>delQO(q.id)}>Cancel</Btn>
-                  <Btn icon={<CheckIcon/>} onClick={handleSave} style={{padding:"8px 24px"}}>Save</Btn>
                 </div>
               </Card>
               </div>
@@ -5258,6 +5249,8 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
   },[initCsCode,costSheets]);
   const [view,sView]    = useState("quote");
   const [gs,sGS]        = useState(false);
+  const [showNewQOModal,setShowNewQOModal] = useState(false);
+  const [nqoSearch,setNqoSearch] = useState("");
   const cs = useMemo(()=>costSheets.find(c=>c.serviceCode===selCode)||buildDefaultCS(SERVICES.find(s=>s.code===selCode)||SERVICES[0]),[costSheets,selCode]);
   const [editCS,sECS] = useState(cs);
   const [editPrice,sEP] = useState(0);
@@ -5474,6 +5467,34 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
     toast("Duplicated","Fill in Customer, Agent, and Contact Person then save.");
   };
 
+  // Every saved quotation across ALL services (not just the currently selected tab) — lets
+  // "+ New Quotation" offer "load from any past quotation" as a starting point, since building
+  // a Cost Sheet from scratch is slow and most new quotes resemble something already saved.
+  // Deduped by quoteNo (keep latest snapshot per quote), newest first.
+  const allQuotes = useMemo(()=>{
+    const map={};
+    costSheets.forEach(cs=>{
+      (cs.saveLog||[]).forEach(l=>{
+        if(!l.quoteSnapshot) return;
+        const key=l.quoteSnapshot.quoteNo;
+        if(!map[key]||l.ts>map[key].ts) map[key]={...l, serviceCode:cs.serviceCode, serviceType:cs.serviceType};
+      });
+    });
+    return Object.values(map).sort((a,b)=>(b.ts||"").localeCompare(a.ts||""));
+  },[costSheets]);
+  const filteredQuotes = useMemo(()=>{
+    const q=nqoSearch.trim().toLowerCase();
+    if(!q) return allQuotes;
+    return allQuotes.filter(l=>{
+      const snap=l.quoteSnapshot;
+      const custName=customers.find(c=>c.id===snap.custId)?.companyEN||"";
+      return [snap.csCode,snap.quoteNo,custName,l.serviceCode,l.serviceType,snap.projectTitle]
+        .filter(Boolean).some(v=>String(v).toLowerCase().includes(q));
+    });
+  },[allQuotes,nqoSearch,customers]);
+  const startBlankQO = () => { setShowNewQOModal(false); addQO(); };
+  const loadFromQuote = (snapshot) => { setShowNewQOModal(false); duplicateQO(snapshot); };
+
   const curSvc = SERVICES.find(s=>s.code===selCode);
 
 
@@ -5513,7 +5534,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
               </Span>
               <Span s={12} c="#94a3b8">One CS Code per quotation — auto-generated. Save to create an Opportunity with actual cost automatically.</Span>
             </div>
-            {(editCS.quoteOverrides||[]).length===0&&<div style={{display:"flex",gap:8}}><Btn onClick={addQO}>+ New Quotation</Btn></div>}
+            {(editCS.quoteOverrides||[]).length===0&&<div style={{display:"flex",gap:8}}><Btn onClick={()=>{setNqoSearch("");setShowNewQOModal(true);}}>+ New Quotation</Btn></div>}
           </div>
           {(editCS.quoteOverrides||[]).length===0&&(
             <div>
@@ -5559,6 +5580,40 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           ))}
         </div>
 
+        {showNewQOModal && (
+          <Modal title="New Quotation" width={640} onClose={()=>setShowNewQOModal(false)} closeOnOverlay>
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              <Btn onClick={startBlankQO} style={{alignSelf:"flex-start"}}>+ Start Blank</Btn>
+              <Divider/>
+              <div>
+                <Span s={12} w={700} c="#0f172a" style={{display:"block",marginBottom:2}}>Or load from an existing quotation</Span>
+                <Span s={11} c="#94a3b8">Copies costs, tasks, installments, deliverables & notes. Customer, Agent, and Contact are cleared for you to fill in.</Span>
+              </div>
+              <Inp autoFocus value={nqoSearch} onChange={e=>setNqoSearch(e.target.value)}
+                placeholder="Search by CS code, quote no., customer, or service…" style={{fontSize:13,padding:"8px 10px"}}/>
+              <div style={{maxHeight:360,overflowY:"auto",display:"flex",flexDirection:"column",gap:6}}>
+                {filteredQuotes.length===0&&(
+                  <div style={{padding:"18px 4px",textAlign:"center",color:"#94a3b8",fontSize:12.5,fontStyle:"italic"}}>No saved quotations match.</div>
+                )}
+                {filteredQuotes.map(l=>{
+                  const snap=l.quoteSnapshot;
+                  const custName=customers.find(c=>c.id===snap.custId)?.companyEN||snap.custId||"—";
+                  return (
+                    <div key={snap.csCode} onClick={()=>loadFromQuote(snap)}
+                      style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,cursor:"pointer"}}
+                      onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"}
+                      onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+                      <span style={{fontSize:12,fontWeight:700,fontFamily:"monospace",color:"#92400e",background:"#fef3c7",padding:"2px 8px",borderRadius:4,border:"1px solid #fde68a",flexShrink:0}}>{snap.csCode}</span>
+                      <SvcBadge code={l.serviceCode}/>
+                      <span style={{fontSize:12,color:"#374151",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{snap.quoteNo} · {custName}</span>
+                      <span style={{fontSize:11,color:"#94a3b8",flexShrink:0,whiteSpace:"nowrap"}}>{l.ts}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </Modal>
+        )}
 
     </div>
   );
