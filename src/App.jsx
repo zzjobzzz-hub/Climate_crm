@@ -374,6 +374,26 @@ const hashPasswordBrowser = async plainText => {
 // 
 const SI = {width:"100%",border:"1px solid #e2e8f0",borderRadius:5,padding:"8px 11px",fontSize:14,color:"#1e293b",background:"#fafafa",outline:"none",boxSizing:"border-box"};
 const Inp  = ({style,...p}) => <input {...p} style={{...SI,...style}}/>;
+// Search input with a magnify icon on the right — swaps to a clear "X" once there's text, so
+// clearing a query is one click instead of holding backspace through every character typed.
+const SearchInp = ({value,onChange,style,inputStyle,...p}) => (
+  <div style={{position:"relative",...style}}>
+    <input {...p} value={value} onChange={onChange}
+      style={{...SI,paddingRight:28,...inputStyle}}/>
+    <div style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      {value ? (
+        <button type="button" onClick={()=>onChange({target:{value:""}})} title="Clear search"
+          style={{border:"none",background:"none",cursor:"pointer",padding:4,display:"flex",alignItems:"center",justifyContent:"center",color:"#94a3b8",borderRadius:"50%"}}
+          onMouseEnter={e=>{e.currentTarget.style.background="#f1f5f9";e.currentTarget.style.color="#475569";}}
+          onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color="#94a3b8";}}>
+          <XIcon s={11}/>
+        </button>
+      ) : (
+        <span style={{display:"flex",padding:4,pointerEvents:"none"}}><SearchIcon size={13}/></span>
+      )}
+    </div>
+  </div>
+);
 // Numeric input that shows commas and allows empty/partial editing
 const NumInp = ({value,onChange,style,showZero,...p}) => {
   const [focused,setFocused] = React.useState(false);
@@ -1008,13 +1028,13 @@ const GlobalSearch = ({customers,opps,onGoToCust,onGoToOpp,page}) => {
 
   return (
     <div ref={ref} style={{position:"relative",width:220}}>
-      <Inp value={q} placeholder="Search customers, opps…"
+      <SearchInp value={q} placeholder="Search customers, opps…"
         role="combobox" aria-expanded={showList} aria-controls={idRef.current}
         aria-activedescendant={showList?`${idRef.current}-opt-${hi}`:undefined}
         onChange={e=>{setQ(e.target.value);setOpen(true);setHi(0);}}
         onFocus={()=>{if(q.trim())setOpen(true);}}
         onKeyDown={navKeyDown}
-        style={{fontSize:12,padding:"6px 10px"}}/>
+        inputStyle={{fontSize:12,padding:"6px 10px"}}/>
       {showList && (
         <div ref={listRef} id={idRef.current} role="listbox" style={{position:"absolute",left:0,right:0,top:"100%",marginTop:4,zIndex:800,background:"#fff",border:"1px solid #e2e8f0",borderRadius:7,boxShadow:"0 8px 24px rgba(0,0,0,.18)",maxHeight:360,overflow:"auto"}}>
           {items.length===0 && <div style={{padding:"16px 12px",textAlign:"center",color:"#94a3b8",fontSize:12}}>No matches</div>}
@@ -1482,6 +1502,14 @@ const FilterIcon = ({size=14,color="#94a3b8"}) => (
     <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
     <line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>
     <line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>
+  </svg>
+);
+// Same size/color/stroke conventions as FilterIcon — used to lead a search box instead of a
+// generic filter bar, since a magnifying glass reads as "search" while the funnel reads as
+// "filter" (kept FilterIcon for rows that are pure dropdown filters, no text search).
+const SearchIcon = ({size=14,color="#94a3b8"}) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
+    <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
   </svg>
 );
 const ChevronDown = () => (
@@ -2396,7 +2424,7 @@ const CustForm = ({initial,user,onSave,onClose,onDelete,tagSuggestions=[]}) => {
 
 const CUST_HDR = ["ID","Company EN","Industry","Province","Contacts","Agent","Ranking","Status","Last Contact","Remark","Tags"];
 const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,initCustId,onCustReady,userList=[]}) => {
-  const [search,sS]=useState(""); const [fR,setFR]=useState([]); const [fSt,setFSt]=useState([]); const [fAg,setFAg]=useState([]);
+  const [search,sS]=useState("");
   const [form,sF]=useState(false); const [edit,sE]=useState(null); const [gs,sGS]=useState(false);
   const [logCust,sLog]=useState(null);
   const [delConfirm,sDelConfirm]=useState(null);
@@ -2404,8 +2432,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
   const [colWidths,setColWidths] = React.useState([130,220,200,110,180,90,120,140,60,60]);
   const toggleSort=col=>setSorts(p=>cycleSort(p,col));
   const resetSort=()=>setSorts(p=>p.slice(0,1));
-  // Tags: row selection + bulk assign/delete + tag filter
-  const [fTag,setFTag]=useState([]);
+  // Tags: row selection + bulk assign/delete (tag filter folded into the main search box)
   const [selected,setSelected]=useState(()=>new Set());
   const [bulkTag,setBulkTag]=useState("");
   const [bulkDel,setBulkDel]=useState(false);
@@ -2414,7 +2441,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
   // if the filtered result count shrinks (e.g. after a delete) below the current page.
   const PAGE_SIZE=50;
   const [pg,setPg]=useState(1);
-  useEffect(()=>{setPg(1);},[search,fR,fSt,fAg,fTag,sorts]);
+  useEffect(()=>{setPg(1);},[search,sorts]);
   const toggleRow=(id)=>setSelected(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n;});
   const clearSel=()=>setSelected(new Set());
   // Drop selected ids that no longer exist (e.g. after a delete elsewhere)
@@ -2453,8 +2480,7 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
     return latest.slice(0,10) > (cust?.lastContact||"") ? latest.slice(0,10) : (cust?.lastContact||"");
   };
   const list=useMemo(()=>{
-    const RANK_ORDER=["High","Medium","Low"];
-    const filtered=customers.filter(c=>{const q=search.toLowerCase();return(!search||c.companyEN.toLowerCase().includes(q)||c.id.includes(q)||(c.contacts||[]).some(ct=>(ct.name||"").toLowerCase().includes(q)))&&(fR.length===0||fR.includes(c.ranking))&&(fSt.length===0||fSt.includes(c.status))&&(fAg.length===0||fAg.includes(c.assignedTo))&&(fTag.length===0||fTag.some(t=>safeArr(c.tags).includes(t)));});
+    const filtered=customers.filter(c=>{const q=search.toLowerCase();return !search||c.companyEN.toLowerCase().includes(q)||c.id.includes(q)||(c.contacts||[]).some(ct=>(ct.name||"").toLowerCase().includes(q))||c.industry.toLowerCase().includes(q)||(c.province||"").toLowerCase().includes(q)||(c.status||"").toLowerCase().includes(q)||(c.ranking||"").toLowerCase().includes(q)||safeArr(c.tags).some(t=>t.toLowerCase().includes(q))||(USERS.find(u=>u.id===c.assignedTo)?.name||"").toLowerCase().includes(q);});
     const getV=(c,col)=>{
       if(col==="id") return c.id||"";
       if(col==="companyEN") return (c.companyEN||"").toLowerCase();
@@ -2466,24 +2492,23 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
       return "";
     };
     return [...filtered].sort((a,b)=>multiCmp(a,b,sorts,getV));
-  },[customers,opps,deliveries,search,fR,fSt,fAg,fTag,sorts]);
+  },[customers,opps,deliveries,search,sorts]);
   useEffect(()=>{const maxPg=Math.max(1,Math.ceil(list.length/PAGE_SIZE));if(pg>maxPg)setPg(maxPg);},[list.length]);
   const pageList = list.slice((pg-1)*PAGE_SIZE, pg*PAGE_SIZE);
   const activeContacts = c => (c.contacts||[]).filter(ct=>ct.active);
   return (
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:10}}>
         <div style={{display:"flex",alignItems:"center",gap:9}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Customers</Span>
           <CountPill n={list.length} label="customers"/>
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}><Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("customers.csv",CUST_HDR,list.map(c=>[c.id,c.companyEN,c.industry,c.province,(c.contacts||[]).map(ct=>ct.name).join("; "),USERS.find(u=>u.id===c.assignedTo)?.name||c.assignedTo,c.ranking,c.status,getLastContact(c.id),c.remark||"",safeArr(c.tags).join("; ")]))}>CSV</Btn><Btn icon={<PlusIcon/>} onClick={()=>{sE(null);sF(true);}}>Add Customer</Btn></div>
-      </div>
-      <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
-        <FilterIcon/>
-        <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:220}}/>
-        <MultiSelect label="Tags" options={tagOptions.map(t=>({value:t,label:t}))} selected={fTag} onChange={setFTag} width={150}/>
-        <div style={{marginLeft:"auto"}}><SortReset sorts={sorts} onReset={resetSort}/></div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <SearchInp value={search} onChange={e=>sS(e.target.value)} placeholder="Search name, tag, contact…" style={{width:240}}/>
+          <SortReset sorts={sorts} onReset={resetSort}/>
+          <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("customers.csv",CUST_HDR,list.map(c=>[c.id,c.companyEN,c.industry,c.province,(c.contacts||[]).map(ct=>ct.name).join("; "),USERS.find(u=>u.id===c.assignedTo)?.name||c.assignedTo,c.ranking,c.status,getLastContact(c.id),c.remark||"",safeArr(c.tags).join("; ")]))}>CSV</Btn>
+          <Btn icon={<PlusIcon/>} onClick={()=>{sE(null);sF(true);}}>Add Customer</Btn>
+        </div>
       </div>
       {selected.size>0&&(
         <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginBottom:12,padding:"10px 14px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:9}}>
@@ -3570,7 +3595,7 @@ const OppForm =({initial,customers,opps,user,onSave,onClose,costSheets,onGoToCS,
 
 const OPP_HDR = ["OPP Code","Quote No.","CS Code","Job Code","Company","Service Code","Service Type","Sales Price","Total Cost","Margin%","Margin ฿","Status","Agent","Created","Lost Reason"];
 const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSaveDelivery,onDeleteDelivery,toast,costSheets,onGoToCS,initOppCode,onOppReady,userList=[],onMentionNotify,year="all"}) => {
-  const [search,sS]=useState(""); const [fSt,setFSt]=useState([]); const [fAg,setFAg]=useState([]); const [fSvc,setFSvc]=useState([]);
+  const [search,sS]=useState("");
   const [view,sView]=useState("kanban"); const [form,sF]=useState(false); const [edit,sE]=useState(null);
   const [kanbanSorts,setKanbanSorts]=useState([{col:"date",dir:"desc"}]); // SortChips: date (Latest) + ranking
   const toggleKanbanSort=col=>setKanbanSorts(p=>cycleSort(p,col));
@@ -3589,9 +3614,9 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
   // Pagination — table view only (kanban already shards by status into small columns).
   const PAGE_SIZE=50;
   const [pg,setPg]=useState(1);
-  useEffect(()=>{setPg(1);},[search,fSt,fAg,fSvc,sorts,year]);
+  useEffect(()=>{setPg(1);},[search,sorts,year]);
   const list=useMemo(()=>{
-    const filtered=opps.filter(o=>{const c=customers.find(x=>x.id===o.custId);const q=search.toLowerCase();return(!search||o.oppCode.toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||o.quoteNo.toLowerCase().includes(q)||o.serviceCode.toLowerCase().includes(q))&&(fSt.length===0||fSt.includes(o.status))&&(fAg.length===0||fAg.includes(o.assignedTo))&&(fSvc.length===0||fSvc.includes(o.serviceCode))&&(year==="all"||toBEDate(o.createdDate).startsWith(String(year)));});
+    const filtered=opps.filter(o=>{const c=customers.find(x=>x.id===o.custId);const q=search.toLowerCase();const agentName=(USERS.find(u=>u.id===o.assignedTo)?.name||"").toLowerCase();return(!search||o.oppCode.toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||o.quoteNo.toLowerCase().includes(q)||o.serviceCode.toLowerCase().includes(q)||(o.serviceType||"").toLowerCase().includes(q)||(o.status||"").toLowerCase().includes(q)||agentName.includes(q))&&(year==="all"||toBEDate(o.createdDate).startsWith(String(year)));});
     const getV=(o,col)=>{
       const c=customers.find(x=>x.id===o.custId);
       if(col==="oppCode")    return o.oppCode||"";
@@ -3612,7 +3637,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
       return "";
     };
     return [...filtered].sort((a,b)=>multiCmp(a,b,sorts,getV));
-  },[opps,customers,search,fSt,fAg,fSvc,sorts,year]);
+  },[opps,customers,search,sorts,year]);
   useEffect(()=>{const maxPg=Math.max(1,Math.ceil(list.length/PAGE_SIZE));if(pg>maxPg)setPg(maxPg);},[list.length]);
   const pageList = list.slice((pg-1)*PAGE_SIZE, pg*PAGE_SIZE);
   const totalPipeline=list.filter(o=>o.status!=="Lost").reduce((s,o)=>s+o.salesPrice,0);
@@ -3771,22 +3796,13 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
 
   return (
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}}>
         <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Opportunities</Span>
           <CountPill n={list.length} label="opps"/>
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("opps.csv",OPP_HDR,list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);return[o.oppCode,o.quoteNo,o.csCode||"",o.jobCode||"",c?.companyEN||"",o.serviceCode,o.serviceType,o.salesPrice,o.totalCost||0,mg,marginAmt(o.salesPrice,o.totalCost||0),o.status,USERS.find(u=>u.id===o.assignedTo)?.name||"",o.createdDate,o.lostReason||""];}))}>CSV</Btn>
-        </div>
-      </div>
-      <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
-        <FilterIcon/>
-        <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:200,minWidth:140}}/>
-        <MultiSelect label="Status"  options={OPP_STATUSES.map(s=>({value:s,label:s}))}       selected={fSt}  onChange={setFSt}  width={140}/>
-        <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fSvc} onChange={setFSvc} width={140}/>
-        <MultiSelect label="Agents"  options={SALES_USERS.map(u=>({value:u.id,label:u.name.split(" ")[0]}))} selected={fAg} onChange={setFAg} width={155}/>
-        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <SearchInp value={search} onChange={e=>sS(e.target.value)} placeholder="Search code, company, status, agent…" style={{width:260}}/>
           {view==="table"&&<SortReset sorts={sorts} onReset={resetSort}/>}
           {view==="kanban"&&<SortChips fields={[{col:"date",label:"Latest"},{col:"ranking",label:"Ranking"}]} sorts={kanbanSorts} onToggle={toggleKanbanSort} onReset={resetKanbanSort}/>}
           <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
@@ -3794,6 +3810,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
               <button key={k} onClick={()=>sView(k)} style={{padding:"7px 14px",border:"none",background:view===k?"#0f172a":"#fff",color:view===k?"#fff":"#64748b",cursor:"pointer",fontSize:12,fontWeight:view===k?700:400}}>{l}</button>
             ))}
           </div>
+          <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("opps.csv",OPP_HDR,list.map(o=>{const c=customers.find(x=>x.id===o.custId);const mg=margin(o.salesPrice,o.totalCost||0);return[o.oppCode,o.quoteNo,o.csCode||"",o.jobCode||"",c?.companyEN||"",o.serviceCode,o.serviceType,o.salesPrice,o.totalCost||0,mg,marginAmt(o.salesPrice,o.totalCost||0),o.status,USERS.find(u=>u.id===o.assignedTo)?.name||"",o.createdDate,o.lostReason||""];}))}>CSV</Btn>
         </div>
       </div>
       {view==="table"&&(
@@ -4566,7 +4583,7 @@ const buildCostRows = (delivery, opp, custName, costSheets) => {
 
 const DLV_HDR = ["Delivery ID","Customer","OPP Code","Quote No.","Job Code","Contract No.","Contract Date","Service Type","Contract Value","Status","Step","Delivery Date","Total Received","Balance"];
 const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,onGoToCS,onGoToCust,onGoToOpp,userList=[],onMentionNotify=()=>{},year="all"}) => {
-  const [search,sS]=useState(""); const [fDSvc,setFDSvc]=useState([]);
+  const [search,sS]=useState("");
   const [form,sF]=useState(false); const [edit,sE]=useState(null); const [gs,sGS]=useState(false);
   const [initTab,sInitTab]=useState("detail"); // which tab to open in DeliveryForm
   const [quotationOpp,sQT]=useState(null); // for inline Quotation Preview modal
@@ -4582,7 +4599,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
   // Req 9: expandable sections per delivery card
 
   const list=deliveries
-    .filter(d=>{const c=customers.find(x=>x.id===d.custId);const q=search.toLowerCase();return(!search||(d.jobCode||"").toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||(d.contractNo||"").toLowerCase().includes(q)||(d.oppCode||"").toLowerCase().includes(q))&&(fDSvc.length===0||fDSvc.includes(d.serviceCode))&&(year==="all"||toBEDate(d.contractDate).startsWith(String(year)));})
+    .filter(d=>{const c=customers.find(x=>x.id===d.custId);const q=search.toLowerCase();return(!search||(d.jobCode||"").toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||(d.contractNo||"").toLowerCase().includes(q)||(d.oppCode||"").toLowerCase().includes(q)||(d.serviceCode||"").toLowerCase().includes(q)||(d.serviceType||"").toLowerCase().includes(q)||(d.deliveryStatus||"").toLowerCase().includes(q))&&(year==="all"||toBEDate(d.contractDate).startsWith(String(year)));})
     .sort((a,b)=>multiCmp(a,b,sorts,getDV));
 
   const totContract = list.reduce((s,d)=>s+(Number(d.totalContractValue)||0),0);
@@ -4634,22 +4651,16 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
 
   return (
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:10}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Delivery</Span>
           <CountPill n={list.length} label="deliveries"/>
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <SearchInp value={search} onChange={e=>sS(e.target.value)} placeholder="Search job, company, service, status…" style={{width:260}}/>
+          <SortChips fields={[{col:"date",label:"Latest"},{col:"contractDate",label:"Contract"},{col:"contractValue",label:"Value"}]} sorts={sorts} onToggle={toggleSort} onReset={resetSort}/>
           <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=safeArr(d.installments).filter(i=>i.status==="Received"&&i.receiptDate).reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}>CSV</Btn>
           <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={exportCostReport}>Cost Report CSV</Btn>
-        </div>
-      </div>
-      <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
-        <FilterIcon/>
-        <Inp value={search} onChange={e=>sS(e.target.value)} placeholder="Search…" style={{maxWidth:200,minWidth:140}}/>
-        <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fDSvc} onChange={setFDSvc} width={140}/>
-        <div style={{marginLeft:"auto"}}>
-          <SortChips fields={[{col:"date",label:"Latest"},{col:"contractDate",label:"Contract"},{col:"contractValue",label:"Value"}]} sorts={sorts} onToggle={toggleSort} onReset={resetSort}/>
         </div>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
@@ -5593,8 +5604,8 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                 <Span s={12} w={700} c="#0f172a" style={{display:"block",marginBottom:2}}>Or load from an existing quotation</Span>
                 <Span s={11} c="#94a3b8">Copies costs, tasks, installments, deliverables & notes. Customer, Agent, and Contact are cleared for you to fill in.</Span>
               </div>
-              <Inp autoFocus value={nqoSearch} onChange={e=>setNqoSearch(e.target.value)}
-                placeholder="Search by CS code, quote no., customer, or service…" style={{fontSize:13,padding:"8px 10px"}}/>
+              <SearchInp autoFocus value={nqoSearch} onChange={e=>setNqoSearch(e.target.value)}
+                placeholder="Search by CS code, quote no., customer, or service…" inputStyle={{fontSize:13,padding:"8px 10px"}}/>
               <div style={{maxHeight:360,overflowY:"auto",display:"flex",flexDirection:"column",gap:6}}>
                 {filteredQuotes.length===0&&(
                   <div style={{padding:"18px 4px",textAlign:"center",color:"#94a3b8",fontSize:12.5,fontStyle:"italic"}}>No saved quotations match.</div>
@@ -6044,20 +6055,18 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
   const [mainTab, setMainTab] = useState("projects"); // "projects" | "summary"
 
   const [search,  sSearch]  = useState("");
-  const [fSvc,    setFSvc]  = useState([]);
 
   const wonOpps = useMemo(()=>
     opps.filter(o=>o.status==="Won"&&o.jobCode&&o.csCode)
         .filter(o=>{
           const q=search.toLowerCase();
           const c=customers.find(x=>x.id===o.custId);
-          const matchSearch = !q||(o.jobCode||"").toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q);
-          const matchSvc = fSvc.length===0||fSvc.includes(o.serviceCode);
+          const matchSearch = !q||(o.jobCode||"").toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||(o.serviceCode||"").toLowerCase().includes(q)||(o.serviceType||"").toLowerCase().includes(q);
           const matchYear = year==="all"||toBEDate(o.createdDate).startsWith(String(year));
-          return matchSearch&&matchSvc&&matchYear;
+          return matchSearch&&matchYear;
         })
         .sort((a,b)=>(b.createdDate||"").localeCompare(a.createdDate||""))
-  ,[opps,customers,search,fSvc,year]);
+  ,[opps,customers,search,year]);
 
   const getQuoteSnapshot = opp => {
     const cs = costSheets.find(x=>x.serviceCode===opp.serviceCode);
@@ -6168,6 +6177,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
           </div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <SearchInp value={search} onChange={e=>sSearch(e.target.value)} placeholder="Search job, company, service…" style={{width:240}}/>
           {canToggle&&(
             <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
               {[["manager","Manager View"],["agent","Agent View"]].map(([k,l])=>(
@@ -6185,16 +6195,10 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
           )}
         </div>
       </div>
-      {/* Row 2: Filter bar */}
-      <div style={{display:"flex",gap:8,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
-        <FilterIcon/>
-        <input value={search} onChange={e=>sSearch(e.target.value)} placeholder="Search…" style={{...SI,width:200,fontSize:13}}/>
-        <MultiSelect label="Service" options={SERVICES.map(s=>({value:s.code,label:s.code}))} selected={fSvc} onChange={setFSvc} width={140}/>
-      </div>
 
       {mainTab==="projects" && visibleOpps.length===0&&(
         <Card style={{padding:40,textAlign:"center"}}>
-          <Span s={14} c="#94a3b8">{search||fSvc.length?"No matching projects.":effectiveIsManager?"No Won opportunities yet.":"No tasks assigned to you."}</Span>
+          <Span s={14} c="#94a3b8">{search?"No matching projects.":effectiveIsManager?"No Won opportunities yet.":"No tasks assigned to you."}</Span>
         </Card>
       )}
 
