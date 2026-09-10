@@ -644,7 +644,11 @@ const TagTypeahead = ({value,onChange,suggestions=[],onCommit,placeholder,inputS
   </>);
 };
 
-const TH = ({cols}) => <thead><tr style={{background:"#f8fafc"}}>{cols.map((c,i)=><th key={i} style={{padding:"9px 12px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:12,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap"}}>{c}</th>)}</tr></thead>;
+const TH = ({cols}) => <thead><tr style={{background:"#f8fafc"}}>{cols.map((c,i)=>{const isObj=c&&typeof c==="object";const label=isObj?c.label:c;const title=isObj?c.title:undefined;return(
+  <th key={i} title={title} style={{padding:"9px 12px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:12,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #e2e8f0",whiteSpace:"nowrap",cursor:title?"help":undefined}}>
+    {label}{title&&<span style={{marginLeft:3,color:"#cbd5e1",fontSize:10}}>ⓘ</span>}
+  </th>
+);})}</tr></thead>;
 const TR = ({children,onClick,hi}) => { const[h,sH]=useState(false); return <tr onClick={onClick} onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)} style={{borderBottom:"1px solid #f1f5f9",background:hi?"#fffbeb":h?"#f8fafc":"#fff",cursor:onClick?"pointer":"default"}}>{children}</tr>; };
 const TD = ({children,right,w,style,...rest}) => <td {...rest} style={{padding:"10px 12px",fontSize:14,color:"#374151",maxWidth:w,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textAlign:right?"right":"left",...style}}>{children}</td>;
 
@@ -4732,8 +4736,8 @@ const TaskRow = React.memo(({t, rowNum, onSet, onDel, months}) => {
           );
         })}
         <td style={{padding:"5px 7px",fontWeight:700,whiteSpace:"nowrap",fontSize:13,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>฿{fmt(tc)}</td>
-        <td style={{padding:"5px 6px"}}>
-          <Sel value={t.payMonth||1} onChange={e=>onSet(t.id,"payMonth",+e.target.value)} style={{padding:"3px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}>
+        <td style={{padding:"5px 6px",minWidth:58}}>
+          <Sel value={t.payMonth||1} onChange={e=>onSet(t.id,"payMonth",+e.target.value)} style={{padding:"3px 4px",fontSize:13,width:"100%",minWidth:52,boxSizing:"border-box"}}>
             {Array.from({length:(months||3)+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
           </Sel>
         </td>
@@ -4829,7 +4833,7 @@ const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
           </th>
         ))}
         <th style={{...thStyle,textAlign:"right"}}>Total Cost</th>
-        <th style={thStyle}>Pay M.</th>
+        <th style={{...thStyle,cursor:"help"}} title="Pay Month — which project month this task's cost is paid out. Drives the Cashflow table below.">Pay M.<span style={{marginLeft:3,color:"#cbd5e1",fontSize:10}}>ⓘ</span></th>
         <th style={thStyle}>Agent</th>
       </tr></thead>
       <tbody>
@@ -5002,7 +5006,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                     </div>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
                       <colgroup><col style={{width:20}}/><col style={{width:"25%"}}/><col style={{width:"12%"}}/><col style={{width:"7%"}}/><col style={{width:"7%"}}/><col style={{width:"12%"}}/><col style={{width:"11%"}}/><col style={{width:"7%"}}/><col style={{width:"4%"}}/></colgroup>
-                      <TH cols={["#","Label","Vendor","Unit","Qty","Rate","Total","Pay M.",""]}/>
+                      <TH cols={["#","Label","Vendor","Unit","Qty","Rate","Total",{label:"Pay M.",title:"Pay Month — which project month this cost is paid out. Drives the Cashflow table below."},""]}/>
                       <tbody>
                         {(q.costs||[]).length===0&&(
                           <tr><td colSpan={9} style={{padding:"9px 6px",fontSize:11.5,color:"#94a3b8",fontStyle:"italic"}}>No cost rows yet — add materials or external/vendor costs.</td></tr>
@@ -5016,8 +5020,8 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                             <td style={{padding:"3px 3px"}}><NumInp value={r.qty} onChange={v=>setQIC(q.id,r.id,"qty",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px"}}><NumInp value={r.rate} onChange={v=>setQIC(q.id,r.id,"rate",v)} style={{padding:"2px 4px",fontSize:13,width:"100%",boxSizing:"border-box"}}/></td>
                             <td style={{padding:"3px 3px",fontWeight:700,fontSize:13,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>฿{fmt((r.qty||0)*(r.rate||0))}</td>
-                            <td style={{padding:"3px 3px"}}>
-                              <Sel value={r.payMonth||1} onChange={e=>setQIC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:11,width:"100%"}}>
+                            <td style={{padding:"3px 3px",minWidth:52}}>
+                              <Sel value={r.payMonth||1} onChange={e=>setQIC(q.id,r.id,"payMonth",+e.target.value)} style={{padding:"1px 3px",fontSize:11,width:"100%",minWidth:46}}>
                                 {Array.from({length:(months||3)+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
                               </Sel>
                             </td>
@@ -5209,7 +5213,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                         {l:"Margin",   v:`฿${fmt(qMgAmt)}`, c:+qMg>=30?"#15803d":"#dc2626", bold:true},
                         {l:"Margin %", v:`${qMg}%`, c:+qMg>=30?"#15803d":"#dc2626", bold:true},
                       ].map((row,i,arr)=>(
-                        <div key={row.l} style={{flex:1,textAlign:"center",padding:"0 6px",borderRight:i<arr.length-1?"1px solid #f1f5f9":"none"}}>
+                        <div key={row.l} style={{flex:1,textAlign:"right",padding:"0 6px",borderRight:i<arr.length-1?"1px solid #f1f5f9":"none"}}>
                           <Span s={9} c="#94a3b8" style={{display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.04em"}}>{row.l}</Span>
                           <Span s={16} w={row.bold?800:700} c={row.c||"#0f172a"} style={{whiteSpace:"nowrap"}}>{row.v}</Span>
                         </div>
@@ -6670,14 +6674,14 @@ const WB_HEADER_CSS = `
 .wb-header-center{display:flex;align-items:center;gap:16px;min-width:0;}
 .wb-header-nav{display:flex;min-width:0;overflow-x:auto;}
 .wb-header-navtoggle{display:none;}
-@media (max-width:900px){
+@media (max-width:960px){
   .wb-header-search{display:none;}
+  .wb-header-nav{display:none;}
+  .wb-header-navtoggle{display:flex;align-items:center;}
 }
 @media (max-width:720px){
   .wb-header-inner{gap:12px;padding:0 16px;}
   .wb-header-userinfo{display:none;}
-  .wb-header-nav{display:none;}
-  .wb-header-navtoggle{display:flex;align-items:center;}
 }
 `;
 if (typeof document !== "undefined" && !document.getElementById("wb-header-css")) {
