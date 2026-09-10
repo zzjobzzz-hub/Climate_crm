@@ -2502,9 +2502,9 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
         <div style={{display:"flex",alignItems:"center",gap:9}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Customers</Span>
           <CountPill n={list.length} label="customers"/>
+          <SearchInp value={search} onChange={e=>sS(e.target.value)} placeholder="Search name, tag, contact…" style={{width:240}}/>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <SearchInp value={search} onChange={e=>sS(e.target.value)} placeholder="Search name, tag, contact…" style={{width:240}}/>
           <SortReset sorts={sorts} onReset={resetSort}/>
           <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("customers.csv",CUST_HDR,list.map(c=>[c.id,c.companyEN,c.industry,c.province,(c.contacts||[]).map(ct=>ct.name).join("; "),USERS.find(u=>u.id===c.assignedTo)?.name||c.assignedTo,c.ranking,c.status,getLastContact(c.id),c.remark||"",safeArr(c.tags).join("; ")]))}>CSV</Btn>
           <Btn icon={<PlusIcon/>} onClick={()=>{sE(null);sF(true);}}>Add Customer</Btn>
@@ -3800,9 +3800,9 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
         <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Opportunities</Span>
           <CountPill n={list.length} label="opps"/>
+          <SearchInp value={search} onChange={e=>sS(e.target.value)} placeholder="Search code, company, status, agent…" style={{width:260}}/>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-          <SearchInp value={search} onChange={e=>sS(e.target.value)} placeholder="Search code, company, status, agent…" style={{width:260}}/>
           {view==="table"&&<SortReset sorts={sorts} onReset={resetSort}/>}
           {view==="kanban"&&<SortChips fields={[{col:"date",label:"Latest"},{col:"ranking",label:"Ranking"}]} sorts={kanbanSorts} onToggle={toggleKanbanSort} onReset={resetKanbanSort}/>}
           <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
@@ -4655,9 +4655,9 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Delivery</Span>
           <CountPill n={list.length} label="deliveries"/>
+          <SearchInp value={search} onChange={e=>sS(e.target.value)} placeholder="Search job, company, service, status…" style={{width:260}}/>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-          <SearchInp value={search} onChange={e=>sS(e.target.value)} placeholder="Search job, company, service, status…" style={{width:260}}/>
           <SortChips fields={[{col:"date",label:"Latest"},{col:"contractDate",label:"Contract"},{col:"contractValue",label:"Value"}]} sorts={sorts} onToggle={toggleSort} onReset={resetSort}/>
           <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=safeArr(d.installments).filter(i=>i.status==="Received"&&i.receiptDate).reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}>CSV</Btn>
           <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={exportCostReport}>Cost Report CSV</Btn>
@@ -6166,6 +6166,7 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Time Sheet</Span>
           <CountPill n={visibleOpps.length} label="projects"/>
+          <SearchInp value={search} onChange={e=>sSearch(e.target.value)} placeholder="Search job, company, service…" style={{width:240}}/>
           {/* Main tab: Projects / Monthly Summary */}
           <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden",marginLeft:8}}>
             {[["projects","Projects"],["summary","Monthly Summary"]].map(([k,l])=>(
@@ -6177,7 +6178,6 @@ const TimesheetPage = ({user,opps,customers,costSheets,timesheets,onSaveTimeshee
           </div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <SearchInp value={search} onChange={e=>sSearch(e.target.value)} placeholder="Search job, company, service…" style={{width:240}}/>
           {canToggle&&(
             <div style={{display:"flex",border:"1px solid #e2e8f0",borderRadius:6,overflow:"hidden"}}>
               {[["manager","Manager View"],["agent","Agent View"]].map(([k,l])=>(
