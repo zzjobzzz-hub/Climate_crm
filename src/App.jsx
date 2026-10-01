@@ -2751,6 +2751,22 @@ const CustomersPage = ({user,customers,opps,onSave,onDelete,toast,deliveries,ini
 
 // Logo removed — using company name text only
 
+// ── Amount in words (quotation Payment Schedule) ──
+// English: "Seventy-two thousand baht". Thai: standard บาทถ้วน reading ("เจ็ดหมื่นสองพันบาทถ้วน").
+const EN_ONES=["","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
+const EN_TENS=["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
+const enBelow1000=n=>{ const out=[]; if(n>=100){out.push(EN_ONES[Math.floor(n/100)]+" hundred"); n%=100;} if(n>=20) out.push(EN_TENS[Math.floor(n/10)]+(n%10?"-"+EN_ONES[n%10]:"")); else if(n>0) out.push(EN_ONES[n]); return out.join(" "); };
+const enInt=n=>{ if(n===0) return "zero"; const out=[]; for(const [v,name] of [[1e9,"billion"],[1e6,"million"],[1e3,"thousand"]]){ if(n>=v){ out.push(enBelow1000(Math.floor(n/v))+" "+name); n%=v; } } if(n>0) out.push(enBelow1000(n)); return out.join(" "); };
+const bahtWordsEN=amount=>{ const t=Math.round((+amount||0)*100), baht=Math.floor(t/100), sat=t%100; let w=enInt(baht)+" baht"; if(sat) w+=" and "+enInt(sat)+" satang"; return w.charAt(0).toUpperCase()+w.slice(1); };
+const TH_DIG=["ศูนย์","หนึ่ง","สอง","สาม","สี่","ห้า","หก","เจ็ด","แปด","เก้า"];
+const TH_POS=["","สิบ","ร้อย","พัน","หมื่น","แสน"];
+const thBelowMillion=(n,hasHigher)=>{ const s=String(n), len=s.length; let out=""; for(let i=0;i<len;i++){ const d=+s[i], pos=len-i-1; if(d===0) continue;
+  if(pos===0&&d===1&&(len>1||hasHigher)) out+="เอ็ด";
+  else if(pos===1&&d===2) out+="ยี่สิบ";
+  else if(pos===1&&d===1) out+="สิบ";
+  else out+=TH_DIG[d]+TH_POS[pos]; } return out; };
+const thInt=n=>{ if(n===0) return "ศูนย์"; const m=Math.floor(n/1e6), r=n%1e6; return (m>0?thInt(m)+"ล้าน":"")+(r>0?thBelowMillion(r,m>0):""); };
+const bahtWordsTH=amount=>{ const t=Math.round((+amount||0)*100), baht=Math.floor(t/100), sat=t%100; return thInt(baht)+"บาท"+(sat?thInt(sat)+"สตางค์":"ถ้วน"); };
 const WAVE_CO = {
   name:       "Wave BCG Company Limited",
   taxId:      "0105528019566",
@@ -2834,7 +2850,7 @@ const exportQuotationPDF = (f, customer, logoB64="", lang="en") => {
     const instRowsHtml=(f.installments||[]).map((ins,i)=>`
       <tr>
         <td class="idx">${i+1}</td>
-        <td>${ins.label||""}</td>
+        <td>${ins.label||""}<div class="words">(${isTH?bahtWordsTH(Math.round(subT*(ins.pct||0)/100)):bahtWordsEN(Math.round(subT*(ins.pct||0)/100))})</div></td>
         <td class="num">${ins.pct||0}%</td>
         <td class="num amt">${cur} ${fmt(Math.round(subT*(ins.pct||0)/100))}</td>
       </tr>`).join("");
@@ -2924,6 +2940,8 @@ td{border-bottom:1px solid #eef1f5}
 .tot-final{border-bottom:none;border-top:1.5px solid #0c1a2e;margin-top:2px;padding-top:5px}
 .tot-final .k{font-weight:800;color:#0c1a2e;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em}
 .tot-final .v{font-weight:900;color:#0c1a2e;font-size:12px;font-family:'Inter Tight','Inter',sans-serif}
+.tot-words{text-align:right;font-size:7.5px;color:#5b6675;font-style:italic;margin-top:3px}
+.words{color:#7c8794;font-size:7.5px;margin-top:1px}
 /* Signature */
 .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;border-top:1px solid #e2e8f0;padding-top:16px;margin-top:auto}
 .sig-lbl{font-size:8px;color:#5b6675;margin-bottom:26px;font-style:italic}
@@ -3007,6 +3025,7 @@ ${thStyle}
         <div class="tot-row"><span class="k">${L.tNet}</span><span class="v">${cur} ${fmt(netT)}</span></div>`:""}
         <div class="tot-row"><span class="k">${L.tVat}</span><span class="v">${cur} ${fmt(vatT)}</span></div>
         <div class="tot-row tot-final"><span class="k">${L.tTotal}</span><span class="v">${cur} ${fmt(totT)}</span></div>
+        <div class="tot-words">(${isTH?bahtWordsTH(totT):bahtWordsEN(totT)})</div>
       </div>
     </div>
   </div>
@@ -3305,7 +3324,7 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
               {(f.installments||[]).map((ins,idx)=>(
                 <tr key={ins.id} style={{borderBottom:"1px solid #eef1f5"}}>
                   <td style={{padding:"6px 8px 6px 0",color:"#9aa4b1",fontWeight:700}}>{idx+1}</td>
-                  <td style={{padding:"6px 8px",fontSize:11}}>{ins.label}</td>
+                  <td style={{padding:"6px 8px",fontSize:11}}>{ins.label}<div style={{fontSize:9.5,color:"#7c8794",marginTop:1}}>({bahtWordsEN(Math.round(subTotal*(ins.pct||0)/100))})</div></td>
                   <td style={{padding:"6px 8px",textAlign:"right",fontSize:11,fontVariantNumeric:"tabular-nums"}}>{ins.pct||0}%</td>
                   <td style={{padding:"6px 0 6px 8px",textAlign:"right",fontWeight:700,color:"#0c1a2e",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",fontSize:11}}>฿{fmt(Math.round(subTotal*(ins.pct||0)/100))}</td>
                 </tr>
@@ -3328,6 +3347,7 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
                   <span style={{fontWeight:x.b?900:600,color:x.disc?"#dc2626":x.b?"#0c1a2e":"#243042",fontSize:x.b?15:11.5,fontVariantNumeric:"tabular-nums",fontFamily:x.b?"'Inter Tight','Inter',sans-serif":"inherit"}}>{x.disc?"−":""}฿{fmt(x.v)}</span>
                 </div>
               ))}
+              <div style={{textAlign:"right",fontSize:10,fontStyle:"italic",color:"#5b6675",marginTop:3}}>({bahtWordsEN(total)})</div>
             </div>
           </div>
         </div>
@@ -4872,7 +4892,7 @@ const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
           },0)]));
           const opexTotal=calcTask(tasks);
           return (
-            <tr style={{borderTop:"2px solid #0f172a",background:"#f8fafc"}}>
+            <tr style={{borderTop:"1px solid #cbd5e1",background:"#f8fafc"}}>
               <td colSpan={2} style={{padding:"7px 6px",fontSize:11,fontWeight:800,color:"#0f172a",textTransform:"uppercase",letterSpacing:"0.04em"}}>
                 Total OPEX <span style={{fontWeight:500,color:"#94a3b8",textTransform:"none",letterSpacing:0}}>· {tasks.length} task{tasks.length>1?"s":""}</span>
               </td>
@@ -5072,7 +5092,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                           </td>
                         </tr>
                         {(q.costs||[]).length>0&&(
-                          <tr style={{borderTop:"2px solid #0f172a",background:"#f8fafc"}}>
+                          <tr style={{borderTop:"1px solid #cbd5e1",background:"#f8fafc"}}>
                             <td colSpan={6} style={{padding:"7px 6px",fontSize:11,fontWeight:800,color:"#0f172a",textTransform:"uppercase",letterSpacing:"0.04em"}}>
                               Total COGS <span style={{fontWeight:500,color:"#94a3b8",textTransform:"none",letterSpacing:0}}>· {(q.costs||[]).length} item{(q.costs||[]).length>1?"s":""}</span>
                             </td>
@@ -5092,40 +5112,46 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
 
                 {/*  INSTALLMENTS (left) + CASHFLOW (right) — 2-col layout  */}
                 <div className="wb-cs-2col" style={{padding:"0 16px 16px",gap:16,borderTop:"1px solid #f1f5f9"}}>
-                  {/* Installments */}
-                  <div style={{paddingTop:14}}>
+                  {/* Installments — full width so one row reads: Description · % · Amount · In words · Recv M. */}
+                  <div style={{paddingTop:14,gridColumn:"1 / -1"}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                       <Span s={12} w={700}>Installments</Span>
                       <span style={{fontSize:13,fontWeight:700,color:Math.abs(instSum-100)<0.1?"#15803d":"#dc2626"}}>({instSum}%)</span>
                     </div>
-                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
+                      <colgroup><col style={{width:28}}/><col/><col style={{width:70}}/><col style={{width:110}}/><col style={{width:"32%"}}/><col style={{width:80}}/><col style={{width:28}}/></colgroup>
                       <thead><tr style={{background:"#f8fafc"}}>
-                        <th style={{padding:"5px 4px",width:22,textAlign:"center",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}>#</th>
-                        <th style={{padding:"5px 6px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}>Label</th>
-                        <th style={{padding:"5px 4px",width:46,textAlign:"right",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}>%</th>
-                        <th style={{padding:"5px 4px",width:76,textAlign:"right",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}>Amount</th>
-                        <th style={{padding:"5px 4px",width:54,textAlign:"left",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}>Recv M.</th>
-                        <th style={{padding:"5px 4px",width:20,borderBottom:"1px solid #e2e8f0"}}/>
+                        <th style={{padding:"5px 6px",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0",width:28,textAlign:"center"}}>#</th>
+                        <th style={{padding:"5px 6px",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0",textAlign:"left"}}>Description</th>
+                        <th style={{padding:"5px 6px",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0",textAlign:"right"}}>%</th>
+                        <th style={{padding:"5px 6px",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0",textAlign:"right"}}>Amount</th>
+                        <th style={{padding:"5px 6px",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0",textAlign:"left"}} title="Amount written out in words — automatic, printed on the quotation">In words</th>
+                        <th style={{padding:"5px 6px",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0",textAlign:"left"}}>Recv M.</th>
+                        <th style={{padding:"5px 6px",fontWeight:700,color:"#64748b",fontSize:11,borderBottom:"1px solid #e2e8f0"}}/>
                       </tr></thead>
                       <tbody>
                         {(q.installments||[]).length===0&&(
-                          <tr><td colSpan={6} style={{padding:"9px 6px",fontSize:11.5,color:"#94a3b8",fontStyle:"italic"}}>No installments yet — add payment milestones (should total 100%).</td></tr>
+                          <tr><td colSpan={7} style={{padding:"9px 6px",fontSize:11.5,color:"#94a3b8",fontStyle:"italic"}}>No installments yet — add payment milestones (should total 100%).</td></tr>
                         )}
-                        {(q.installments||[]).map((ins,idx)=>(
+                        {(q.installments||[]).map((ins,idx)=>{
+                          const insAmt=Math.round(qNetPrice*(ins.pct||0)/100);
+                          return (
                           <tr key={ins.id} className="wb-csrow" style={{borderBottom:"1px solid #f8fafc"}}>
-                            <td style={{padding:"4px 4px",textAlign:"center",color:"#94a3b8",fontWeight:700,fontSize:11,width:22}}>{idx+1}</td>
-                            <td style={{padding:"4px 4px"}}><Inp value={ins.label} onChange={e=>setQInst(q.id,ins.id,"label",e.target.value)} placeholder="" style={{padding:"2px 5px",fontSize:13,width:"100%",background:"#f8fafc"}}/></td>
-                            <td style={{padding:"4px 4px",width:46}}><Inp type="number" value={ins.pct} onChange={e=>setQInst(q.id,ins.id,"pct",+e.target.value)} style={{padding:"2px 4px",fontSize:13,width:38,textAlign:"right"}}/></td>
-                            <td style={{padding:"4px 4px",fontWeight:700,fontSize:13,textAlign:"right",whiteSpace:"nowrap",width:76,fontVariantNumeric:"tabular-nums"}}>฿{fmt(Math.round(qNetPrice*(ins.pct||0)/100))}</td>
-                            <td style={{padding:"4px 4px",width:66}}>
-                              <Sel value={ins.recvMonth||1} onChange={e=>setQInst(q.id,ins.id,"recvMonth",+e.target.value)} style={{padding:"2px 3px",fontSize:11,width:60}}>
+                            <td style={{padding:"4px 4px",textAlign:"center",color:"#94a3b8",fontWeight:700,fontSize:11}}>{idx+1}</td>
+                            <td style={{padding:"4px 4px"}}><Inp value={ins.label} onChange={e=>setQInst(q.id,ins.id,"label",e.target.value)} placeholder="Type any text, e.g. Upon signing this engagement" style={{padding:"2px 6px",fontSize:13,width:"100%",background:"#f8fafc"}}/></td>
+                            <td style={{padding:"4px 4px"}}><Inp type="number" value={ins.pct} onChange={e=>setQInst(q.id,ins.id,"pct",+e.target.value)} style={{padding:"2px 6px",fontSize:13,width:"100%",textAlign:"right"}}/></td>
+                            <td style={{padding:"4px 8px",fontWeight:700,fontSize:13,textAlign:"right",whiteSpace:"nowrap",fontVariantNumeric:"tabular-nums"}}>฿{fmt(insAmt)}</td>
+                            <td style={{padding:"4px 8px",fontSize:12,color:"#64748b",fontStyle:"italic",lineHeight:1.35}}>{insAmt>0?bahtWordsEN(insAmt):"—"}</td>
+                            <td style={{padding:"4px 4px"}}>
+                              <Sel value={ins.recvMonth||1} onChange={e=>setQInst(q.id,ins.id,"recvMonth",+e.target.value)} style={{padding:"2px 3px",fontSize:11,width:"100%"}}>
                                 {Array.from({length:months+1},(_,i)=><option key={i+1} value={i+1}>M{i+1}</option>)}
                               </Sel>
                             </td>
-                            <td style={{padding:"4px 4px",width:20}}><ConfirmIconBtn size="sm" title="Delete installment" onConfirm={()=>delQInst(q.id,ins.id)}/></td>
+                            <td style={{padding:"4px 4px"}}><ConfirmIconBtn size="sm" title="Delete installment" onConfirm={()=>delQInst(q.id,ins.id)}/></td>
                           </tr>
-                        ))}
-                        <tr><td colSpan={6} style={{padding:"6px 4px"}}>
+                          );
+                        })}
+                        <tr><td colSpan={7} style={{padding:"6px 4px"}}>
                           <button onClick={()=>addQInst(q.id)} className="wb-addrow">+ Installment</button>
                         </td></tr>
                       </tbody>
