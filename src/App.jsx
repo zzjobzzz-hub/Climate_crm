@@ -2881,9 +2881,9 @@ const exportQuotationPDF = (f, customer, logoB64="", lang="en") => {
     const instRowsHtml=(f.installments||[]).map((ins,i)=>`
       <tr>
         <td class="idx">${i+1}</td>
-        <td>${ins.label||""}<div class="words">(${isTH?bahtWordsTH(Math.round(subT*(ins.pct||0)/100)):bahtWordsEN(Math.round(subT*(ins.pct||0)/100))})</div></td>
+        <td>${ins.label||""}</td>
         <td class="num">${ins.pct||0}%</td>
-        <td class="num amt">${cur} ${fmt(Math.round(subT*(ins.pct||0)/100))}</td>
+        <td class="num amt">${cur} ${fmt(Math.round(subT*(ins.pct||0)/100))}<div class="words">(${isTH?bahtWordsTH(Math.round(subT*(ins.pct||0)/100)):bahtWordsEN(Math.round(subT*(ins.pct||0)/100))})</div></td>
       </tr>`).join("");
     const dlvHtml=(f.deliverables||[]).map((d,i)=>`<div class="row"><span class="n">${i+1}</span><span>${d.item||""}</span></div>`).join("");
     const custName=customer?.companyEN||"—";
@@ -2891,7 +2891,7 @@ const exportQuotationPDF = (f, customer, logoB64="", lang="en") => {
     const custAddr=[customer?.address,customer?.province].filter(Boolean).join(", ");
     const custContacts=(customer?.contacts||[]).filter(c=>c.active).slice(0,2)
       .map(ct=>`<div style="margin-bottom:3px"><strong style="color:#0c1a2e">${ct.name}</strong>${ct.title?` <span style="color:#9aa4b1">· ${ct.title}</span>`:""}<br/>${[ct.email,ct.phone].filter(Boolean).join("<br/>")}</div>`).join("");
-    const acceptLbl = isTH ? `${custName} — เพื่อยืนยันการตอบรับใบเสนอราคาฉบับนี้ กรุณาลงนาม:` : `Accepted by ${custName}`;
+    const acceptLbl = isTH ? `${custName}` : `Accepted by ${custName}`;
     const notesHtml=toItemList(f.notes).map((n,i)=>`<div class="row"><span class="n">${i+1}</span><span>${n.item||""}</span></div>`).join("");
     const scopeHtml=f.projectScope?`<div class="scope"><b>${L.sScope}</b>${f.projectScope}</div>`:"";
     const lineItemsHtml=(f.lineItems||[]).map((li,i)=>{
@@ -2924,61 +2924,62 @@ html{width:794px;height:1123px;overflow:hidden;background:#fff}
 body{width:794px;height:1123px;overflow:hidden;background:#fff}
 #page{
   width:794px;height:1123px;
-  padding:46px 52px 40px;
+  padding:32px 46px 26px;
   font-family:'Inter','Helvetica Neue',Arial,'Noto Sans Thai',sans-serif;
   font-size:8.5px;color:#243042;line-height:1.4;
   display:flex;flex-direction:column;overflow:hidden;
   -webkit-font-smoothing:antialiased;
 }
 table{width:100%;border-collapse:collapse}
-th,td{padding:5px 8px;text-align:left;font-size:8.5px;vertical-align:top}
+th,td{padding:3px 8px;text-align:left;font-size:8.5px;vertical-align:top}
 th:first-child,td:first-child{padding-left:0}
 th:last-child,td:last-child{padding-right:0}
-th{font-weight:700;font-size:7.5px;text-transform:uppercase;letter-spacing:.05em;color:#7c8794;border-bottom:1px solid #c9d2dc;padding-bottom:5px}
+th{font-weight:700;font-size:7.5px;text-transform:uppercase;letter-spacing:.05em;color:#7c8794;border-bottom:1px solid #c9d2dc;padding-bottom:3px}
 td{border-bottom:1px solid #eef1f5}
 .num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
 .amt{font-weight:700;color:#0c1a2e}
 .idx{color:#9aa4b1;font-weight:700}
 /* Header */
-.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;padding-bottom:13px;border-bottom:2px solid #0c1a2e}
-.co-name{font-size:13px;font-weight:900;color:#0c1a2e;letter-spacing:-0.02em;line-height:1.1;font-family:'Inter Tight','Inter',sans-serif;margin-bottom:5px}
-.co-addr{color:#7c8794;font-size:7.5px;line-height:1.7}
-.quo-title{font-size:23px;font-weight:900;color:#0c1a2e;letter-spacing:-0.04em;line-height:1;margin-bottom:8px;font-family:'Inter Tight','Inter',sans-serif}
+.hdr{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:8px;padding-bottom:7px;border-bottom:2px solid #0c1a2e}
+.co-name{font-size:13px;font-weight:900;color:#0c1a2e;letter-spacing:-0.02em;line-height:1.1;font-family:'Inter Tight','Inter',sans-serif;margin-bottom:3px}
+.co-addr{color:#7c8794;font-size:7.5px;line-height:1.55}
+.quo-title{font-size:23px;font-weight:900;color:#0c1a2e;letter-spacing:-0.04em;line-height:1;margin-bottom:5px;font-family:'Inter Tight','Inter',sans-serif}
 .meta{margin-left:auto;width:auto}
-.meta td{padding:2px 0 2px 14px;font-size:8.5px;border:none}
+.meta td{padding:1px 0 1px 16px;font-size:8.5px;border:none;white-space:nowrap}
+.meta tr td:first-child{padding-left:0}
 .meta-key{color:#9aa4b1;font-weight:600;text-transform:uppercase;letter-spacing:.05em;text-align:right}
-.meta-val{font-weight:700;color:#0c1a2e;text-align:right}
+.meta-val{font-weight:700;color:#0c1a2e;text-align:left;padding-left:6px!important}
 /* Party band — flush to content column, no fill */
-.party{display:grid;grid-template-columns:1.15fr 1fr;gap:32px;padding:2px 0 14px;margin-bottom:6px;border-bottom:1px solid #e2e8f0}
-.lbl{font-size:7px;font-weight:700;color:#9aa4b1;text-transform:uppercase;letter-spacing:.08em;display:block;margin-bottom:4px}
-.party .name{font-weight:800;font-size:11.5px;color:#0c1a2e;margin-bottom:3px;letter-spacing:-0.01em}
-.party .detail{color:#5b6675;font-size:8px;line-height:1.65}
+.party{display:grid;grid-template-columns:1.15fr 1fr;gap:32px;padding:0 0 7px;margin-bottom:3px;border-bottom:1px solid #e2e8f0}
+.lbl{font-size:7px;font-weight:700;color:#9aa4b1;text-transform:uppercase;letter-spacing:.08em;display:block;margin-bottom:3px}
+.party .name{font-weight:800;font-size:11.5px;color:#0c1a2e;margin-bottom:2px;letter-spacing:-0.01em}
+.party .detail{color:#5b6675;font-size:8px;line-height:1.5}
 /* Sections */
-.body{display:flex;flex-direction:column;gap:13px;padding-top:4px}
-.sec-hdr{display:flex;align-items:center;gap:7px;font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#0c1a2e;border-bottom:1.5px solid #0c1a2e;padding-bottom:5px;margin-bottom:7px}
+.body{display:flex;flex-direction:column;gap:9px;padding-top:2px}
+.sec-hdr{display:flex;align-items:center;gap:7px;font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#0c1a2e;border-bottom:1.5px solid #0c1a2e;padding-bottom:3px;margin-bottom:4px}
 .badge{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;background:#0c1a2e;color:#fff;border-radius:50%;font-weight:800;font-size:8px;flex-shrink:0;font-family:'Inter',sans-serif}
-.scope{margin-top:7px;font-size:8px;color:#5b6675;line-height:1.6;white-space:pre-wrap}
+.scope{margin-top:4px;font-size:8px;color:#5b6675;line-height:1.5;white-space:pre-wrap}
 .scope b{color:#7c8794;font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:7px;display:block;margin-bottom:2px}
 /* Numbered list (deliverables / notes) */
-.list .row{display:flex;gap:8px;margin-bottom:4px;font-size:8.5px;color:#374151;line-height:1.55}
+.list .row{display:flex;gap:8px;margin-bottom:2px;font-size:8.5px;color:#374151;line-height:1.45}
 .list .n{color:#9aa4b1;font-weight:700;flex-shrink:0;min-width:13px;font-variant-numeric:tabular-nums}
 /* Totals — flush right to content column, no box */
-.totals-wrap{display:flex;justify-content:flex-end;margin-top:10px}
+.totals-wrap{display:flex;justify-content:flex-end;margin-top:6px}
 .totals{width:264px}
-.tot-row{display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;font-size:8.5px;border-bottom:1px solid #eef1f5}
+.tot-row{display:flex;justify-content:space-between;align-items:baseline;padding:2px 0;font-size:8.5px;border-bottom:1px solid #eef1f5}
 .tot-row .k{color:#5b6675}
 .tot-row .v{font-variant-numeric:tabular-nums;font-weight:600;color:#243042}
-.tot-final{border-bottom:none;border-top:1.5px solid #0c1a2e;margin-top:2px;padding-top:5px}
+.tot-final{border-bottom:none;border-top:1.5px solid #0c1a2e;margin-top:2px;padding-top:4px}
 .tot-final .k{font-weight:800;color:#0c1a2e;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em}
 .tot-final .v{font-weight:900;color:#0c1a2e;font-size:12px;font-family:'Inter Tight','Inter',sans-serif}
 .tot-words{text-align:right;font-size:7.5px;color:#5b6675;font-style:italic;margin-top:3px}
-.words{color:#7c8794;font-size:7.5px;margin-top:1px}
+.words{color:#7c8794;font-size:7.5px;font-weight:400;font-style:italic;margin-top:1px;text-align:right;white-space:normal;line-height:1.3}
 /* Signature */
-.sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;border-top:1px solid #e2e8f0;padding-top:16px;margin-top:auto}
-.sig-lbl{font-size:8px;color:#5b6675;margin-bottom:26px;font-style:italic}
+.sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;border-top:1px solid #e2e8f0;padding-top:9px;margin-top:auto}
+.sig-lbl{font-size:8px;color:#5b6675;margin-bottom:22px;font-style:italic}
 .sig-line{border-bottom:1px solid #9aa4b1;height:0;margin-bottom:7px}
-.sig-detail{font-size:8px;color:#374151;line-height:1.95}
-.foot{margin-top:14px;text-align:right;font-size:6.5px;color:#9aa4b1;letter-spacing:.03em}
+.sig-detail{font-size:8px;color:#374151;line-height:1.7}
+.foot{margin-top:7px;text-align:right;font-size:6.5px;color:#9aa4b1;letter-spacing:.03em}
 @media print{
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
   html,body{width:794px;height:1123px;overflow:hidden}
@@ -2989,22 +2990,19 @@ ${thStyle}
 <div id="page">
 <!-- HEADER -->
 <div class="hdr">
-  <div style="display:flex;gap:13px;align-items:flex-start">
+  <div style="display:flex;gap:13px;align-items:flex-end;flex:1;min-width:0">
     ${pdfLogoHtml}
-    <div>
+    <div style="min-width:0">
       <div class="co-name"><span style="color:#0c1a2e">WAVE BCG</span><span style="color:#0c1a2e"> ${L.coLegal}</span></div>
       <div class="co-addr">${L.taxId} ${co.taxId}<br/>${co.address}<br/>${L.tel} ${co.tel} &nbsp;·&nbsp; ${co.email}</div>
     </div>
   </div>
-  <div style="text-align:right">
+  <div style="text-align:right;flex-shrink:0">
     <div class="quo-title">${L.title}</div>
     <table class="meta">
-      <tr><td class="meta-key">${L.mQuote}</td><td class="meta-val" style="letter-spacing:0.02em">${f.quoteNo}</td></tr>
-      <tr><td class="meta-key">${L.mIssued}</td><td class="meta-val">${df(f.issueDate)}</td></tr>
-      <tr><td class="meta-key">${L.mValid}</td><td class="meta-val">${df(f.dueDate)}</td></tr>
-      <tr><td class="meta-key">${L.mSales}</td><td class="meta-val">${agentName}</td></tr>
-      <tr><td class="meta-key">${L.mMobile}</td><td class="meta-val">${agentMobP}</td></tr>
-      ${discPctT>0?`<tr><td class="meta-key">${L.mDiscount}</td><td class="meta-val" style="color:#b91c1c">${discPctT}%</td></tr>`:""}
+      <tr><td class="meta-key">${L.mQuote}</td><td class="meta-val" style="letter-spacing:0.02em">${f.quoteNo}</td><td class="meta-key">${L.mIssued}</td><td class="meta-val">${df(f.issueDate)}</td></tr>
+      <tr><td class="meta-key">${L.mValid}</td><td class="meta-val">${df(f.dueDate)}</td><td class="meta-key">${L.mSales}</td><td class="meta-val">${agentName}</td></tr>
+      <tr><td class="meta-key">${L.mMobile}</td><td class="meta-val">${agentMobP}</td>${discPctT>0?`<td class="meta-key">${L.mDiscount}</td><td class="meta-val" style="color:#b91c1c">${discPctT}%</td>`:"<td></td><td></td>"}</tr>
     </table>
   </div>
 </div>
@@ -3046,7 +3044,7 @@ ${thStyle}
   <div>
     <div class="sec-hdr"><span class="badge">3</span>${L.sPay}</div>
     <table>
-      <thead><tr><th style="width:24px">${L.pNo}</th><th>${L.pDesc}</th><th style="width:48px;text-align:right">${L.pPct}</th><th style="width:108px;text-align:right">${L.pAmount}</th></tr></thead>
+      <thead><tr><th style="width:24px">${L.pNo}</th><th>${L.pDesc}</th><th style="width:48px;text-align:right">${L.pPct}</th><th style="width:170px;text-align:right">${L.pAmount}</th></tr></thead>
       <tbody>${instRowsHtml}</tbody>
     </table>
     <div class="totals-wrap">
@@ -3355,9 +3353,9 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
               {(f.installments||[]).map((ins,idx)=>(
                 <tr key={ins.id} style={{borderBottom:"1px solid #eef1f5"}}>
                   <td style={{padding:"6px 8px 6px 0",color:"#9aa4b1",fontWeight:700}}>{idx+1}</td>
-                  <td style={{padding:"6px 8px",fontSize:11}}>{ins.label}<div style={{fontSize:9.5,color:"#7c8794",marginTop:1}}>({bahtWordsEN(Math.round(subTotal*(ins.pct||0)/100))})</div></td>
+                  <td style={{padding:"6px 8px",fontSize:11}}>{ins.label}</td>
                   <td style={{padding:"6px 8px",textAlign:"right",fontSize:11,fontVariantNumeric:"tabular-nums"}}>{ins.pct||0}%</td>
-                  <td style={{padding:"6px 0 6px 8px",textAlign:"right",fontWeight:700,color:"#0c1a2e",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",fontSize:11}}>฿{fmt(Math.round(subTotal*(ins.pct||0)/100))}</td>
+                  <td style={{padding:"6px 0 6px 8px",textAlign:"right",fontWeight:700,color:"#0c1a2e",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",fontSize:11}}>฿{fmt(Math.round(subTotal*(ins.pct||0)/100))}<div style={{fontSize:9.5,fontWeight:400,fontStyle:"italic",color:"#7c8794",marginTop:1,whiteSpace:"normal",maxWidth:190,marginLeft:"auto"}}>({bahtWordsEN(Math.round(subTotal*(ins.pct||0)/100))})</div></td>
                 </tr>
               ))}
             </tbody>
