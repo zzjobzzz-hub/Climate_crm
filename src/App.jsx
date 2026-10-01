@@ -254,6 +254,13 @@ const multiCmp = (a, b, sorts, getV) => {
   return 0;
 };
 
+// Newest-first for Cost Sheet quotation log entries. `ts` is date-only (YYYY-MM-DD), so several
+// quotes saved the same day tie — break the tie by quote number, numerically, highest first
+// (Q69-0076 above Q69-0075).
+const byLatestQuote = (a,b) =>
+  (b.ts||"").localeCompare(a.ts||"") ||
+  String(b.quoteSnapshot?.quoteNo||"").localeCompare(String(a.quoteSnapshot?.quoteNo||""),undefined,{numeric:true});
+
 const YEAR   = new Date().getFullYear() + 543; // Thai Buddhist Era (พ.ศ.)
 const YEAR2  = String(YEAR).slice(-2);          // 2-digit BE year, e.g. 2569 -> "69"
 const padNum = n => String(n).padStart(4,"0");
@@ -5495,7 +5502,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
         if(!map[key]||l.ts>map[key].ts) map[key]={...l, serviceCode:cs.serviceCode, serviceType:cs.serviceType};
       });
     });
-    return Object.values(map).sort((a,b)=>(b.ts||"").localeCompare(a.ts||""));
+    return Object.values(map).sort(byLatestQuote);
   },[costSheets]);
   const filteredQuotes = useMemo(()=>{
     const q=nqoSearch.trim().toLowerCase();
@@ -5561,7 +5568,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
                       if(!acc[key]||l.ts>acc[key].ts) acc[key]=l;
                       return acc;
                     },{})
-                  ).sort((a,b)=>(b.ts||"").localeCompare(a.ts||"")).map(l=>(
+                  ).sort(byLatestQuote).map(l=>(
                     <div key={l.id} onClick={()=>{
                         sECS(p=>({...p,quoteOverrides:[{...l.quoteSnapshot,id:uid(),notes:toItemList(l.quoteSnapshot.notes),deliverables:toItemList(l.quoteSnapshot.deliverables)}]}));
                         const logEntry={id:uid(),ts:nowTS(),author:user.id,note:`Re-opened ${l.quoteSnapshot.csCode} for editing`};
