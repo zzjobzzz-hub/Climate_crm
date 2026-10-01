@@ -2820,7 +2820,7 @@ const exportQuotationPDF = (f, customer, logoB64="", lang="en") => {
       mQuote:"QUOTE #", mIssued:"ISSUED", mValid:"VALID UNTIL", mSales:"SALES", mMobile:"MOBILE", mDiscount:"DISCOUNT",
       sProject:"Project", sScope:"Scope", cDesc:"Description", cQty:"Qty", cUnit:"Unit", cUnitPrice:"Unit Price", cSubtotal:"Subtotal",
       sDeliv:"Deliverables", sPay:"Payment Schedule", pNo:"#", pDesc:"Description", pPct:"%", pAmount:"Amount",
-      tSub:"Subtotal (excl. VAT)", tDiscount:"Discount", tNet:"Price after Discount", tVat:"VAT 7%", tTotal:"TOTAL", sNotes:"Notes &amp; Conditions",
+      tSub:"Subtotal (excl. VAT)", tDiscount:"Discount", tNet:"Net Price", tVat:"VAT 7%", tTotal:"TOTAL", sNotes:"Notes &amp; Conditions",
       onBehalf:"On behalf of", name:"Name:", role:"Title:", date:"Date:",
     };
     // Discount reduces the list price before VAT; installments are computed on the net.
@@ -4864,6 +4864,26 @@ const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
             <button onClick={onAdd} className="wb-addrow">+ Task</button>
           </td>
         </tr>
+        {(tasks||[]).length>0&&(()=>{
+          // Same aggregation as TaskRow/calcTask: sum agent rows when present, else the task's own fields.
+          const lvlTotals=Object.fromEntries(IH_LEVEL_FIELDS.map(f=>[f,(tasks||[]).reduce((sum,t)=>{
+            const ag=Array.isArray(t.agents)&&t.agents.length>0&&typeof t.agents[0]==="object"?t.agents:[];
+            return sum+(ag.length>0?ag.reduce((a,x)=>a+(x[f]||0),0):(t[f]||0));
+          },0)]));
+          const opexTotal=calcTask(tasks);
+          return (
+            <tr style={{borderTop:"2px solid #0f172a",background:"#f8fafc"}}>
+              <td colSpan={2} style={{padding:"7px 6px",fontSize:11,fontWeight:800,color:"#0f172a",textTransform:"uppercase",letterSpacing:"0.04em"}}>
+                Total OPEX <span style={{fontWeight:500,color:"#94a3b8",textTransform:"none",letterSpacing:0}}>· {tasks.length} task{tasks.length>1?"s":""}</span>
+              </td>
+              {IH_LEVEL_FIELDS.map(f=>(
+                <td key={f} style={{padding:"7px 6px",textAlign:"center",fontSize:13,fontWeight:800,color:"#0f172a",fontVariantNumeric:"tabular-nums"}}>{lvlTotals[f]||"–"}</td>
+              ))}
+              <td style={{padding:"7px 7px",textAlign:"right",fontWeight:900,fontSize:13,whiteSpace:"nowrap",fontVariantNumeric:"tabular-nums"}}>฿{fmt(opexTotal)}</td>
+              <td colSpan={2}/>
+            </tr>
+          );
+        })()}
       </tbody>
     </table>
   );
@@ -4891,7 +4911,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
       `COGS: ฿${fmt(qIC)}`,
       `OPEX: ฿${fmt(qOPEX)}`,
       `Total Cost: ฿${fmt(qTC)}`,
-      `Price after Discount: ฿${fmt(qNetPrice)}${qDiscPct>0?` (−${qDiscPct}%)`:""}`,
+      `Net Price: ฿${fmt(qNetPrice)}${qDiscPct>0?` (−${qDiscPct}%)`:""}`,
       `Margin : ฿${fmt(qMgAmt)}`,
       `Margin: ${qMg}%`,
     ];
@@ -4999,9 +5019,9 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                         </label>
                       </div>
                       <div style={{height:30,display:"flex",alignItems:"center"}}><NumInp value={q.discountPct||0} onChange={v=>setQF(q.id,"discountPct",Math.min(100,Math.max(0,v)))} showZero disabled={!q.discountEnabled} style={{fontSize:14,padding:"5px 9px",opacity:q.discountEnabled?1:0.45}}/></div>                    </div>
-                    {/* Price after Discount — the headline figure the client pays (ex-VAT) */}
+                    {/* Net Price — the headline figure the client pays (ex-VAT) */}
                     <div style={{flex:"0 0 150px",display:"flex",flexDirection:"column"}}>
-                      <div style={{height:16,marginBottom:4,textAlign:"right"}}><Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Price after Discount</Span></div>
+                      <div style={{height:16,marginBottom:4,textAlign:"right"}}><Span s={9} c="#64748b" style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Net Price</Span></div>
                       <div style={{height:30,display:"flex",alignItems:"center",justifyContent:"flex-end"}}><span style={{fontWeight:900,fontSize:20,color:"#0f172a",letterSpacing:"-0.015em"}}>฿{fmt(qNetPrice)}</span></div>                    </div>
                     {/* Margin ฿ — the amount, beside the percentage */}
                     <div style={{flex:"0 0 110px",display:"flex",flexDirection:"column"}}>
@@ -5051,6 +5071,15 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                             <button onClick={()=>addQIC(q.id)} className="wb-addrow">+ Add</button>
                           </td>
                         </tr>
+                        {(q.costs||[]).length>0&&(
+                          <tr style={{borderTop:"2px solid #0f172a",background:"#f8fafc"}}>
+                            <td colSpan={6} style={{padding:"7px 6px",fontSize:11,fontWeight:800,color:"#0f172a",textTransform:"uppercase",letterSpacing:"0.04em"}}>
+                              Total COGS <span style={{fontWeight:500,color:"#94a3b8",textTransform:"none",letterSpacing:0}}>· {(q.costs||[]).length} item{(q.costs||[]).length>1?"s":""}</span>
+                            </td>
+                            <td style={{padding:"7px 3px",fontWeight:900,fontSize:13,textAlign:"right",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>฿{fmt(qIC)}</td>
+                            <td colSpan={2}/>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -5227,7 +5256,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                         {l:"COGS",     v:`฿${fmt(qIC)}`},
                         {l:"OPEX",     v:`฿${fmt(qOPEX)}`},
                         {l:"Total Cost", v:`฿${fmt(qTC)}`, bold:true},
-                        {l:"Price after Discount", v:`฿${fmt(qNetPrice)}${qDiscPct>0?` (−${qDiscPct}%)`:""}`, bold:true},
+                        {l:"Net Price", v:`฿${fmt(qNetPrice)}${qDiscPct>0?` (−${qDiscPct}%)`:""}`, bold:true},
                         {l:"Margin",   v:`฿${fmt(qMgAmt)}`, c:+qMg>=30?"#15803d":"#dc2626", bold:true},
                         {l:"Margin %", v:`${qMg}%`, c:+qMg>=30?"#15803d":"#dc2626", bold:true},
                       ].map((row,i,arr)=>(
