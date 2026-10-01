@@ -2854,7 +2854,7 @@ const exportQuotationPDF = (f, customer, logoB64="", lang="en") => {
       quoteFor:"เสนอราคาแก่", contact:"ผู้ติดต่อ",
       mQuote:"ใบเสนอราคา #", mIssued:"วันที่ออก:", mValid:"วันครบกำหนด:", mSales:"พนักงานขาย", mMobile:"เบอร์โทร:", mDiscount:"ส่วนลด:",
       sProject:"โครงการ", sScope:"ขอบเขตงาน", cDesc:"คำอธิบาย", cQty:"จำนวน", cUnit:"หน่วย", cUnitPrice:"ราคาต่อหน่วย", cSubtotal:"ยอดรวม",
-      sDeliv:"สิ่งที่นำส่ง", sPay:"การชำระเงิน", pNo:"ลำดับ", pDesc:"รายละเอียด", pPct:"%", pAmount:"จำนวนเงิน",
+      sDeliv:"สิ่งที่นำส่ง", sPay:"การชำระเงิน", pNo:"งวด", pDesc:"รายละเอียด", pPct:"%", pAmount:"จำนวนเงิน",
       tSub:"ยอดรวม (ไม่รวมภาษี)", tDiscount:"ส่วนลด", tNet:"ยอดหลังหักส่วนลด", tVat:"ภาษี (7%)", tTotal:"ยอดรวมสุทธิ", sNotes:"หมายเหตุและเงื่อนไข",
       onBehalf:"ในนามของ", name:"ชื่อ:", role:"ตำแหน่ง:", date:"วันที่:",
     } : {
