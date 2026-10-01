@@ -8,7 +8,7 @@
 // S4: All GS requests include GS_AUTH_TOKEN matched against Script Properties on server
 // 
 const GS_AUTH_TOKEN  = "wB@CRM-2026-xK9q";   // Must match AUTH_SECRET in GAS Script Properties
-const SESSION_HOURS  = 4;
+const SESSION_HOURS  = 1;
 const SESSION_KEY    = "crm_session";
 const SESSION_EXPIRY_MS = SESSION_HOURS * 60 * 60 * 1000;
 
@@ -300,22 +300,50 @@ const GS_URL = "https://script.google.com/macros/s/AKfycbwPQ7mEGKL-r-IEyspkS2kdz
 
 // S1: Server-side login — credentials validated in GAS, never in browser
 const gsLogin = async (email, password) => {
-  const r = await fetch(GS_URL, {
-    method:"POST", redirect:"follow",
-    headers:{"Content-Type":"text/plain"},
-    body: JSON.stringify({action:"login", email, password}),
-  });
-  return r.json();
+  // Timeout so a busy/hung Apps Script can never leave the login button spinning forever.
+  const ctrl = new AbortController(); const timer = setTimeout(()=>ctrl.abort(), 25000);
+  try {
+    const r = await fetch(GS_URL, {
+      method:"POST", redirect:"follow", signal:ctrl.signal,
+      headers:{"Content-Type":"text/plain"},
+      body: JSON.stringify({action:"login", email, password}),
+    });
+    return await r.json();
+  } finally { clearTimeout(timer); }
 };
 
-// Read a full collection from Google Sheets (S4: token in query param)
-const gsGet = async (collection) => {
-  try {
-    const url = `${GS_URL}?collection=${encodeURIComponent(collection)}&token=${encodeURIComponent(GS_AUTH_TOKEN)}`;
-    const r = await fetch(url, {cache:"no-store",redirect:"follow"});
-    const j = await r.json();
-    return j.ok ? j.data : [];
-  } catch(e) { return []; }
+// Read a full collection from Google Sheets (S4: token in query param).
+// Apps Script gets slow/hangs when many requests arrive together (e.g. two people logging in at once),
+// so every read has a timeout and retries with a random back-off. Network errors, timeouts and
+// non-JSON replies (Apps Script's HTML "too many requests" page) are retried; after the last attempt the
+// failure is counted in gsGetFailures so the loader can say "offline" instead of pretending it synced.
+// A normal JSON reply with ok:false is treated as a real answer (empty), exactly as before.
+let gsGetFailures = 0;
+const gsSleep = ms => new Promise(r=>setTimeout(r,ms));
+const gsGet = async (collection, {retries=2, timeoutMs=20000} = {}) => {
+  const url = `${GS_URL}?collection=${encodeURIComponent(collection)}&token=${encodeURIComponent(GS_AUTH_TOKEN)}`;
+  for(let attempt=0; attempt<=retries; attempt++){
+    const ctrl = new AbortController(); const timer = setTimeout(()=>ctrl.abort(), timeoutMs);
+    try {
+      const r = await fetch(url, {cache:"no-store", redirect:"follow", signal:ctrl.signal});
+      const j = await r.json();
+      clearTimeout(timer);
+      return j.ok ? j.data : [];
+    } catch(e) {
+      clearTimeout(timer);
+      if(attempt < retries) await gsSleep(700*(attempt+1) + Math.random()*800);
+    }
+  }
+  gsGetFailures++;
+  return [];
+};
+// Run async tasks with at most `limit` in flight at once (results keep their input order).
+const gsPool = async (fns, limit=4) => {
+  const out = new Array(fns.length); let i = 0;
+  await Promise.all(Array.from({length:Math.min(limit,fns.length)}, async()=>{
+    while(i < fns.length){ const k = i++; out[k] = await fns[k](); }
+  }));
+  return out;
 };
 
 // Normalize a record before saving — moves plain JSON fields into _json twins
@@ -2854,7 +2882,7 @@ const exportQuotationPDF = (f, customer, logoB64="", lang="en") => {
       quoteFor:"เสนอราคาแก่", contact:"ผู้ติดต่อ",
       mQuote:"ใบเสนอราคา #", mIssued:"วันที่ออก:", mValid:"วันครบกำหนด:", mSales:"พนักงานขาย", mMobile:"เบอร์โทร:", mDiscount:"ส่วนลด:",
       sProject:"โครงการ", sScope:"ขอบเขตงาน", cDesc:"คำอธิบาย", cQty:"จำนวน", cUnit:"หน่วย", cUnitPrice:"ราคาต่อหน่วย", cSubtotal:"ยอดรวม",
-      sDeliv:"สิ่งที่นำส่ง", sPay:"การชำระเงิน", pNo:"งวด", pDesc:"รายละเอียด", pPct:"%", pAmount:"จำนวนเงิน",
+      sDeliv:"สิ่งที่นำส่ง", sPay:"การชำระเงิน", pNo:"ลำดับ", pDesc:"รายละเอียด", pPct:"%", pAmount:"จำนวนเงิน",
       tSub:"ยอดรวม (ไม่รวมภาษี)", tDiscount:"ส่วนลด", tNet:"ยอดหลังหักส่วนลด", tVat:"ภาษี (7%)", tTotal:"ยอดรวมสุทธิ", sNotes:"หมายเหตุและเงื่อนไข",
       onBehalf:"ในนามของ", name:"ชื่อ:", role:"ตำแหน่ง:", date:"วันที่:",
     } : {
@@ -6781,6 +6809,26 @@ if (typeof document !== "undefined" && !document.getElementById("wb-header-css")
   document.head.appendChild(_s);
 }
 
+// Full-screen "Loading CRM data" overlay. After 15s it stops pretending and offers a way out:
+// Retry (restart the load) or Continue (use the app while the load finishes in the background).
+const LoadingOverlay = ({onRetry,onContinue}) => {
+  const [slow,setSlow] = useState(false);
+  useEffect(()=>{ const t=setTimeout(()=>setSlow(true),15000); return ()=>clearTimeout(t); },[]);
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(248,250,252,.94)",zIndex:9000,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,backdropFilter:"blur(2px)"}}>
+      <div style={{width:44,height:44,border:"4px solid #e2e8f0",borderTopColor:BRAND.teal,borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
+      <div style={{fontSize:15,fontWeight:700,color:"#0f172a"}}>Loading CRM data</div>
+      <div style={{fontSize:12,color:"#94a3b8"}}>{slow?"Taking longer than usual — the server may be busy":"Connecting to Google Sheets"}</div>
+      {slow&&(
+        <div style={{display:"flex",gap:8}}>
+          <Btn variant="brand" onClick={onRetry}>Retry</Btn>
+          <Btn onClick={onContinue}>Continue</Btn>
+        </div>
+      )}
+    </div>
+  );
+};
+
 function App() {
   // S3: Restore session from localStorage — checks expiry timestamp
   const [user,sUser] = useState(()=>loadSession());
@@ -6846,6 +6894,8 @@ function App() {
   const [bellOpen,sBellOpen] = useState(false);
   const [navMenuOpen,sNavMenuOpen] = useState(false);
   const [gsStatus,sGSStatus] = useState("idle"); // "idle"|"loading"|"synced"|"error"
+  const [loadTick,sLoadTick] = useState(0);        // bump to re-run the initial data load (Retry)
+  const loadRun = useRef(0);                      // id of the newest load; older loads are ignored when they finish
   const [userList,sUserList] = useState([]);      // S2: safe user list {id,name,role} loaded from GS
   const {toasts,show:toast}  = useToast();
 
@@ -6885,18 +6935,23 @@ const stripJsonSuffix = obj => {
   //  Load all data from Google Sheets on mount 
   useEffect(()=>{
     if(!user) return;
+    const run = ++loadRun.current;
+    gsGetFailures = 0;
     sGSStatus("loading");
-    Promise.all([
-      gsGet("customers"),
-      gsGet("opportunities"),
-      gsGet("deliveries"),
-      gsGet("costsheets"),
-      gsGet("kpi"),
-      gsGet("users"),
-      gsGet("costsheet_quotes"),
-      gsGet("timesheet"),
-      gsGet("settings"),
-    ]).then(([c,o,d,cs,k,u,cq,ts,st])=>{
+    // At most 4 requests in flight per user (was 9 at once) so several people logging in together
+    // don't swamp Apps Script. Order = same as the destructuring below.
+    gsPool([
+      ()=>gsGet("customers"),
+      ()=>gsGet("opportunities"),
+      ()=>gsGet("deliveries"),
+      ()=>gsGet("costsheets"),
+      ()=>gsGet("kpi"),
+      ()=>gsGet("users"),
+      ()=>gsGet("costsheet_quotes"),
+      ()=>gsGet("timesheet"),
+      ()=>gsGet("settings"),
+    ], 4).then(([c,o,d,cs,k,u,cq,ts,st])=>{
+      if(run !== loadRun.current) return;   // a newer load (Retry / re-login) superseded this one
       if(c.length) sCusts(c.map(x=>stripJsonSuffix({...x,id:String(x.id||"")})));
       if(o.length) sOpps(o.map(x=>stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")})));
       if(d.length) sDlv(d.map(x=>{const s=stripJsonSuffix({...x,id:String(x.id||""),custId:String(x.custId||"")});return {...s, totalContractValue: Number(s.totalContractValue)||0, installments: safeArr(s.installments)};}));
@@ -7028,9 +7083,9 @@ const stripJsonSuffix = obj => {
         }
         sManHourRatesLog(val && Array.isArray(val.saveLog) ? val.saveLog : []);
       }
-      sGSStatus("synced");
-    }).catch(()=>sGSStatus("error"));
-  },[user]);
+      sGSStatus(gsGetFailures>0 ? "error" : "synced");   // some collection failed after retries → say so
+    }).catch(()=>{ if(run===loadRun.current) sGSStatus("error"); });
+  },[user,loadTick]);
 
   // Fetch notifications for this user + poll every 60s
   const fetchNotifs = useCallback(async () => {
@@ -7041,10 +7096,11 @@ const stripJsonSuffix = obj => {
   }, [user]);
 
   useEffect(()=>{
+    if(gsStatus==="idle"||gsStatus==="loading") return;   // wait for the main data load to finish first
     fetchNotifs();
     const interval = setInterval(fetchNotifs, 60000);
     return ()=>clearInterval(interval);
-  },[fetchNotifs]);
+  },[fetchNotifs,gsStatus==="idle"||gsStatus==="loading"]);
 
   const markNotifRead = (nId) => {
     sNotifs(p=>p.map(n=>n.id===nId?{...n,read:true}:n));
@@ -7216,7 +7272,7 @@ const stripJsonSuffix = obj => {
     const s = map[gsStatus]||map.idle;
     if(s.quiet) return <span title={s.label} style={{width:7,height:7,borderRadius:"50%",background:s.c,flexShrink:0}}/>;
     return (
-      <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:10,fontWeight:700,color:s.c,background:s.c+"14",padding:"2px 8px",borderRadius:10,whiteSpace:"nowrap"}}>
+      <span onClick={gsStatus==="error"?()=>sLoadTick(t=>t+1):undefined} title={gsStatus==="error"?"Couldn't load all data — click to reload":undefined} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:10,fontWeight:700,color:s.c,background:s.c+"14",padding:"2px 8px",borderRadius:10,whiteSpace:"nowrap",cursor:gsStatus==="error"?"pointer":"default"}}>
         <span style={{width:6,height:6,borderRadius:"50%",background:s.c,flexShrink:0}}/>
         {s.label}
       </span>
@@ -7228,13 +7284,7 @@ const stripJsonSuffix = obj => {
   return (
     <div style={{minHeight:"100vh",background:"#f8fafc",fontFamily:"'DM Sans','Noto Sans Thai',system-ui,sans-serif",fontSize:15}}>
       <style>{`@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}} @keyframes spin{to{transform:rotate(360deg)}} @keyframes fadeInUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}} input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0} input[type=number]{-moz-appearance:textfield}`}</style>
-      {gsStatus==="loading"&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(248,250,252,.94)",zIndex:9000,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,backdropFilter:"blur(2px)"}}>
-          <div style={{width:44,height:44,border:"4px solid #e2e8f0",borderTopColor:BRAND.teal,borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
-          <div style={{fontSize:15,fontWeight:700,color:"#0f172a"}}>Loading CRM data…</div>
-          <div style={{fontSize:12,color:"#94a3b8"}}>Connecting to Google Sheets</div>
-        </div>
-      )}
+      {gsStatus==="loading"&&<LoadingOverlay onRetry={()=>sLoadTick(t=>t+1)} onContinue={()=>sGSStatus("error")}/>}
       <div style={{background:"#fff",borderBottom:"1px solid #e2e8f0",position:"sticky",top:0,zIndex:100}}>
         <div className="wb-header-inner" style={{maxWidth:1440,margin:"0 auto"}}>
           <div onClick={()=>sPage("dashboard")} title="Wave BCG · Climate CRM" style={{display:"flex",alignItems:"center",gap:9,paddingRight:18,borderRight:"1px solid #f1f5f9",flexShrink:0,cursor:"pointer"}}>
