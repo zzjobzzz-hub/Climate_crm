@@ -2941,12 +2941,12 @@ td{border-bottom:1px solid #eef1f5}
 .co-addr{color:#7c8794;font-size:7.5px;line-height:1.55}
 .quo-title{font-size:23px;font-weight:900;color:#0c1a2e;letter-spacing:-0.04em;line-height:1;margin-bottom:5px;font-family:'Inter Tight','Inter',sans-serif}
 .meta{margin-left:auto;width:auto}
-.meta td{padding:1px 0 1px 16px;font-size:8.5px;border:none;white-space:nowrap}
+.meta td{padding:.5px 0 .5px 14px;font-size:8.5px;line-height:1.35;border:none;white-space:nowrap}
 .meta tr td:first-child{padding-left:0}
 .meta-key{color:#9aa4b1;font-weight:600;text-transform:uppercase;letter-spacing:.05em;text-align:right}
 .meta-val{font-weight:700;color:#0c1a2e;text-align:left;padding-left:6px!important}
 /* Party band — flush to content column, no fill */
-.party{display:grid;grid-template-columns:1.15fr 1fr;gap:32px;padding:0 0 7px;margin-bottom:3px;border-bottom:1px solid #e2e8f0}
+.party{display:grid;grid-template-columns:1.15fr 1fr;gap:32px;padding:0 0 4px;margin-bottom:3px}
 .lbl{font-size:7px;font-weight:700;color:#9aa4b1;text-transform:uppercase;letter-spacing:.08em;display:block;margin-bottom:3px}
 .party .name{font-weight:800;font-size:11.5px;color:#0c1a2e;margin-bottom:2px;letter-spacing:-0.01em}
 .party .detail{color:#5b6675;font-size:8px;line-height:1.5}
@@ -2990,14 +2990,16 @@ ${thStyle}
     ${pdfLogoHtml}
     <div style="min-width:0">
       <div class="co-name"><span style="color:#0c1a2e">WAVE BCG</span><span style="color:#0c1a2e"> ${L.coLegal}</span></div>
-      <div class="co-addr">${L.taxId} ${co.taxId}<br/>${co.address}<br/>${L.tel} ${co.tel} &nbsp;·&nbsp; ${co.email}</div>
+      <div class="co-addr">${L.taxId} ${co.taxId}<br/>${co.address}<br/>${L.tel} ${co.tel} &nbsp;&nbsp;&nbsp; ${co.email}</div>
     </div>
   </div>
   <div style="text-align:right;flex-shrink:0">
     <div class="quo-title">${L.title}</div>
     <table class="meta">
-      <tr><td class="meta-key">${L.mQuote}</td><td class="meta-val" style="letter-spacing:0.02em">${f.quoteNo}</td><td class="meta-key">${L.mIssued}</td><td class="meta-val">${df(f.issueDate)}</td></tr>
-      <tr><td class="meta-key">${L.mValid}</td><td class="meta-val">${df(f.dueDate)}</td><td class="meta-key">${L.mSales}</td><td class="meta-val">${agentName}</td></tr>
+      <tr><td class="meta-key">${L.mQuote}</td><td class="meta-val" style="letter-spacing:0.02em">${f.quoteNo}</td></tr>
+      <tr><td class="meta-key">${L.mIssued}</td><td class="meta-val">${df(f.issueDate)}</td></tr>
+      <tr><td class="meta-key">${L.mValid}</td><td class="meta-val">${df(f.dueDate)}</td></tr>
+      <tr><td class="meta-key">${L.mSales}</td><td class="meta-val">${agentName}</td></tr>
       <tr><td class="meta-key">${L.mMobile}</td><td class="meta-val">${agentMobP}</td></tr>
     </table>
   </div>
