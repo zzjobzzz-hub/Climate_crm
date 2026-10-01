@@ -428,6 +428,37 @@ const SuccessRateInput = ({value, onCommit}) => {
       style={{...SI,width:72,textAlign:"right"}}/>
   );
 };
+// One-line text box that grows to show ALL its text while focused and collapses back to a single
+// line on blur (a small ▾/▴ appears when the text is longer than one line; click it to toggle).
+// Enter = finish editing (newlines are never stored, so printed output stays a clean paragraph).
+const ExpandInp = ({value,onChange,placeholder,style}) => {
+  const ref = React.useRef(null);
+  const [open,setOpen] = React.useState(false);
+  const [overflow,setOverflow] = React.useState(false);
+  React.useEffect(()=>{
+    const el = ref.current; if(!el) return;
+    el.style.height = "auto";                                   // rows=1 → one-line height
+    setOverflow(el.scrollHeight > el.clientHeight + 1);
+    if(open) el.style.height = (el.scrollHeight + 2) + "px";    // +2 = borders (border-box)
+  },[value,open]);
+  return (
+    <div style={{position:"relative"}}>
+      <textarea ref={ref} rows={1} value={value||""} placeholder={placeholder}
+        onChange={e=>onChange(e.target.value.replace(/\r?\n/g," "))}
+        onFocus={()=>setOpen(true)} onBlur={()=>setOpen(false)}
+        onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); e.currentTarget.blur(); } }}
+        style={{...SI,resize:"none",overflow:"hidden",display:"block",lineHeight:1.4,paddingRight:(overflow||open)?20:undefined,...style}}/>
+      {(overflow||open) && (
+        <button type="button" tabIndex={-1} title={open?"Collapse":"Expand to see full text"}
+          onMouseDown={e=>e.preventDefault()}
+          onClick={()=>{ open ? ref.current?.blur() : ref.current?.focus(); }}
+          style={{position:"absolute",right:3,top:3,width:16,height:16,padding:0,border:"none",borderRadius:3,background:"transparent",color:"#94a3b8",cursor:"pointer",fontSize:10,lineHeight:1}}>
+          {open?"▴":"▾"}
+        </button>
+      )}
+    </div>
+  );
+};
 const Txta = ({style,...p}) => <textarea {...p} style={{...SI,resize:"vertical",...style}}/>;
 
 // Button system — class-based so every button gets real hover / focus-visible / active
@@ -5138,7 +5169,7 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                           return (
                           <tr key={ins.id} className="wb-csrow" style={{borderBottom:"1px solid #f8fafc"}}>
                             <td style={{padding:"4px 4px",textAlign:"center",color:"#94a3b8",fontWeight:700,fontSize:11}}>{idx+1}</td>
-                            <td style={{padding:"4px 4px"}}><Inp value={ins.label} onChange={e=>setQInst(q.id,ins.id,"label",e.target.value)} placeholder="Type any text, e.g. Upon signing this engagement" style={{padding:"2px 6px",fontSize:13,width:"100%",background:"#f8fafc"}}/></td>
+                            <td style={{padding:"4px 4px"}}><ExpandInp value={ins.label} onChange={v=>setQInst(q.id,ins.id,"label",v)} placeholder="Type any text, e.g. Upon signing this engagement" style={{padding:"2px 6px",fontSize:13,width:"100%",background:"#f8fafc"}}/></td>
                             <td style={{padding:"4px 4px"}}><Inp type="number" value={ins.pct} onChange={e=>setQInst(q.id,ins.id,"pct",+e.target.value)} style={{padding:"2px 6px",fontSize:13,width:"100%",textAlign:"right"}}/></td>
                             <td style={{padding:"4px 8px",fontWeight:700,fontSize:13,textAlign:"right",whiteSpace:"nowrap",fontVariantNumeric:"tabular-nums"}}>฿{fmt(insAmt)}</td>
                             <td style={{padding:"4px 8px",fontSize:12,color:"#64748b",fontStyle:"italic",lineHeight:1.35}}>{insAmt>0?bahtWordsEN(insAmt):"—"}</td>
