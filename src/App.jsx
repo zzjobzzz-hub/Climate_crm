@@ -2750,8 +2750,8 @@ const WAVE_CO = {
   address:    "2445/19 Tararom Business Tower 14th Floor, New Petchaburi Rd, Bang Kapi, Huai Khwang, Bangkok 10310",
   tel:        "02-665-6705 #1015",
   email:      "service@wavebcg.com",
-  signer:     "Korakoj Sanguanpiyapan",
-  signerTitle:"Chief Executive Officer",
+  signer:     "",   // name left blank — to be filled in by hand at signing
+  signerTitle:"Sales Manager",
 };
 // Thai company block — wording from th information.xlsx (content reference, not layout)
 const WAVE_CO_TH = {
@@ -2760,8 +2760,8 @@ const WAVE_CO_TH = {
   address:    "2445/19 อาคารธารารมณ์ บิสซิเนส ทาวเวอร์ ชั้น 14 ถนนเพชรบุรีตัดใหม่ แขวงบางกะปิ เขตห้วยขวาง กรุงเทพมหานคร 10310",
   tel:        "02-665-6705 #1015",
   email:      "service@wavebcg.com",
-  signer:     "กรกช สงวนปิยะพันธ์",
-  signerTitle:"ประธานเจ้าหน้าที่บริหาร",
+  signer:     "",   // ปล่อยว่างไว้สำหรับเขียนชื่อตอนลงนาม
+  signerTitle:"ผู้จัดการฝ่ายขาย",
 };
 
 // Wave BCG quotation logo — fetched once from Drive, cached at module scope so every
