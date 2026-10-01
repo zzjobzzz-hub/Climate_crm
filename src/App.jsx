@@ -49,10 +49,6 @@ let MANAGER_USERS = [];
 // 
 const CRM_STATUSES = ["Lead","Qualified","Email Profile","Meeting","Proposal","Negotiation","Won","Lost"];
 const OPP_STATUSES = ["KYC","Proposal","Negotiation","Won","Lost"];
-const DLV_STATUSES = ["In Progress","Pending Client","Under Review","Delivered","Completed","On Hold"];
-// Req 8: Add "Verification" before "Final Delivery"
-const DLV_STEPS = ["Contract Signed","Kick-off Meeting","Data Collection","Analysis","Report Draft",
-                   "Client Review","Revision","Verification","Final Delivery","Invoice Sent","Completed"];
 const INS_STATUSES = ["Pending","Invoiced","Received","Overdue"];
 const LOST_REASONS = ["Price Too High","Budget Frozen","Selected Competitor","Scope Mismatch",
                       "Project Postponed","No Response","Internal Policy","Inactive","Other"];
@@ -2855,7 +2851,7 @@ const exportQuotationPDF = (f, customer, logoB64="", lang="en") => {
     const cur  = isTH ? "฿" : "THB";          // currency label
     const L = isTH ? {
       title:"ใบเสนอราคา", coLegal:"บริษัท เวฟ บีซีจี จำกัด", taxId:"เลขทะเบียนนิติบุคคล:", tel:"เบอร์:",
-      quoteFor:"เสนอราคาแก่:", contact:"ผู้ติดต่อ",
+      quoteFor:"เสนอราคาแก่", contact:"ผู้ติดต่อ",
       mQuote:"ใบเสนอราคา #", mIssued:"วันที่ออก:", mValid:"วันครบกำหนด:", mSales:"พนักงานขาย", mMobile:"เบอร์โทร:", mDiscount:"ส่วนลด:",
       sProject:"โครงการ", sScope:"ขอบเขตงาน", cDesc:"คำอธิบาย", cQty:"จำนวน", cUnit:"หน่วย", cUnitPrice:"ราคาต่อหน่วย", cSubtotal:"ยอดรวม",
       sDeliv:"สิ่งที่นำส่ง", sPay:"การชำระเงิน", pNo:"ลำดับ", pDesc:"รายละเอียด", pPct:"%", pAmount:"จำนวนเงิน",
@@ -3002,7 +2998,7 @@ ${thStyle}
     <table class="meta">
       <tr><td class="meta-key">${L.mQuote}</td><td class="meta-val" style="letter-spacing:0.02em">${f.quoteNo}</td><td class="meta-key">${L.mIssued}</td><td class="meta-val">${df(f.issueDate)}</td></tr>
       <tr><td class="meta-key">${L.mValid}</td><td class="meta-val">${df(f.dueDate)}</td><td class="meta-key">${L.mSales}</td><td class="meta-val">${agentName}</td></tr>
-      <tr><td class="meta-key">${L.mMobile}</td><td class="meta-val">${agentMobP}</td>${discPctT>0?`<td class="meta-key">${L.mDiscount}</td><td class="meta-val" style="color:#b91c1c">${discPctT}%</td>`:"<td></td><td></td>"}</tr>
+      <tr><td class="meta-key">${L.mMobile}</td><td class="meta-val">${agentMobP}</td></tr>
     </table>
   </div>
 </div>
@@ -3705,7 +3701,7 @@ const OppsPage = ({user,customers,opps,onSave,onDelete,onSaveCS,deliveries,onSav
       if(!exists){
         const buildInstFromSrc=(srcInst,cv)=>srcInst.map((ins,i)=>({id:uid(),seq:i+1,label:ins.label||`Installment ${i+1}`,pct:ins.pct||0,amount:Math.round((cv||0)*(ins.pct||0)/100),expected_date:ins.expected_date||"",invoiceNo:"",invoiceDate:"",receiptNo:"",receiptDate:"",status:"Pending",recvMonth:ins.recvMonth||i+1}));
         const autoInst=(()=>{const cs2=(costSheets||[]).find(c2=>(c2.quoteOverrides||[]).some(q=>q.quoteNo===o.quoteNo));const qo2=cs2?(cs2.quoteOverrides||[]).find(q=>q.quoteNo===o.quoteNo):null;if(qo2?.installments?.length>0)return buildInstFromSrc(qo2.installments,o.salesPrice);const qdInst=o?.quotationData?.installments||[];if(qdInst.length>0)return buildInstFromSrc(qdInst,o.salesPrice);return[];})();
-        const dlv={id:`DLV-${o.oppCode.slice(1)}`,custId:o.custId,oppCode:o.oppCode,quoteNo:o.quoteNo,jobCode:o.jobCode,contractNo:"",contractDate:"",serviceCode:o.serviceCode,serviceType:o.serviceType,totalContractValue:o.salesPrice,deliveryStatus:"In Progress",currentStep:DLV_STEPS[0],deliveryDate:"",assignedTo:o.assignedTo,installments:autoInst,paymentTerm:"30 days",remark:"",saveLog:[{id:uid(),ts:nowTS(),author:user.id,note:`Auto-created from ${o.oppCode} — Won.`}]};
+        const dlv={id:`DLV-${o.oppCode.slice(1)}`,custId:o.custId,oppCode:o.oppCode,quoteNo:o.quoteNo,jobCode:o.jobCode,contractNo:"",contractDate:"",serviceCode:o.serviceCode,serviceType:o.serviceType,totalContractValue:o.salesPrice,deliveryDate:"",assignedTo:o.assignedTo,installments:autoInst,paymentTerm:"30 days",remark:"",saveLog:[{id:uid(),ts:nowTS(),author:user.id,note:`Auto-created from ${o.oppCode} — Won.`}]};
         onSaveDelivery(dlv);
         toast("Delivery auto-created",`${o.jobCode} added to Delivery tab`);
       }
@@ -4047,7 +4043,7 @@ const CostBreakdown = ({quoteNo,costSheets}) => {
 
 const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,initTab="detail",userList=[],onMentionNotify=()=>{}}) => {
   const wonOpps=opps.filter(o=>o.status==="Won");
-  const blank={id:`DLV-${uid()}`,custId:"",oppCode:"",quoteNo:"",jobCode:"",contractNo:"",contractDate:"",serviceCode:"",serviceType:"",totalContractValue:0,deliveryStatus:"In Progress",currentStep:DLV_STEPS[0],deliveryDate:"",assignedTo:SALES_USERS[0]?.id||"",installments:[],paymentTerm:"30 days",remark:""};
+  const blank={id:`DLV-${uid()}`,custId:"",oppCode:"",quoteNo:"",jobCode:"",contractNo:"",contractDate:"",serviceCode:"",serviceType:"",totalContractValue:0,deliveryDate:"",assignedTo:SALES_USERS[0]?.id||"",installments:[],paymentTerm:"30 days",remark:""};
   const [f,sF] = useState(initial?{...initial}:blank);
   const initialFRef = useRef(f);
   const dirty = JSON.stringify(f) !== JSON.stringify(initialFRef.current);
@@ -4144,7 +4140,6 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
             <FRow label="Quote No."><Inp value={f.quoteNo} onChange={e=>{set("quoteNo",e.target.value);syncInstByQuote(e.target.value,f.totalContractValue);}} style={{fontFamily:"monospace"}}/></FRow>
             <FRow label="Service Type"><Inp value={f.serviceType} readOnly style={{background:"#f8fafc"}}/></FRow>
             <FRow label="Total Contract Value (THB)" tip="Recalculates all installments"><NumInp value={f.totalContractValue} onChange={v=>setCv(v)}/></FRow>
-            <FRow label="Delivery Status"><Sel value={f.deliveryStatus} onChange={e=>set("deliveryStatus",e.target.value)}>{DLV_STATUSES.map(s=><option key={s}>{s}</option>)}</Sel></FRow>
             <FRow label="Contract No."><Inp value={f.contractNo} onChange={e=>set("contractNo",e.target.value)}/></FRow>
             <FRow label="Contract Date"><Inp type="date" value={f.contractDate} onChange={e=>set("contractDate",e.target.value)}/></FRow>
             <FRow label="Delivery Date"><Inp type="date" value={f.deliveryDate} onChange={e=>set("deliveryDate",e.target.value)}/></FRow>
