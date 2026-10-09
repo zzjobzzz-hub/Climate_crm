@@ -2829,7 +2829,7 @@ const WAVE_CO = {
   tel:        "02-665-6705 #1015",
   email:      "service@wavebcg.com",
   signer:     "",   // name left blank — to be filled in by hand at signing
-  signerTitle:"Sales Manager",
+  signerTitle:"Kittipol Thanasit",
 };
 // Thai company block — wording from th information.xlsx (content reference, not layout)
 const WAVE_CO_TH = {
