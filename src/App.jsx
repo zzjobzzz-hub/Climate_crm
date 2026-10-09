@@ -2829,7 +2829,7 @@ const WAVE_CO = {
   tel:        "02-665-6705 #1015",
   email:      "service@wavebcg.com",
   signer:     "",   // name left blank — to be filled in by hand at signing
-  signerTitle:"Kittipol Thanasit",
+  signerTitle:"Chief Financial Officer",
 };
 // Thai company block — wording from th information.xlsx (content reference, not layout)
 const WAVE_CO_TH = {
@@ -2839,7 +2839,7 @@ const WAVE_CO_TH = {
   tel:        "02-665-6705 #1015",
   email:      "service@wavebcg.com",
   signer:     "",   // ปล่อยว่างไว้สำหรับเขียนชื่อตอนลงนาม
-  signerTitle:"ผู้จัดการฝ่ายขาย",
+  signerTitle:"ประธานเจ้าหน้าที่ฝ่ายการเงิน",
 };
 
 // Wave BCG quotation logo — fetched once from Drive, cached at module scope so every
