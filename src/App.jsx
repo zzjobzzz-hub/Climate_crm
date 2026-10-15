@@ -3249,12 +3249,16 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
     <>
     <Modal title={`Quotation — ${f.quoteNo||"Draft"}`} width={1020} onClose={requestClose} closeOnOverlay>
 
-      {/* TOP INFO BAR — read-only */}
+      {/* TOP INFO BAR — Issue Date / Valid Until are editable; the rest is read-only */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14,padding:"14px 16px",background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0"}}>
         {[
           ["Quote No.",   f.quoteNo,           true],
-          ["Issue Date",  fmtDate(f.issueDate), false],
-          ["Valid Until", fmtDate(f.dueDate),   false],
+          ["Issue Date",  <input type="date" value={f.issueDate||""} onChange={e=>{ if(e.target.value) setIssue(e.target.value); }}
+                            title="Date shown on the quotation and PDF. Valid Until auto-adjusts to +30 days."
+                            style={{fontSize:12,fontWeight:700,color:"#0f172a",border:"1px solid #cbd5e1",borderRadius:5,padding:"3px 6px",background:"#fff",fontFamily:"inherit",maxWidth:"100%"}}/>, false],
+          ["Valid Until", <input type="date" value={f.dueDate||""} min={f.issueDate||undefined} onChange={e=>{ if(e.target.value) set("dueDate",e.target.value); }}
+                            title="Defaults to Issue Date + 30 days; can be overridden."
+                            style={{fontSize:12,fontWeight:700,color:"#0f172a",border:"1px solid #cbd5e1",borderRadius:5,padding:"3px 6px",background:"#fff",fontFamily:"inherit",maxWidth:"100%"}}/>, false],
           ["Sales Agent", agent?.name||"—",     false],
           ["Mobile",      agentMob||"—",        false],
           ["Sales Price (THB)", `฿${fmt(f.salesPrice)}`, false],
