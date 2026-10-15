@@ -5003,30 +5003,17 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
   const months=q.projectMonths||editCS.projectMonths||3;
   const instSum=(q.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
   const [page,setPage]=useState("costs");      // "costs" (COGS/OPEX/Installments/Cashflow) | "content" (Service/Deliverables/Notes)
-  const logoB64=useWaveLogo();
   const cust=customers.find(c=>c.id===q.custId);
-  // Direct quotation-PDF export from the card — builds the quote data from the live edits
-  // and calls the shared generator synchronously so window.open keeps its click gesture.
-  const doExportPDF=(lang)=>{
-    if(!q.custId) return;
-    const data={
-      quoteNo: q.quoteNo,
-      issueDate: today(),
-      dueDate: addDays(today(),30),
-      salesAgentId: q.salesAgent,
-      projectScope: q.projectScope||"",
-      salesPrice: q.salesPrice||0,
-      discountEnabled: q.discountEnabled||false,
-      discountPct: q.discountPct||0,
-      lineItems: (q.lineItems&&q.lineItems.length)
-        ? q.lineItems.map(li=>({...li, description: li.description||q.projectTitle||editCS.serviceType, unitPrice: q.salesPrice||0}))
-        : [{id:uid(), description:q.projectTitle||editCS.serviceType, qty:1, unit:"Job", unitPrice:q.salesPrice||0}],
-      installments: q.installments||[],
-      deliverables: q.deliverables||[],
-      notes: toItemList(q.notes),
-    };
-    exportQuotationPDF(data, cust, logoB64, lang);
-  };
+  // "Quotation" button → same QuotationPreview modal the Opportunities page uses (EN/TH export live inside it).
+  // It is fed this card's LIVE data: a one-service costSheets list holding editCS (whose quoteOverrides include q),
+  // and an opp built from the card with any older saved quotationData dropped so the card stays the source of truth.
+  const [showQuo,setShowQuo]=useState(false);
+  const quoOpp=(()=>{
+    const ex=opps.find(o=>o.oppCode===q.oppCode);
+    return {...(ex||{}), id:q.oppCode, custId:q.custId, oppCode:q.oppCode, quoteNo:q.quoteNo,
+      serviceCode:editCS.serviceCode, serviceType:editCS.serviceType,
+      salesPrice:q.salesPrice||0, assignedTo:q.salesAgent||ex?.assignedTo||"", quotationData:undefined};
+  })();
 
   return (
               <div ref={cardRef} style={{marginBottom:14}}>
@@ -5076,6 +5063,13 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                   <div style={{flex:"0 0 64px"}}>
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>Months</Span>
                     <NumInp value={months} onChange={v=>setQF(q.id,"projectMonths",Math.max(1,Math.round(v)))} style={{fontSize:11,padding:"4px 7px"}}/>
+                  </div>
+                  <div style={{flex:"0 0 130px"}}>
+                    <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>Issue Date</Span>
+                    <input type="date" value={q.issueDate||today()}
+                      onChange={e=>{ const v=e.target.value; if(v) updQO(q.id, quote=>({...quote, issueDate:v, dueDate:addDays(v,30)})); }}
+                      title={`Date printed on the quotation PDF. Valid until: ${fmtDate(q.dueDate||addDays(q.issueDate||today(),30))}`}
+                      style={{...SI,fontSize:11,padding:"4px 7px",width:"100%"}}/>
                   </div>
                 </div>
 
@@ -5352,13 +5346,13 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                     </div>
                   </div>
                   <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:14,flexWrap:"wrap"}}>
-                    <Btn variant="export" icon={<DlIcon/>} disabled={!q.custId} title={q.custId?`Export quotation ${q.quoteNo} (EN)`:"Select a customer first"} onClick={()=>doExportPDF("en")}>Export PDF EN</Btn>
-                    <Btn variant="export" icon={<DlIcon/>} disabled={!q.custId} title={q.custId?`Export quotation ${q.quoteNo} (TH)`:"Select a customer first"} onClick={()=>doExportPDF("th")}>Export PDF TH</Btn>
+                    <Btn variant="export" icon={<DlIcon/>} disabled={!q.custId} title={q.custId?`Open quotation ${q.quoteNo} — preview & export PDF (EN / TH)`:"Select a customer first"} onClick={()=>setShowQuo(true)}>Quotation</Btn>
                     <Btn variant="ghost" onClick={()=>delQO(q.id)}>Cancel</Btn>
                     <Btn icon={<CheckIcon/>} onClick={handleSave} style={{padding:"8px 24px"}}>Save</Btn>
                   </div>
                 </div>
               </Card>
+              {showQuo&&<QuotationPreview opp={quoOpp} customer={cust} costSheets={[editCS]} onClose={()=>setShowQuo(false)}/>}
               </div>
   );
 };
@@ -5534,6 +5528,8 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           projectTitle:q.projectTitle||"",
           projectScope:q.projectScope||"",
           projectMonths:q.projectMonths||editCS.projectMonths||3,
+          issueDate:   q.issueDate||today(),
+          dueDate:     q.dueDate||addDays(q.issueDate||today(),30),
           notes:       toItemList(q.notes),
           costs_json:  q.costs||[],
           tasks_json:  q.tasks||[],
@@ -6992,6 +6988,8 @@ const stripJsonSuffix = obj => {
           projectTitle:    String(parsed.projectTitle||""),
           projectScope:    String(parsed.projectScope||""),
           projectMonths:   parsed.projectMonths||3,
+          issueDate:       String(parsed.issueDate||"").slice(0,10),
+          dueDate:         String(parsed.dueDate||"").slice(0,10),
           notes:           toItemList(parsed.notes),
           // unified cost rows expected by QuoteCard
           costs:           costs,
