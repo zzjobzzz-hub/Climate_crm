@@ -2935,7 +2935,7 @@ const exportQuotationPDF = (f, customer, logoB64="", lang="en") => {
     const custAddr=[customer?.address,customer?.province].filter(Boolean).join(", ");
     const custContacts=(customer?.contacts||[]).filter(c=>c.active).slice(0,2)
       .map(ct=>`<div style="margin-bottom:3px"><strong style="color:#0c1a2e">${ct.name}</strong>${ct.title?` <span style="color:#9aa4b1">· ${ct.title}</span>`:""}<br/>${[ct.email,ct.phone].filter(Boolean).join("<br/>")}</div>`).join("");
-    const acceptLbl = isTH ? `${custName}` : `Accepted by ${custName}`;
+    const acceptLbl = isTH ? `ยอมรับโดย ${custName}` : `Accepted by ${custName}`;
     const notesHtml=toItemList(f.notes).map((n,i)=>`<div class="row"><span class="n">${i+1}</span><span>${n.item||""}</span></div>`).join("");
     const scopeHtml=f.projectScope?`<div class="scope"><b>${L.sScope}</b>${f.projectScope}</div>`:"";
     const lineItemsHtml=(f.lineItems||[]).map((li,i)=>{
