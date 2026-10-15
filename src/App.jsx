@@ -184,6 +184,12 @@ const uid   = () => `${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
 const today = () => new Date().toISOString().slice(0,10);
 const nowTS = () => { const d=new Date(); return `${d.getFullYear()+543}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
 const pad2  = n => String(n).padStart(2,"0");
+// Date coming back from Sheets → "YYYY-MM-DD" in local time (a date cell can arrive as an ISO datetime,
+// and slicing that in UTC would show the previous day in Thailand).
+const normDate = v => { const t=String(v||"").trim(); if(!t) return ""; if(/^\d{4}-\d{2}-\d{2}$/.test(t)) return t; const d=new Date(t); return isNaN(d)?t.slice(0,10):`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
+// Navigation leave-guard: the Cost Sheet page registers a function here while a quote's issue date has unsaved
+// edits; App's sPage() asks it before leaving the page (it shows a Save / Discard dialog, then calls go()).
+let LEAVE_GUARD = null;
 // Converts a CE or BE date string's leading 4-digit year to Buddhist Era; empty/unparseable in → "".
 const toBEDate = d => {
   if (!d) return "";
@@ -944,6 +950,20 @@ const ConfirmDialog = ({title,message,cancelLabel="Cancel",confirmLabel,confirmV
 const ConfirmDiscard = ({onKeepEditing,onDiscard}) => (
   <ConfirmDialog title="Discard unsaved changes?" message="You have edits that haven't been saved yet. Closing now will lose them."
     cancelLabel="Keep Editing" confirmLabel="Discard" onCancel={onKeepEditing} onConfirm={onDiscard}/>
+);
+// Leave-guard for windows that CAN persist their edits: Save or Discard. Clicking outside does nothing
+// (stays in the window), so there is no "Keep Editing" button and no accidental discard.
+const ConfirmSaveLeave = ({onSave,onDiscard,title="Save changes before leaving?",message="You changed this quotation. Save your changes, or discard them."}) => (
+  <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,.5)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+    <div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:360,boxShadow:"0 32px 80px rgba(0,0,0,.2)",padding:"22px 24px"}}>
+      <div style={{fontSize:15,fontWeight:800,color:"#0f172a",marginBottom:6}}>{title}</div>
+      <div style={{fontSize:12,color:"#64748b",lineHeight:1.6,marginBottom:18}}>{message}</div>
+      <div style={{display:"flex",gap:8}}>
+        <Btn variant="ghost" style={{flex:1,justifyContent:"center"}} onClick={onDiscard}>Discard</Btn>
+        <Btn style={{flex:1,justifyContent:"center"}} onClick={onSave}>Save</Btn>
+      </div>
+    </div>
+  </div>
 );
 // Drop-in replacement for a bare row-remove IconBtn (the app's existing convention uses XIcon
 // for "remove this row", reserving TrashIcon for whole-record deletes) inside dense editable
@@ -3157,7 +3177,7 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
 
 
   const qIssueDate = qSnap?.issueDate || initIssue;
-  const qDueDate   = qSnap?.dueDate   || addDays(qIssueDate, 30);
+  const qDueDate   = qSnap?.dueDate   || addDays(qIssueDate, 29);
   const qQuoteNo   = qSnap?.quoteNo   || opp?.quoteNo || "";
 
   const [f, sF] = useState(savedQD ? {
@@ -3205,7 +3225,7 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
   const requestClose = () => { dirty ? setShowDiscard(true) : onClose(); };
 
   const set    = (k,v) => sF(p=>({...p,[k]:v}));
-  const setIssue = v  => sF(p=>({...p,issueDate:v,dueDate:addDays(v,30)}));
+  const setIssue = v  => sF(p=>({...p,issueDate:v,dueDate:addDays(v,29)}));
 
   // Logo: fetch from Google Drive as base64 on mount
   const LOGO_GDRIVE = "https://lh3.googleusercontent.com/d/191l9t4ftBD6PV42Lo293UzYI9VWx8leX";
@@ -3254,10 +3274,10 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
         {[
           ["Quote No.",   f.quoteNo,           true],
           ["Issue Date",  <input type="date" value={f.issueDate||""} onChange={e=>{ if(e.target.value) setIssue(e.target.value); }}
-                            title="Date shown on the quotation and PDF. Valid Until auto-adjusts to +30 days."
+                            title="Date shown on the quotation and PDF. Valid Until auto-adjusts to +29 days."
                             style={{fontSize:12,fontWeight:700,color:"#0f172a",border:"1px solid #cbd5e1",borderRadius:5,padding:"3px 6px",background:"#fff",fontFamily:"inherit",maxWidth:"100%"}}/>, false],
           ["Valid Until", <input type="date" value={f.dueDate||""} min={f.issueDate||undefined} onChange={e=>{ if(e.target.value) set("dueDate",e.target.value); }}
-                            title="Defaults to Issue Date + 30 days; can be overridden."
+                            title="Defaults to Issue Date + 29 days; can be overridden."
                             style={{fontSize:12,fontWeight:700,color:"#0f172a",border:"1px solid #cbd5e1",borderRadius:5,padding:"3px 6px",background:"#fff",fontFamily:"inherit",maxWidth:"100%"}}/>, false],
           ["Sales Agent", agent?.name||"—",     false],
           ["Mobile",      agentMob||"—",        false],
@@ -3445,9 +3465,12 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
         <Btn variant="ghost" onClick={requestClose}>Close</Btn>
         <Btn variant="export" icon={<DlIcon/>} onClick={()=>exportPDF("en")}>Print / Export PDF (EN)</Btn>
         <Btn variant="export" icon={<DlIcon/>} onClick={()=>exportPDF("th")}>พิมพ์ / Export PDF (TH)</Btn>
+        {onSaveQuotation && <Btn icon={<CheckIcon/>} onClick={()=>{ onSaveQuotation(f); initialFRef.current=f; onClose(); }}>Save</Btn>}
       </div>
     </Modal>
-    {showDiscard && <ConfirmDiscard onKeepEditing={()=>setShowDiscard(false)} onDiscard={()=>{setShowDiscard(false);onClose();}}/>}
+    {showDiscard && (onSaveQuotation
+      ? <ConfirmSaveLeave onSave={()=>{ onSaveQuotation(f); setShowDiscard(false); onClose(); }} onDiscard={()=>{setShowDiscard(false);onClose();}}/>
+      : <ConfirmDiscard onKeepEditing={()=>setShowDiscard(false)} onDiscard={()=>{setShowDiscard(false);onClose();}}/>)}
     </>
   );
 };
@@ -4975,7 +4998,7 @@ const TaskTableWidget = ({tasks, onSet, onAdd, onDel, months}) => {
 // 
 // COST SHEET (COGS + OPEX + Cashflow)
 // 
-const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,setQDlv,setQNote,addQIC,addQTK,addQInst,addQDlv,addQNote,delQIC,delQTK,delQInst,delQO,delQDlv,delQNote,updQO,handleSave,highlight,cardRef,toast}) => {
+const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,setQDlv,setQNote,addQIC,addQTK,addQInst,addQDlv,addQNote,delQIC,delQTK,delQInst,delQO,delQDlv,delQNote,updQO,handleSave,highlight,cardRef,toast,dateDirty=false,onDateDirty=()=>{}}) => {
   const qIC=calcIC(q.costs||[]),qOPEX=calcTask(q.tasks||[]);
   const qTC=qIC+qOPEX;
   // Discount: gross price stays in q.salesPrice; margin & opp price use the net (post-discount) figure.
@@ -5008,6 +5031,10 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
   // It is fed this card's LIVE data: a one-service costSheets list holding editCS (whose quoteOverrides include q),
   // and an opp built from the card with any older saved quotationData dropped so the card stays the source of truth.
   const [showQuo,setShowQuo]=useState(false);
+  // Saving from the Quotation window = same as pressing the card's Save: update the card first, then run the
+  // page's handleSave on the next render (so it sees the new dates) → written to Google Sheets (costsheet_quotes).
+  const [saveAfterQuo,setSaveAfterQuo]=useState(false);
+  useEffect(()=>{ if(saveAfterQuo){ setSaveAfterQuo(false); handleSave(); } },[saveAfterQuo]);
   const quoOpp=(()=>{
     const ex=opps.find(o=>o.oppCode===q.oppCode);
     return {...(ex||{}), id:q.oppCode, custId:q.custId, oppCode:q.oppCode, quoteNo:q.quoteNo,
@@ -5064,12 +5091,15 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>Months</Span>
                     <NumInp value={months} onChange={v=>setQF(q.id,"projectMonths",Math.max(1,Math.round(v)))} style={{fontSize:11,padding:"4px 7px"}}/>
                   </div>
-                  <div style={{flex:"0 0 130px"}}>
+                  <div style={{flex:dateDirty?"0 0 190px":"0 0 130px"}}>
                     <Span s={9} c="#94a3b8" style={{textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:3}}>Issue Date</Span>
-                    <input type="date" value={q.issueDate||today()}
-                      onChange={e=>{ const v=e.target.value; if(v) updQO(q.id, quote=>({...quote, issueDate:v, dueDate:addDays(v,30)})); }}
-                      title={`Date printed on the quotation PDF. Valid until: ${fmtDate(q.dueDate||addDays(q.issueDate||today(),30))}`}
-                      style={{...SI,fontSize:11,padding:"4px 7px",width:"100%"}}/>
+                    <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                      <input type="date" value={q.issueDate||today()}
+                        onChange={e=>{ const v=e.target.value; if(v){ updQO(q.id, quote=>({...quote, issueDate:v, dueDate:addDays(v,29)})); onDateDirty(q.id); } }}
+                        title={`Date printed on the quotation PDF. Valid until: ${fmtDate(q.dueDate||addDays(q.issueDate||today(),29))}`}
+                        style={{...SI,fontSize:11,padding:"4px 7px",flex:1,minWidth:0,borderColor:dateDirty?"#f59e0b":"#e2e8f0"}}/>
+                      {dateDirty&&<Btn size="sm" icon={<CheckIcon/>} onClick={handleSave} title="Save the new issue date">Save</Btn>}
+                    </div>
                   </div>
                 </div>
 
@@ -5352,7 +5382,8 @@ const QuoteCard = ({q,editCS,customers,opps,user,setQF,setQIC,setQTK,setQInst,se
                   </div>
                 </div>
               </Card>
-              {showQuo&&<QuotationPreview opp={quoOpp} customer={cust} costSheets={[editCS]} onClose={()=>setShowQuo(false)}/>}
+              {showQuo&&<QuotationPreview opp={quoOpp} customer={cust} costSheets={[editCS]} onClose={()=>setShowQuo(false)}
+                onSaveQuotation={qd=>{ updQO(q.id, quote=>({...quote, issueDate:qd.issueDate, dueDate:qd.dueDate})); setSaveAfterQuo(true); }}/>}
               </div>
   );
 };
@@ -5529,7 +5560,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
           projectScope:q.projectScope||"",
           projectMonths:q.projectMonths||editCS.projectMonths||3,
           issueDate:   q.issueDate||today(),
-          dueDate:     q.dueDate||addDays(q.issueDate||today(),30),
+          dueDate:     q.dueDate||addDays(q.issueDate||today(),29),
           notes:       toItemList(q.notes),
           costs_json:  q.costs||[],
           tasks_json:  q.tasks||[],
@@ -5628,10 +5659,27 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
 
   const curSvc = SERVICES.find(s=>s.code===selCode);
 
+  // ── Unsaved issue-date guard (Save / Discard — no "Keep Editing") ──
+  const [dirtyDates,setDirtyDates] = useState({});            // quote id → true while its issue date has unsaved edits
+  const [leaveAsk,setLeaveAsk] = useState(null);             // {go} while the Save/Discard dialog is open
+  const hasDirtyDate = (editCS.quoteOverrides||[]).some(x=>dirtyDates[x.id]);
+  const saveAll = () => {
+    if((editCS.quoteOverrides||[]).some(x=>!x.custId)){ handleSave(); return false; }   // handleSave shows the "Customer required" message
+    handleSave(); setDirtyDates({}); return true;
+  };
+  useEffect(()=>{
+    LEAVE_GUARD = hasDirtyDate ? (go=>setLeaveAsk({go})) : null;
+    return ()=>{ LEAVE_GUARD = null; };
+  },[hasDirtyDate]);
+  const requestLeave = go => { hasDirtyDate ? setLeaveAsk({go}) : go(); };
+
 
 
   return (
     <div>
+      {leaveAsk && <ConfirmSaveLeave message="You changed the issue date on a quotation. Save it, or discard the change."
+        onSave={()=>{ const go=leaveAsk.go; if(saveAll()){ setLeaveAsk(null); go(); } else setLeaveAsk(null); }}
+        onDiscard={()=>{ const go=leaveAsk.go; setDirtyDates({}); setLeaveAsk(null); LEAVE_GUARD=null; go(); }}/>}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <Span s={22} w={900} c="#0f172a" style={{letterSpacing:"-0.03em"}}>Cost Sheet & Pricing</Span>
         <div></div>
@@ -5639,7 +5687,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
 
       <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:14}}>
         {SERVICES.map(s=>(
-          <button key={s.code} onClick={()=>sCode(s.code)} style={{padding:"5px 11px",borderRadius:5,border:"1px solid",borderColor:selCode===s.code?"#0f172a":"#e2e8f0",background:selCode===s.code?"#0f172a":"#fff",color:selCode===s.code?"#fff":"#374151",fontSize:11,fontWeight:selCode===s.code?700:400,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+          <button key={s.code} onClick={()=>requestLeave(()=>sCode(s.code))} style={{padding:"5px 11px",borderRadius:5,border:"1px solid",borderColor:selCode===s.code?"#0f172a":"#e2e8f0",background:selCode===s.code?"#0f172a":"#fff",color:selCode===s.code?"#fff":"#374151",fontSize:11,fontWeight:selCode===s.code?700:400,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
             <span style={{fontWeight:800,letterSpacing:"0.02em"}}>{s.code}</span>
             <span style={{fontSize:9,opacity:.7,whiteSpace:"nowrap",maxWidth:80,overflow:"hidden",textOverflow:"ellipsis"}}>{s.name}</span>
           </button>
@@ -5706,7 +5754,7 @@ const CostSheetPage = ({costSheets,onSave,customers,opps,user,onSaveOpp,toast,in
               setQF={setQF} setQIC={setQIC} setQTK={setQTK} setQInst={setQInst} setQDlv={setQDlv} setQNote={setQNote}
               addQIC={addQIC} addQTK={addQTK} addQInst={addQInst} addQDlv={addQDlv} addQNote={addQNote}
               delQIC={delQIC} delQTK={delQTK} delQInst={delQInst} delQO={delQO} delQDlv={delQDlv} delQNote={delQNote}
-              updQO={updQO} handleSave={handleSave} toast={toast}
+              updQO={updQO} handleSave={saveAll} dateDirty={!!dirtyDates[q.id]} onDateDirty={id=>setDirtyDates(p=>({...p,[id]:true}))} toast={toast}
             />
           ))}
         </div>
@@ -6852,7 +6900,9 @@ function App() {
   // user's role can't see the target page, so page state can never hold a disallowed value.
   const sPage = (p) => {
     const next = (user && !canAccessPage(user.role, p)) ? "dashboard" : p;
-    location.hash = next; setPageState(next);
+    const go = () => { location.hash = next; setPageState(next); };
+    if (LEAVE_GUARD && next !== page) { LEAVE_GUARD(go); return; }   // unsaved issue date → Save / Discard first
+    go();
   };
   useEffect(()=>{
     const onHash = () => {
@@ -6988,8 +7038,8 @@ const stripJsonSuffix = obj => {
           projectTitle:    String(parsed.projectTitle||""),
           projectScope:    String(parsed.projectScope||""),
           projectMonths:   parsed.projectMonths||3,
-          issueDate:       String(parsed.issueDate||"").slice(0,10),
-          dueDate:         String(parsed.dueDate||"").slice(0,10),
+          issueDate:       normDate(parsed.issueDate),
+          dueDate:         normDate(parsed.dueDate),
           notes:           toItemList(parsed.notes),
           // unified cost rows expected by QuoteCard
           costs:           costs,
