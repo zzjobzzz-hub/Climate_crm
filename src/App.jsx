@@ -174,6 +174,7 @@ const DEFAULT_SPLIT = [0,0,0,0,0,0,0,0,0,0,0,0]; // Adjust & Save in Dashboard K
 // UTILS
 // 
 const fmt   = n => new Intl.NumberFormat("en-US").format(Math.round(n||0));
+const r2    = n => Math.round(((+n||0)+Number.EPSILON)*100)/100;   // round to 2 decimals (satang)
 const fmt2  = n => new Intl.NumberFormat("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}).format(+n||0);   // money with 2 decimals (quotation totals)
 const fmtM  = n => `${((n||0)/1e6).toFixed(2)}M`;
 const fmtK  = n => (n||0)>=1e6?`฿${((n||0)/1e6).toFixed(1)}M`:(n||0)>=1000?`฿${Math.round((n||0)/1000)}K`:`฿${fmt(n)}`;
@@ -2916,9 +2917,9 @@ const exportQuotationPDF = (f, customer, logoB64="", lang="en") => {
     // Discount reduces the list price before VAT; installments are computed on the net.
     const listT=f.salesPrice||0;
     const discPctT=f.discountEnabled?(f.discountPct||0):0;
-    const discAmtT=Math.round(listT*discPctT/100);
-    const netT=listT-discAmtT;
-    const subT=netT, vatT=Math.round(netT*0.07), totT=netT+vatT;
+    const discAmtT=r2(listT*discPctT/100);
+    const netT=r2(listT-discAmtT);
+    const subT=netT, vatT=r2(netT*0.07), totT=r2(netT+vatT);     // VAT = net × 7% to the satang (no whole-baht rounding)
     const agentName=USERS.find(u=>u.id===f.salesAgentId)?.name||"—";
     const agentMobP=SALES_MOBILE[f.salesAgentId]||"—";
     const instRowsHtml=(f.installments||[]).map((ins,i)=>`
@@ -2926,7 +2927,7 @@ const exportQuotationPDF = (f, customer, logoB64="", lang="en") => {
         <td class="idx">${i+1}</td>
         <td>${ins.label||""}</td>
         <td class="num">${ins.pct||0}%</td>
-        <td class="num amt">${cur} ${fmt(Math.round(subT*(ins.pct||0)/100))}<div class="words">(${isTH?bahtWordsTH(Math.round(subT*(ins.pct||0)/100)):bahtWordsEN(Math.round(subT*(ins.pct||0)/100))})</div></td>
+        <td class="num amt">${cur} ${fmt2(r2(subT*(ins.pct||0)/100))}<div class="words">(${isTH?bahtWordsTH(r2(subT*(ins.pct||0)/100)):bahtWordsEN(r2(subT*(ins.pct||0)/100))})</div></td>
       </tr>`).join("");
     const dlvHtml=(f.deliverables||[]).map((d,i)=>`<div class="row"><span class="n">${i+1}</span><span>${d.item||""}</span></div>`).join("");
     const custName=customer?.companyEN||"—";
@@ -2938,13 +2939,13 @@ const exportQuotationPDF = (f, customer, logoB64="", lang="en") => {
     const notesHtml=toItemList(f.notes).map((n,i)=>`<div class="row"><span class="n">${i+1}</span><span>${n.item||""}</span></div>`).join("");
     const scopeHtml=f.projectScope?`<div class="scope"><b>${L.sScope}</b>${f.projectScope}</div>`:"";
     const lineItemsHtml=(f.lineItems||[]).map((li,i)=>{
-      const sub=(li.qty||0)*(li.unitPrice||0);
+      const sub=r2((li.qty||0)*(li.unitPrice||0));
       return `<tr>
         <td>${li.description||""}</td>
         <td class="num">${li.qty||0}</td>
         <td>${li.unit||""}</td>
-        <td class="num">${fmt(li.unitPrice||0)}</td>
-        <td class="num amt">${cur} ${fmt(sub)}</td>
+        <td class="num">${fmt2(li.unitPrice||0)}</td>
+        <td class="num amt">${cur} ${fmt2(sub)}</td>
       </tr>`;
     }).join("");
     // PDF logo: use cached base64 from state, or empty
@@ -3235,11 +3236,11 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
   // Discount reduces the list price before VAT; installments & VAT are computed on the net.
   const listPrice   = f.salesPrice||0;
   const discountPct = f.discountEnabled ? (f.discountPct||0) : 0;
-  const discountAmt = Math.round(listPrice*discountPct/100);
-  const netPrice    = listPrice - discountAmt;
+  const discountAmt = r2(listPrice*discountPct/100);
+  const netPrice    = r2(listPrice - discountAmt);
   const subTotal = netPrice;            // base for installments
-  const vat      = Math.round(netPrice*0.07);
-  const total    = netPrice + vat;
+  const vat      = r2(netPrice*0.07);   // VAT = net × 7% to the satang (no whole-baht rounding)
+  const total    = r2(netPrice + vat);
   const instSum  = (f.installments||[]).reduce((s,i)=>s+(i.pct||0),0);
   const instOk   = Math.abs(instSum-100)<0.1;
 
@@ -3360,14 +3361,14 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
             </thead>
             <tbody>
               {(f.lineItems||[]).map((li)=>{
-                const sub=(li.qty||0)*(li.unitPrice||0);
+                const sub=r2((li.qty||0)*(li.unitPrice||0));
                 return(
                   <tr key={li.id} style={{borderBottom:"1px solid #eef1f5"}}>
                     <td style={{padding:"6px 8px 6px 0",fontSize:11}}>{li.description||"—"}</td>
                     <td style={{padding:"6px 8px",textAlign:"right",fontSize:11,fontVariantNumeric:"tabular-nums"}}>{li.qty||0}</td>
                     <td style={{padding:"6px 8px",fontSize:11}}>{li.unit||""}</td>
-                    <td style={{padding:"6px 8px",textAlign:"right",fontSize:11,fontVariantNumeric:"tabular-nums"}}>{fmt(li.unitPrice||0)}</td>
-                    <td style={{padding:"6px 0 6px 8px",textAlign:"right",fontWeight:700,color:"#0c1a2e",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",fontSize:11}}>฿{fmt(sub)}</td>
+                    <td style={{padding:"6px 8px",textAlign:"right",fontSize:11,fontVariantNumeric:"tabular-nums"}}>{fmt2(li.unitPrice||0)}</td>
+                    <td style={{padding:"6px 0 6px 8px",textAlign:"right",fontWeight:700,color:"#0c1a2e",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",fontSize:11}}>฿{fmt2(sub)}</td>
                   </tr>
                 );
               })}
@@ -3404,7 +3405,7 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
                   <td style={{padding:"6px 8px 6px 0",color:"#9aa4b1",fontWeight:700}}>{idx+1}</td>
                   <td style={{padding:"6px 8px",fontSize:11}}>{ins.label}</td>
                   <td style={{padding:"6px 8px",textAlign:"right",fontSize:11,fontVariantNumeric:"tabular-nums"}}>{ins.pct||0}%</td>
-                  <td style={{padding:"6px 0 6px 8px",textAlign:"right",fontWeight:700,color:"#0c1a2e",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",fontSize:11}}>฿{fmt(Math.round(subTotal*(ins.pct||0)/100))}<div style={{fontSize:9.5,fontWeight:400,fontStyle:"italic",color:"#7c8794",marginTop:1,whiteSpace:"normal",maxWidth:190,marginLeft:"auto"}}>({bahtWordsEN(Math.round(subTotal*(ins.pct||0)/100))})</div></td>
+                  <td style={{padding:"6px 0 6px 8px",textAlign:"right",fontWeight:700,color:"#0c1a2e",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",fontSize:11}}>฿{fmt2(r2(subTotal*(ins.pct||0)/100))}<div style={{fontSize:9.5,fontWeight:400,fontStyle:"italic",color:"#7c8794",marginTop:1,whiteSpace:"normal",maxWidth:190,marginLeft:"auto"}}>({bahtWordsEN(r2(subTotal*(ins.pct||0)/100))})</div></td>
                 </tr>
               ))}
             </tbody>
