@@ -174,6 +174,7 @@ const DEFAULT_SPLIT = [0,0,0,0,0,0,0,0,0,0,0,0]; // Adjust & Save in Dashboard K
 // UTILS
 // 
 const fmt   = n => new Intl.NumberFormat("en-US").format(Math.round(n||0));
+const fmt2  = n => new Intl.NumberFormat("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}).format(+n||0);   // money with 2 decimals (quotation totals)
 const fmtM  = n => `${((n||0)/1e6).toFixed(2)}M`;
 const fmtK  = n => (n||0)>=1e6?`฿${((n||0)/1e6).toFixed(1)}M`:(n||0)>=1000?`฿${Math.round((n||0)/1000)}K`:`฿${fmt(n)}`;
 const fmtDate = d => { if(!d) return "—"; const [y,m,day]=String(d).split("-"); if(!y||!m||!day) return d; return `${day}-${MONTHS[+m-1]||m}-${y}`; };
@@ -3093,11 +3094,11 @@ ${thStyle}
     </table>
     <div class="totals-wrap">
       <div class="totals">
-        <div class="tot-row"><span class="k">${L.tSub}</span><span class="v">${cur} ${fmt(listT)}</span></div>
-        ${discPctT>0?`<div class="tot-row"><span class="k" style="color:#dc2626">${L.tDiscount} (${discPctT}%)</span><span class="v" style="color:#dc2626">− ${cur} ${fmt(discAmtT)}</span></div>
-        <div class="tot-row"><span class="k">${L.tNet}</span><span class="v">${cur} ${fmt(netT)}</span></div>`:""}
-        <div class="tot-row"><span class="k">${L.tVat}</span><span class="v">${cur} ${fmt(vatT)}</span></div>
-        <div class="tot-row tot-final"><span class="k">${L.tTotal}</span><span class="v">${cur} ${fmt(totT)}</span></div>
+        <div class="tot-row"><span class="k">${L.tSub}</span><span class="v">${cur} ${fmt2(listT)}</span></div>
+        ${discPctT>0?`<div class="tot-row"><span class="k" style="color:#dc2626">${L.tDiscount} (${discPctT}%)</span><span class="v" style="color:#dc2626">− ${cur} ${fmt2(discAmtT)}</span></div>
+        <div class="tot-row"><span class="k">${L.tNet}</span><span class="v">${cur} ${fmt2(netT)}</span></div>`:""}
+        <div class="tot-row"><span class="k">${L.tVat}</span><span class="v">${cur} ${fmt2(vatT)}</span></div>
+        <div class="tot-row tot-final"><span class="k">${L.tTotal}</span><span class="v">${cur} ${fmt2(totT)}</span></div>
         <div class="tot-words">(${isTH?bahtWordsTH(totT):bahtWordsEN(totT)})</div>
       </div>
     </div>
@@ -3421,7 +3422,7 @@ const QuotationPreview = ({opp, customer, costSheets, onClose, onSaveQuotation})
               ].map(x=>(
                 <div key={x.l} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:x.b?"6px 0 0":"4px 0",borderTop:x.b?"1.5px solid #0c1a2e":"none",borderBottom:x.b?"none":"1px solid #eef1f5",marginTop:x.b?2:0}}>
                   <span style={{fontWeight:x.b?800:500,color:x.disc?"#dc2626":x.b?"#0c1a2e":"#5b6675",fontSize:x.b?12.5:11.5,textTransform:x.b?"uppercase":"none",letterSpacing:x.b?"0.04em":"normal"}}>{x.l}</span>
-                  <span style={{fontWeight:x.b?900:600,color:x.disc?"#dc2626":x.b?"#0c1a2e":"#243042",fontSize:x.b?15:11.5,fontVariantNumeric:"tabular-nums",fontFamily:x.b?"'Inter Tight','Inter',sans-serif":"inherit"}}>{x.disc?"−":""}฿{fmt(x.v)}</span>
+                  <span style={{fontWeight:x.b?900:600,color:x.disc?"#dc2626":x.b?"#0c1a2e":"#243042",fontSize:x.b?15:11.5,fontVariantNumeric:"tabular-nums",fontFamily:x.b?"'Inter Tight','Inter',sans-serif":"inherit"}}>{x.disc?"−":""}฿{fmt2(x.v)}</span>
                 </div>
               ))}
               <div style={{textAlign:"right",fontSize:10,fontStyle:"italic",color:"#5b6675",marginTop:3}}>({bahtWordsEN(total)})</div>
