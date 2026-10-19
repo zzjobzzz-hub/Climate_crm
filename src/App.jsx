@@ -4300,6 +4300,10 @@ const DeliveryForm = ({initial,customers,opps,user,onSave,onClose,costSheets,ini
   );
 };
 
+// Delivery list columns — header row, Total row and every card share this grid so the columns line up.
+const DLV_GRID = "150px 120px minmax(180px,1fr) 110px 120px 120px 120px 24px";   // Job Code · Services Code · Company · Latest · Contract · Received · Balance · ›
+const DLV_MIN  = 1000;
+
 //  DeliveryCard: proper component — collapsed summary + expandable edit mode 
 const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGoToCust, onGoToOpp, sQT, onGoToCS, userList=[], onMentionNotify=()=>{}}) => {
   const [open, setOpen]       = useState(false);   // card expanded?
@@ -4380,21 +4384,29 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
 
   const totalPct = localInst.reduce((s,i)=>s+(i.pct||0),0);
 
+  // Header cells shared by the collapsed row and the expanded header bar (same grid as the column-head row)
+  const dBalance = (d.totalContractValue||0) - totalRec;
+  const headCells = (expanded) => (
+    <>
+      <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
+        <span style={{fontSize:16,fontWeight:900,color:"#0f172a",fontFamily:"monospace",letterSpacing:"-0.02em",whiteSpace:"nowrap"}}>{localD.jobCode||d.id}</span>
+        {dirty&&<span style={{fontSize:10,fontWeight:700,color:"#d97706",background:"#fef3c7",padding:"1px 7px",borderRadius:10,whiteSpace:"nowrap"}}>Unsaved</span>}
+      </div>
+      <div><SvcBadge code={d.serviceCode}/></div>
+      <div title={cust?.companyEN||d.custId} style={{fontSize:12,color:"#64748b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cust?.companyEN||d.custId}</div>
+      <div style={{fontSize:11,color:"#94a3b8",whiteSpace:"nowrap"}}>{lastLog?.ts||"–"}</div>
+      {[[d.totalContractValue||0,"#0f172a"],[totalRec,"#16a34a"],[dBalance,"#d97706"]].map(([v,c],i)=>(
+        <div key={i} style={{textAlign:"right",fontSize:13,fontWeight:900,color:c,whiteSpace:"nowrap"}}>฿{fmt(v)}</div>
+      ))}
+      <span style={{fontSize:18,color:"#94a3b8",textAlign:"center",lineHeight:1,display:"inline-block",transform:expanded?"rotate(90deg)":"none"}}>›</span>
+    </>
+  );
+
   //  COLLAPSED VIEW 
   if(!open) return (
     <Card style={{overflow:"hidden"}}>
-      <div onClick={()=>setOpen(true)} style={{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,background:"#fff",cursor:"pointer",userSelect:"none"}}>
-        <div style={{display:"flex",alignItems:"center",gap:12,flex:1,minWidth:280,flexWrap:"wrap",pointerEvents:"none"}}>
-          <span style={{fontSize:18,fontWeight:900,color:"#0f172a",fontFamily:"monospace",letterSpacing:"-0.02em"}}>{d.jobCode||d.id}</span>
-          <SvcBadge code={d.serviceCode}/>
-          <span style={{fontSize:12,color:"#64748b"}}>{cust?.companyEN||d.custId}</span>
-          <span style={{fontSize:11,fontFamily:"monospace",color:"#94a3b8"}}>{d.quoteNo||""}</span>
-          {lastLog&&<span style={{fontSize:10,color:"#94a3b8"}}>Last saved: {lastLog.ts}</span>}
-        </div>
-        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",pointerEvents:"none"}}>
-          <InstallmentSummary contractValue={d.totalContractValue} received={totalRec} variant="collapsed"/>
-          <span style={{fontSize:18,color:"#94a3b8",padding:"0 8px"}}>›</span>
-        </div>
+      <div onClick={()=>setOpen(true)} style={{padding:"14px 20px",display:"grid",gridTemplateColumns:DLV_GRID,columnGap:12,alignItems:"center",background:"#fff",cursor:"pointer",userSelect:"none"}}>
+        {headCells(false)}
       </div>
       {lastLog&&(
         <div style={{padding:"5px 20px",borderTop:"1px solid #f1f5f9",background:"#fafafa",display:"flex",gap:10,alignItems:"center",fontSize:10}}>
@@ -4410,14 +4422,9 @@ const DeliveryCard = ({d, opps, costSheets, customers, user, onSave, toast, onGo
   //  EXPANDED / EDIT VIEW 
   return (
     <Card style={{overflow:"hidden",border:dirty?"2px solid #f59e0b":"1px solid #e2e8f0"}}>
-      {/* Card header bar */}
-      <div style={{padding:"12px 20px",background:dirty?"#fffbeb":"#f8fafc",borderBottom:"1px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:18,fontWeight:900,color:"#0f172a",fontFamily:"monospace"}}>{localD.jobCode||d.id}</span>
-          <SvcBadge code={d.serviceCode}/>
-          {dirty&&<span style={{fontSize:11,fontWeight:700,color:"#d97706",background:"#fef3c7",padding:"2px 8px",borderRadius:10}}> Unsaved changes</span>}
-        </div>
-        <button onClick={()=>setOpen(false)} style={{border:"none",background:"none",fontSize:22,color:"#94a3b8",cursor:"pointer",padding:"0 4px",lineHeight:1,transform:"rotate(90deg)",display:"inline-block"}}>›</button>
+      {/* Card header bar — click anywhere on it to collapse */}
+      <div onClick={()=>setOpen(false)} title="Click to collapse" style={{padding:"12px 20px",background:dirty?"#fffbeb":"#f8fafc",borderBottom:"1px solid #e2e8f0",display:"grid",gridTemplateColumns:DLV_GRID,columnGap:12,alignItems:"center",cursor:"pointer",userSelect:"none"}}>
+        {headCells(true)}
       </div>
 
       {/* Meta fields */}
@@ -4695,23 +4702,27 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
   const [form,sF]=useState(false); const [edit,sE]=useState(null); const [gs,sGS]=useState(false);
   const [initTab,sInitTab]=useState("detail"); // which tab to open in DeliveryForm
   const [quotationOpp,sQT]=useState(null); // for inline Quotation Preview modal
-  const [sorts,setSorts]=useState([{col:"date",dir:"desc"}]); // date | contractDate | contractValue
-  const toggleSort=col=>setSorts(p=>cycleSort(p,col));
-  const resetSort=()=>setSorts(p=>p.slice(0,1));
-  // date = latest saveLog ts; everything else is a direct field
+  const DEF_SORT={col:"date",dir:"desc"};                    // default: latest first
+  const [sort,setSort]=useState(DEF_SORT);
+  // Click a column head: high→low, click again low→high, again → back to the default order
+  const toggleSort=col=>setSort(p=>p.col!==col?{col,dir:"desc"}:p.dir==="desc"?{col,dir:"asc"}:DEF_SORT);
+  const recOf=d=>safeArr(d.installments).filter(i=>i.status==="Received"&&i.receiptDate).reduce((s,i)=>s+(i.amount||0),0);
+  // date = latest saveLog ts; contract / received / balance are numeric
   const getDV=(d,col)=>{
-    if(col==="contractDate")  return d.contractDate||"";
-    if(col==="contractValue") return Number(d.totalContractValue)||0;
+    if(col==="contract") return Number(d.totalContractValue)||0;
+    if(col==="received") return recOf(d);
+    if(col==="balance")  return (Number(d.totalContractValue)||0)-recOf(d);
     return [...(d.saveLog||[])].sort((x,y)=>(y.ts||"").localeCompare(x.ts||""))[0]?.ts||"";
   };
   // Req 9: expandable sections per delivery card
 
   const list=deliveries
     .filter(d=>{const c=customers.find(x=>x.id===d.custId);const q=search.toLowerCase();return(!search||(d.jobCode||"").toLowerCase().includes(q)||(c?.companyEN||"").toLowerCase().includes(q)||(d.contractNo||"").toLowerCase().includes(q)||(d.oppCode||"").toLowerCase().includes(q)||(d.serviceCode||"").toLowerCase().includes(q)||(d.serviceType||"").toLowerCase().includes(q)||(d.deliveryStatus||"").toLowerCase().includes(q))&&(year==="all"||toBEDate(d.contractDate).startsWith(String(year)));})
-    .sort((a,b)=>multiCmp(a,b,sorts,getDV));
+    .sort((a,b)=>multiCmp(a,b,sort.col==="date"?[sort]:[sort,DEF_SORT],getDV));
 
   const totContract = list.reduce((s,d)=>s+(Number(d.totalContractValue)||0),0);
-  const totReceived = list.reduce((s,d)=>s+safeArr(d.installments).filter(i=>i.status==="Received"&&i.receiptDate).reduce((x,i)=>x+(i.amount||0),0),0);
+  const totReceived = list.reduce((s,d)=>s+recOf(d),0);
+  const totBalance  = totContract - totReceived;
 
   // ── Cost Report CSV export ─────────────────────────────────────────────
   const exportCostReport = () => {
@@ -4766,23 +4777,35 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
           <SearchInp value={search} onChange={e=>sS(e.target.value)} placeholder="Search job, company, service, status…" style={{width:260}}/>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-          <SortChips fields={[{col:"date",label:"Latest"},{col:"contractDate",label:"Contract"},{col:"contractValue",label:"Value"}]} sorts={sorts} onToggle={toggleSort} onReset={resetSort}/>
-          <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={()=>dlCSV("deliveries.csv",DLV_HDR,list.map(d=>{const c=customers.find(x=>x.id===d.custId);const rec=safeArr(d.installments).filter(i=>i.status==="Received"&&i.receiptDate).reduce((s,i)=>s+i.amount,0);return[d.id,c?.companyEN||d.custId,d.oppCode,d.quoteNo,d.jobCode,d.contractNo,d.contractDate,d.serviceType,d.totalContractValue,d.deliveryStatus,d.currentStep,d.deliveryDate,rec,d.totalContractValue-rec];}))}>CSV</Btn>
           <Btn variant="export" size="sm" icon={<DlIcon/>} onClick={exportCostReport}>Cost Report CSV</Btn>
         </div>
       </div>
-      <div style={{display:"flex",flexDirection:"column",gap:12}}>
-        {list.length>0&&(
-          <Card style={{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,background:"#f1f5f9",border:"1px solid #cbd5e1"}}>
-            <div style={{flex:1,minWidth:280,display:"flex",alignItems:"center",gap:8}}>
+      <div style={{overflowX:"auto"}}>
+      <div style={{display:"flex",flexDirection:"column",gap:12,minWidth:DLV_MIN}}>
+        {list.length>0&&(()=>{
+          const SortHead=({col,label,right})=>{
+            const on=sort.col===col, arrow=on?(sort.dir==="desc"?" ▼":" ▲"):"";
+            return <button onClick={()=>toggleSort(col)} title="Click to sort: high→low, low→high, then default" style={{border:"none",background:"none",padding:0,cursor:"pointer",font:"inherit",textAlign:right?"right":"left",fontSize:10,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:on?"#1e40af":"#64748b",whiteSpace:"nowrap"}}>{label}{arrow}</button>;
+          };
+          const Lbl=({children,right})=><span style={{fontSize:10,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748b",textAlign:right?"right":"left",whiteSpace:"nowrap"}}>{children}</span>;
+          return (
+          <Card style={{padding:"10px 20px 12px",background:"#f1f5f9",border:"1px solid #cbd5e1"}}>
+            <div style={{display:"grid",gridTemplateColumns:DLV_GRID,columnGap:12,alignItems:"center"}}>
+              <Lbl>Job Code</Lbl><Lbl>Services Code</Lbl><Lbl>Company Name</Lbl>
+              <SortHead col="date" label="Latest"/>
+              <SortHead col="contract" label="Contract" right/><SortHead col="received" label="Received" right/><SortHead col="balance" label="Balance" right/>
+              <span/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:DLV_GRID,columnGap:12,alignItems:"center",marginTop:8,paddingTop:8,borderTop:"1px solid #cbd5e1"}}>
               <Span s={14} w={900} c="#0f172a" style={{letterSpacing:"0.02em",textTransform:"uppercase"}}>Total</Span>
+              <span/><span/><span/>
+              {[[totContract,"#0f172a"],[totReceived,"#16a34a"],[totBalance,"#d97706"]].map(([v,c],i)=>(
+                <div key={i} style={{textAlign:"right",fontSize:13,fontWeight:900,color:c,whiteSpace:"nowrap"}}>฿{fmt(v)}</div>
+              ))}
+              <span/>
             </div>
-            <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              <InstallmentSummary contractValue={totContract} received={totReceived} variant="collapsed"/>
-              <span style={{fontSize:18,padding:"0 8px",visibility:"hidden"}}>›</span>
-            </div>
-          </Card>
-        )}
+          </Card>);
+        })()}
         {list.map(d => {
           return (
             <DeliveryCard key={d.id} d={d} opps={opps} costSheets={costSheets} customers={customers} user={user}
@@ -4791,6 +4814,7 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
           );
         })}
                 {list.length===0&&<Card style={{padding:40,textAlign:"center",color:"#94a3b8"}}>No delivery records found.</Card>}
+      </div>
       </div>
       {form&&<DeliveryForm initial={edit} customers={customers} opps={opps} user={user} onSave={d=>{onSave(d);sF(false);sE(null);sInitTab("detail");toast("Delivery saved",d.jobCode||d.id);}} onClose={()=>{sF(false);sE(null);sInitTab("detail");}} costSheets={costSheets} initTab={initTab} userList={userList} onMentionNotify={onMentionNotify}/>}
 
