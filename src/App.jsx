@@ -4785,22 +4785,21 @@ const DeliveryPage = ({user,customers,opps,deliveries,onSave,toast,costSheets,on
         {list.length>0&&(()=>{
           const SortHead=({col,label,right})=>{
             const on=sort.col===col, arrow=on?(sort.dir==="desc"?" ▼":" ▲"):"";
-            return <button onClick={()=>toggleSort(col)} title="Click to sort: high→low, low→high, then default" style={{border:"none",background:"none",padding:0,cursor:"pointer",font:"inherit",textAlign:right?"right":"left",fontSize:10,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:on?"#1e40af":"#64748b",whiteSpace:"nowrap"}}>{label}{arrow}</button>;
+            return <button onClick={()=>toggleSort(col)} title="Click to sort: high→low, low→high, then default" style={{border:"none",background:"none",padding:0,cursor:"pointer",font:"inherit",textAlign:right?"right":"left",fontSize:10,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:on?"#1e40af":"#94a3b8",whiteSpace:"nowrap"}}>{label}{arrow}</button>;
           };
-          const Lbl=({children,right})=><span style={{fontSize:10,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"#64748b",textAlign:right?"right":"left",whiteSpace:"nowrap"}}>{children}</span>;
+          const Lbl=({children,right})=><span style={{fontSize:10,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase",color:"#94a3b8",textAlign:right?"right":"left",whiteSpace:"nowrap"}}>{children}</span>;
           return (
-          <Card style={{padding:"10px 20px 12px",background:"#f1f5f9",border:"1px solid #cbd5e1"}}>
+          <Card style={{padding:"2px 20px 4px",background:"transparent",border:"none",borderRadius:0}}>
             <div style={{display:"grid",gridTemplateColumns:DLV_GRID,columnGap:12,alignItems:"center"}}>
               <Lbl>Job Code</Lbl><Lbl>Services Code</Lbl><Lbl>Company Name</Lbl>
               <SortHead col="date" label="Latest"/>
               <SortHead col="contract" label="Contract" right/><SortHead col="received" label="Received" right/><SortHead col="balance" label="Balance" right/>
               <span/>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:DLV_GRID,columnGap:12,alignItems:"center",marginTop:8,paddingTop:8,borderTop:"1px solid #cbd5e1"}}>
-              <Span s={14} w={900} c="#0f172a" style={{letterSpacing:"0.02em",textTransform:"uppercase"}}>Total</Span>
-              <span/><span/><span/>
-              {[[totContract,"#0f172a"],[totReceived,"#16a34a"],[totBalance,"#d97706"]].map(([v,c],i)=>(
-                <div key={i} style={{textAlign:"right",fontSize:13,fontWeight:900,color:c,whiteSpace:"nowrap"}}>฿{fmt(v)}</div>
+            <div style={{display:"grid",gridTemplateColumns:DLV_GRID,columnGap:12,alignItems:"center",marginTop:6,paddingTop:6,borderTop:"1px solid #e2e8f0"}}>
+              <span/><span/><span/><span/>
+              {[[totContract,"#475569"],[totReceived,"#16a34a"],[totBalance,"#d97706"]].map(([v,c],i)=>(
+                <div key={i} style={{textAlign:"right",fontSize:13,fontWeight:700,color:c,opacity:0.8,whiteSpace:"nowrap"}}>฿{fmt(v)}</div>
               ))}
               <span/>
             </div>
